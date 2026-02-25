@@ -29,7 +29,7 @@ Before using AWS Lambda durable functions, verify:
 
 2. **Runtime environment** is ready:
    - For TypeScript/JavaScript: Node.js 22+ (`node --version`)
-   - For Python: Python 3.13+ (`python --version`)
+   - For Python: Python 3.11+ (`python --version`)
 
 3. **Deployment capability** exists (one of):
    - AWS SAM CLI (`sam --version`) 1.153.1 or higher
@@ -79,7 +79,7 @@ Add validation hooks to `.kiro/hooks/`:
   "description": "Check for replay model violations before deployment",
   "version": "1",
   "when": {
-    "type": "userTriggered"
+    "type": "beforeCommit"
   },
   "then": {
     "type": "askAgent",

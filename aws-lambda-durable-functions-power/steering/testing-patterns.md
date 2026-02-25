@@ -61,7 +61,7 @@ describe('My Durable Function', () => {
 **Python:**
 ```python
 import pytest
-from aws_durable_execution_sdk_python_testing import InvocationStatus
+from aws_durable_execution_sdk_python.execution import InvocationStatus
 from my_module import handler
 
 @pytest.mark.durable_execution(
@@ -338,7 +338,7 @@ it('should fail after max retries', async () => {
         throw new Error('Permanent failure');
       },
       {
-        retryStrategy: RetryPresets.exponentialBackoff({ maxAttempts: 3 })
+        retryStrategy: createRetryStrategy({ maxAttempts: 3 })
       }
     );
   });

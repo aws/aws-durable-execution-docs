@@ -63,6 +63,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 
 **Python:**
 ```python
+# Note: invoke_ai_model and execute_tool are decorated with @durable_step
 @durable_execution
 def handler(event: dict, context: DurableContext) -> str:
     context.logger.info('Starting AI agent', extra={'prompt': event['prompt']})
@@ -70,10 +71,7 @@ def handler(event: dict, context: DurableContext) -> str:
 
     while True:
         # Invoke AI model
-        result = context.step(
-            lambda _: invoke_ai_model(messages),
-            name='invoke-model'
-        )
+        result = context.step(invoke_ai_model(messages))
 
         response = result['response']
         reasoning = result.get('reasoning')
@@ -88,7 +86,7 @@ def handler(event: dict, context: DurableContext) -> str:
 
         # Execute tool with dynamic step naming
         tool_result = context.step(
-            lambda _: execute_tool(tool, response),
+            func=execute_tool(tool, response),
             name=f"execute-tool-{tool['name']}"
         )
 
