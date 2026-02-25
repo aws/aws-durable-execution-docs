@@ -2,8 +2,6 @@
 
 Comprehensive error handling patterns for durable functions.
 
-## Retry Presets
-
 **TypeScript:**
 ```typescript
 import { createRetryStrategy, JitterStrategy } from '@aws/durable-execution-sdk-js';
@@ -28,9 +26,10 @@ const result = await context.step(
   'simple-retry',
   async () => operation(),
   {
-    retryStrategy: RetryPresets.fixedDelay({
+    retryStrategy: createRetryStrategy({
       maxAttempts: 3,
-      delay: { seconds: 5 }
+      delay: { seconds: 5 },
+      backoffRate: 1
     })
   }
 );
