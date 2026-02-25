@@ -65,7 +65,7 @@ Your Lambda execution role MUST have the `AWSLambdaBasicDurableExecutionRolePoli
 
 **Additional permissions needed for:**
 - **Durable invokes**: `lambda:InvokeFunction` on target function ARNs
-- **External callbacks**: Systems need `lambda:SendDurableExecutionCallbackSuccess` and `lambda:SendDurableExecutionCallbackFailure`
+- **External callbacks**: Systems need `lambda:SendDurableExecutionCallbackSuccess`, `lambda:SendDurableExecutionCallbackHeartbeat` and `lambda:SendDurableExecutionCallbackFailure`
 
 ### Step 5: Create Workspace Hooks
 
