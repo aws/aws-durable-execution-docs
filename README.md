@@ -9,7 +9,7 @@ functions across multiple programming languages.
 
 ```
 docs/                                    # Documentation source files (coming soon)
-aws-lambda-durable-functions-power/      # Kiro Power for AI assistance
+aws-lambda-durable-functions-power/      # Kiro power for AI assistance
 ```
 
 ## Documentation source
