@@ -1,7 +1,7 @@
 ---
 name: "aws-lambda-durable-functions"
-displayName: "AWS Lambda durable functions"
-description: "Build resilient, long-running AWS Lambda functions with automatic state persistence, retry logic, and workflow orchestration for up to 1 year execution"
+displayName: "Build applications with Lambda durable functions"
+description: "Build resilient multi-step applications and AI workflows with automatic state persistence, retry logic, and workflow orchestration for long-running executions."
 keywords: [
   "lambda", "durable", "workflow", "orchestration", "state machine",
   "retry", "checkpoint", "long-running", "stateful", "saga",
