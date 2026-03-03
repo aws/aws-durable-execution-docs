@@ -17,7 +17,7 @@ Coming soon...!
 
 ## Kiro Power
 
-This repository includes a [Kiro Power](https://kiro.dev/powers/) that provides
+This repository includes a [Kiro power](https://kiro.dev/powers/) that provides
 AI-assisted guidance for building durable functions. The power includes:
 
 - Replay model rules and best practices
