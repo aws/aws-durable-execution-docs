@@ -1,4 +1,4 @@
-# AWS durable functions developer documentation source
+# AWS Lambda durable functions developer documentation source
 
 This repository contains the source for the AWS Durable Execution SDK
 documentation website, providing comprehensive guides and references for
