@@ -3,6 +3,7 @@
 Comprehensive error handling patterns for durable functions.
 
 **TypeScript:**
+
 ```typescript
 import { createRetryStrategy, JitterStrategy } from '@aws/durable-execution-sdk-js';
 
@@ -36,6 +37,7 @@ const result = await context.step(
 ```
 
 **Python:**
+
 ```python
 from aws_durable_execution_sdk_python.retries import RetryStrategyConfig, create_retry_strategy
 
@@ -56,6 +58,7 @@ result = context.step(
 ## Custom Retry Logic
 
 **TypeScript:**
+
 ```typescript
 const result = await context.step(
   'custom-retry',
@@ -82,6 +85,7 @@ const result = await context.step(
 ```
 
 **Python:**
+
 ```python
 def custom_retry(error: Exception, attempt: int) -> RetryDecision:
     if hasattr(error, 'status_code') and 400 <= error.status_code < 500:
@@ -101,6 +105,7 @@ def custom_retry(error: Exception, attempt: int) -> RetryDecision:
 ### Retryable vs Non-Retryable
 
 **TypeScript:**
+
 ```typescript
 class ValidationError extends Error {
   name = 'ValidationError';
@@ -124,6 +129,7 @@ const result = await context.step(
 ```
 
 **Python:**
+
 ```python
 retry_config = RetryStrategyConfig(
     max_attempts=3,
@@ -136,6 +142,7 @@ retry_config = RetryStrategyConfig(
 Implement compensating transactions for distributed workflows:
 
 **TypeScript:**
+
 ```typescript
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
   const compensations: Array<{
@@ -192,6 +199,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ```
 
 **Python:**
+
 ```python
 # Note: All service methods are decorated with @durable_step
 @durable_execution
@@ -229,6 +237,7 @@ def handler(event: dict, context: DurableContext) -> dict:
 Mark errors as unrecoverable to stop execution immediately:
 
 **TypeScript:**
+
 ```typescript
 import { UnrecoverableInvocationError } from '@aws/durable-execution-sdk-js';
 
@@ -249,6 +258,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ```
 
 **Python:**
+
 ```python
 from aws_durable_execution_sdk_python.exceptions import InvocationError
 
@@ -270,6 +280,7 @@ def handler(event: dict, context: DurableContext) -> dict:
 Ensure errors are deterministic across replays:
 
 **TypeScript:**
+
 ```typescript
 class CustomBusinessError extends Error {
   constructor(
@@ -299,6 +310,7 @@ const result = await context.step('validate', async () => {
 ## Circuit Breaker Pattern
 
 **TypeScript:**
+
 ```typescript
 class CircuitBreaker {
   private failures = 0;
@@ -354,6 +366,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ## Partial Failure Handling
 
 **TypeScript:**
+
 ```typescript
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
   const results = await context.map(

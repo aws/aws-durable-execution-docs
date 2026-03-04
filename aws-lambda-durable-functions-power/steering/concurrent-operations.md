@@ -7,6 +7,7 @@ Process arrays and run operations in parallel with concurrency control.
 Process arrays with automatic concurrency control and completion policies:
 
 **TypeScript:**
+
 ```typescript
 const items = [1, 2, 3, 4, 5];
 
@@ -32,6 +33,7 @@ const allResults = results.getResults();
 ```
 
 **Python:**
+
 ```python
 # Note: process is decorated with @durable_step
 from aws_durable_execution_sdk_python.concurrency import MapConfig, CompletionConfig
@@ -63,6 +65,7 @@ all_results = results.get_results()
 Run heterogeneous operations concurrently:
 
 **TypeScript:**
+
 ```typescript
 const results = await context.parallel(
   'parallel-ops',
@@ -87,6 +90,7 @@ const [user, orders, preferences] = results.getResults();
 ```
 
 **Python:**
+
 ```python
 # Note: fetch_user, fetch_orders, fetch_preferences are decorated with @durable_step
 from aws_durable_execution_sdk_python.concurrency import ParallelConfig
@@ -120,6 +124,7 @@ user, orders, preferences = results.get_results()
 Require a minimum number of successful operations:
 
 **TypeScript:**
+
 ```typescript
 const results = await context.map(
   'process-batch',
@@ -138,6 +143,7 @@ const results = await context.map(
 Allow a specific number of failures:
 
 **TypeScript:**
+
 ```typescript
 const results = await context.map(
   'process-batch',
@@ -156,6 +162,7 @@ const results = await context.map(
 Allow a percentage of failures:
 
 **TypeScript:**
+
 ```typescript
 const results = await context.map(
   'process-batch',
@@ -170,6 +177,7 @@ const results = await context.map(
 ```
 
 **Python:**
+
 ```python
 results = context.map(
     items=items,
@@ -188,6 +196,7 @@ results = context.map(
 ### Check Status
 
 **TypeScript:**
+
 ```typescript
 const results = await context.map('process', items, processFunc);
 
@@ -202,6 +211,7 @@ console.log(results.hasFailure());     // Boolean
 ### Get Results
 
 **TypeScript:**
+
 ```typescript
 // Get all results (throws if any failed)
 const allResults = results.getResults();
@@ -227,6 +237,7 @@ const all = results.all.map(item => ({
 ### Error Handling
 
 **TypeScript:**
+
 ```typescript
 const results = await context.map('process', items, processFunc);
 
@@ -247,6 +258,7 @@ if (results.hasFailure()) {
 ### Fixed Concurrency
 
 **TypeScript:**
+
 ```typescript
 const results = await context.map(
   'process',
@@ -261,6 +273,7 @@ const results = await context.map(
 Adjust based on item characteristics:
 
 **TypeScript:**
+
 ```typescript
 const results = await context.map(
   'process',
@@ -287,6 +300,7 @@ const results = await context.map(
 ### Map with Callbacks
 
 **TypeScript:**
+
 ```typescript
 const results = await context.map(
   'process-with-approval',
@@ -311,6 +325,7 @@ const results = await context.map(
 ### Nested Map Operations
 
 **TypeScript:**
+
 ```typescript
 const results = await context.map(
   'process-batches',
@@ -330,6 +345,7 @@ const results = await context.map(
 ### Map with Child Contexts
 
 **TypeScript:**
+
 ```typescript
 const results = await context.map(
   'complex-process',

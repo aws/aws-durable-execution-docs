@@ -11,6 +11,7 @@ Ask to create a git repo for projects if one doesn't exist already.
 ## Basic Handler
 
 **TypeScript:**
+
 ```typescript
 import { withDurableExecution, DurableContext } from '@aws/durable-execution-sdk-js';
 
@@ -33,6 +34,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ```
 
 **Python:**
+
 ```python
 from aws_durable_execution_sdk_python import durable_execution, DurableContext, durable_step, StepContext
 from aws_durable_execution_sdk_python.config import Duration
@@ -58,6 +60,7 @@ def handler(event: dict, context: DurableContext) -> dict:
 ### Multi-Step Workflow
 
 **TypeScript:**
+
 ```typescript
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
   const validated = await context.step('validate', async () => 
@@ -81,6 +84,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ### GenAI Agent (Agentic Loop)
 
 **TypeScript:**
+
 ```typescript
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
   const messages = [{ role: 'user', content: event.prompt }];
@@ -102,6 +106,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ```
 
 **Python:**
+
 ```python
 # Note: invoke_ai_model and execute_tool are decorated with @durable_step
 @durable_execution
@@ -122,6 +127,7 @@ def handler(event: dict, context: DurableContext) -> str:
 ### Human-in-the-Loop Approval
 
 **TypeScript:**
+
 ```typescript
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
   const plan = await context.step('generate-plan', async () =>
@@ -144,6 +150,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ```
 
 **Python:**
+
 ```python
 from aws_durable_execution_sdk_python.waits import WaitForCallbackConfig
 
@@ -171,6 +178,7 @@ def handler(event: dict, context: DurableContext) -> dict:
 ### Saga Pattern (Compensating Transactions)
 
 **TypeScript:**
+
 ```typescript
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
   const compensations: Array<{ name: string; fn: () => Promise<void> }> = [];
@@ -268,6 +276,7 @@ export default [
 ```
 
 **What the plugin catches:**
+
 - Nested durable operations inside step functions
 - Incorrect usage of durable context outside handler
 - Common replay model violations
@@ -275,6 +284,7 @@ export default [
 ## Jest Configuration
 
 **jest.config.js:**
+
 ```javascript
 module.exports = {
   preset: 'ts-jest',
@@ -292,6 +302,7 @@ module.exports = {
 ```
 
 **Key Configuration:**
+
 - `preset: 'ts-jest'` - Essential for TypeScript support
 - `transform` - Maps .ts files to ts-jest transformer
 - `testMatch` - Specifies test file patterns
@@ -326,6 +337,14 @@ When starting a new durable function project:
 - [ ] Verify TypeScript compilation: `npx tsc --noEmit`
 - [ ] Run tests to confirm setup: `npm test`
 - [ ] Review replay model rules (no non-deterministic code outside steps)
+
+## Error Scenarios
+
+### Unsupported Language
+
+- List detected language
+- State: "Durable Execution SDK is not yet available for [language]"
+- List supported languages as alternatives
 
 ## Next Steps
 
