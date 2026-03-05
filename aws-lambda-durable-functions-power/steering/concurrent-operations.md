@@ -44,8 +44,8 @@ def process_item(ctx: DurableContext, item: int, index: int, items: list):
     return ctx.step(process(item), name=f'process-{index}')
 
 results = context.map(
-    items,
-    process_item,
+    inputs=items,
+    func=process_item,
     name='process-items',
     config=MapConfig(
         max_concurrency=3,
@@ -176,8 +176,8 @@ const results = await context.map(
 
 ```python
 results = context.map(
-    items,
-    process_item,
+    inputs=items,
+    func=process_item,
     config=MapConfig(
         completion_config=CompletionConfig(
             tolerated_failure_percentage=10
