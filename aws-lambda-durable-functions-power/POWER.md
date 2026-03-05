@@ -126,11 +126,10 @@ def handler(event: dict, context: DurableContext) -> dict:
 
 The Python SDK differs from TypeScript in several key areas:
 
-- **Steps**: Use `@durable_step` decorator + `context.step(my_step(args))`, or inline `context.step(lambda _: ..., name='...')`
+- **Steps**: Use `@durable_step` decorator + `context.step(my_step(args))`, or inline `context.step(lambda _: ..., name='...')`. Prefer the decorator for automatic step naming.
 - **Step config**: `config=StepConfig(retry_strategy=...)` keyword, not positional
-- **Callbacks**: Use `context.create_callback(name=..., config=CallbackConfig(...))` → returns `Callback` with `.callback_id` and `.result()`. No `submitter=` pattern.
 - **Wait**: `context.wait(duration=Duration.from_seconds(n), name='...')`
-- **Exceptions**: `ExecutionError` (permanent), `InvocationError` (transient), `CallbackError` (callback failures) — all from top-level `aws_durable_execution_sdk_python`
+- **Exceptions**: `ExecutionError` (permanent), `InvocationError` (transient), `CallbackError` (callback failures)
 - **Testing**: `DurableFunctionTestRunner` with `@pytest.mark.durable_execution` marker and `durable_runner` fixture
 
 ### Invocation Requirements

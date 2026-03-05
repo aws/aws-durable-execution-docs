@@ -377,7 +377,7 @@ try {
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python import CallbackError
+from aws_durable_execution_sdk_python.exceptions import CallbackError
 from aws_durable_execution_sdk_python.config import CallbackConfig
 
 try:

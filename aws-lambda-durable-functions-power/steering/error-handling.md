@@ -260,7 +260,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python import ExecutionError
+from aws_durable_execution_sdk_python.exceptions import ExecutionError
 
 @durable_execution
 def handler(event: dict, context: DurableContext) -> dict:
