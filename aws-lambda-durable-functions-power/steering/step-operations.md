@@ -86,8 +86,8 @@ from aws_durable_execution_sdk_python.retries import RetryStrategyConfig, create
 
 retry_config = RetryStrategyConfig(
     max_attempts=5,
-    initial_delay=Duration.from_seconds(5),
-    max_delay=Duration.from_seconds(60),
+    initial_delay_seconds=5,
+    max_delay_seconds=60,
     backoff_rate=2.0,
     jitter_strategy=JitterStrategy.FULL
 )
