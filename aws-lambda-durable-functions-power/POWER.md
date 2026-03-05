@@ -162,7 +162,8 @@ When implementing or modifying tests for durable functions, ALWAYS verify:
 1. All operations have descriptive names
 2. Tests get operations by NAME, never by index
 3. Replay behavior is tested with multiple invocations
-4. Use `LocalDurableTestRunner` for local testing
+4. TypeScript: Use `LocalDurableTestRunner` for local testing
+5. Python: Use `DurableFunctionTestRunner` with `@pytest.mark.durable_execution` marker and `durable_runner` fixture
 
 ## Resources
 
