@@ -260,7 +260,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python.exceptions import InvocationError
+from aws_durable_execution_sdk_python import ExecutionError
 
 @durable_execution
 def handler(event: dict, context: DurableContext) -> dict:
@@ -268,12 +268,22 @@ def handler(event: dict, context: DurableContext) -> dict:
     def fetch_user_step(step_ctx: StepContext):
         user = fetch_user(event['user_id'])
         if not user:
-            raise InvocationError('User not found')
+            # Stop execution immediately — permanent failure, no retry
+            raise ExecutionError('User not found')
         return user
     
     user = context.step(fetch_user_step())
     # Continue processing...
 ```
+
+The SDK provides these exception types for different failure scenarios:
+
+| Exception | Retryable | Use case |
+|-----------|-----------|----------|
+| `ExecutionError` | No | Permanent business logic failures (returns FAILED status) |
+| `InvocationError` | Yes (by Lambda) | Transient infrastructure issues (Lambda retries invocation) |
+| `CallbackError` | No | Callback handling failures |
+| `DurableExecutionsError` | — | Base class for all SDK exceptions |
 
 ## Error Determinism
 

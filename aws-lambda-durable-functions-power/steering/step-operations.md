@@ -315,14 +315,25 @@ try {
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python.exceptions import CallableRuntimeError
-
 try:
     # Note: risky_operation is decorated with @durable_step
     result = context.step(risky_operation())
-except CallableRuntimeError as error:
-    context.logger.error('Step failed', error.cause)
+except Exception as error:
+    context.logger.error('Step failed: %s', str(error))
     # Handle or rethrow
+```
+
+For SDK-specific exceptions, use the base class or specific types:
+
+```python
+from aws_durable_execution_sdk_python import DurableExecutionsError
+
+try:
+    result = context.step(risky_operation())
+except DurableExecutionsError as error:
+    context.logger.error('SDK error: %s', str(error))
+except Exception as error:
+    context.logger.error('Application error: %s', str(error))
 ```
 
 ## Best Practices
