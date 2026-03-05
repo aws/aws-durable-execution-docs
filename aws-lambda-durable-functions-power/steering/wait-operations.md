@@ -7,6 +7,7 @@ Suspend execution without compute charges for delays, external callbacks, and po
 Pause execution for a duration (no compute charges during wait):
 
 **TypeScript:**
+
 ```typescript
 await context.wait({ seconds: 30 });
 await context.wait({ minutes: 5 });
@@ -18,6 +19,7 @@ await context.wait('rate-limit-delay', { seconds: 60 });
 ```
 
 **Python:**
+
 ```python
 from aws_durable_execution_sdk_python.config import Duration
 
@@ -37,6 +39,7 @@ context.wait(duration=Duration.from_seconds(60), name='rate-limit-delay')
 Wait for external systems to respond (human approval, webhook, async job):
 
 **TypeScript:**
+
 ```typescript
 const result = await context.waitForCallback(
   'wait-for-approval',
@@ -57,32 +60,37 @@ const result = await context.waitForCallback(
 ```
 
 **Python:**
-```python
-from aws_durable_execution_sdk_python.waits import WaitForCallbackConfig
 
-def submit_approval(callback_id: str):
+```python
+from aws_durable_execution_sdk_python.config import WaitForCallbackConfig
+
+# Wait for external approval
+def submit_approval(callback_id: str, ctx):
+    ctx.logger.info('Sending approval request')
     send_approval_email(approver_email, callback_id)
 
 result = context.wait_for_callback(
     submitter=submit_approval,
+    name='wait-for-approval',
     config=WaitForCallbackConfig(
         timeout=Duration.from_hours(24),
         heartbeat_timeout=Duration.from_minutes(5)
-    ),
-    name='wait-for-approval'
+    )
 )
 ```
 
 ### Callback Success
 
 **CLI:**
+
 ```bash
 aws lambda send-durable-execution-callback-success \
   --callback-id <callbackId> \
   --payload '{"status": "approved", "comments": "Looks good"}'
 ```
 
-**SDK:**
+**SDK (TypeScript):**
+
 ```typescript
 import { LambdaClient, SendDurableExecutionCallbackSuccessCommand } from '@aws-sdk/client-lambda';
 
@@ -93,9 +101,23 @@ await client.send(new SendDurableExecutionCallbackSuccessCommand({
 }));
 ```
 
+**SDK (Python / boto3):**
+
+```python
+import boto3
+import json
+
+lambda_client = boto3.client('lambda')
+lambda_client.send_durable_execution_callback_success(
+    CallbackId=callback_id,
+    Result=json.dumps({'status': 'approved'})
+)
+```
+
 ### Callback Failure
 
 **CLI:**
+
 ```bash
 aws lambda send-durable-execution-callback-failure \
   --callback-id <callbackId> \
@@ -108,6 +130,7 @@ aws lambda send-durable-execution-callback-failure \
 Keep callback alive during long-running external processes:
 
 **TypeScript:**
+
 ```typescript
 const result = await context.waitForCallback(
   'long-process',
@@ -125,6 +148,7 @@ const result = await context.waitForCallback(
 ```
 
 **CLI Heartbeat:**
+
 ```bash
 aws lambda send-durable-execution-callback-heartbeat \
   --callback-id <callbackId>
@@ -135,6 +159,7 @@ aws lambda send-durable-execution-callback-heartbeat \
 Poll until a condition is met (job completion, resource availability):
 
 **TypeScript:**
+
 ```typescript
 const finalState = await context.waitForCondition(
   'wait-for-job',
@@ -157,6 +182,7 @@ const finalState = await context.waitForCondition(
 ```
 
 **Python:**
+
 ```python
 # Note: get_job_status is decorated with @durable_step
 from aws_durable_execution_sdk_python.waits import WaitForConditionConfig, create_wait_strategy, WaitStrategyConfig
@@ -189,6 +215,7 @@ result = context.wait_for_condition(
 ### Custom Wait Strategy
 
 **TypeScript:**
+
 ```typescript
 const result = await context.waitForCondition(
   'custom-poll',
@@ -219,6 +246,7 @@ const result = await context.waitForCondition(
 ### Human Approval Workflow
 
 **TypeScript:**
+
 ```typescript
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
   const request = await context.step('create-request', async () =>
@@ -250,6 +278,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ### Webhook Integration
 
 **TypeScript:**
+
 ```typescript
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
   const order = await context.step('create-order', async () =>
@@ -279,6 +308,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ### Async Job Polling
 
 **TypeScript:**
+
 ```typescript
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
   const jobId = await context.step('start-job', async () =>
@@ -322,6 +352,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ## Error Handling
 
 **TypeScript:**
+
 ```typescript
 try {
   const result = await context.waitForCallback(
@@ -343,14 +374,19 @@ try {
 ```
 
 **Python:**
+
 ```python
 from aws_durable_execution_sdk_python.exceptions import CallbackError
+from aws_durable_execution_sdk_python.config import WaitForCallbackConfig
 
 try:
+    def submit_approval(callback_id: str, ctx):
+        send_approval(callback_id)
+
     result = context.wait_for_callback(
-        submitter=send_approval,
-        config=WaitForCallbackConfig(timeout=Duration.from_hours(24)),
-        name='wait-approval'
+        submitter=submit_approval,
+        name='wait-approval',
+        config=WaitForCallbackConfig(timeout=Duration.from_hours(24))
     )
 except CallbackError as error:
     if error.error_type == 'Timeout':

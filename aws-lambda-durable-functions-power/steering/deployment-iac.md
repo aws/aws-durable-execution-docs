@@ -13,6 +13,7 @@ All durable functions require:
 ## AWS CloudFormation
 
 **template.yaml:**
+
 ```yaml
 AWSTemplateFormatVersion: '2010-09-09'
 Resources:
@@ -66,6 +67,7 @@ Outputs:
 ```
 
 **Deploy:**
+
 ```bash
 aws cloudformation deploy \
   --template-file template.yaml \
@@ -76,6 +78,7 @@ aws cloudformation deploy \
 ## AWS CDK
 
 **TypeScript:**
+
 ```typescript
 import * as cdk from 'aws-cdk-lib';
 import * as lambda from 'aws-cdk-lib/aws-lambda';
@@ -116,6 +119,7 @@ export class DurableFunctionStack extends cdk.Stack {
 ```
 
 **Deploy:**
+
 ```bash
 cdk deploy
 ```
@@ -156,12 +160,14 @@ durableFunction.role?.addManagedPolicy(
 ```
 
 **Benefits:**
+
 - **Explicit Cleanup**: `removalPolicy: cdk.RemovalPolicy.DESTROY` ensures log groups are deleted when stack is destroyed
 - **Custom Retention**: Set retention periods matching compliance/debugging needs
 - **Predictable Naming**: Control exact log group name
 - **Cost Control**: Avoid accumulating costs from orphaned log groups
 
 **When to use:**
+
 - ✅ Production environments where log retention policies must be enforced
 - ✅ Development/test environments where automatic cleanup saves costs
 - ✅ Multi-function stacks where consistent log management is needed
@@ -171,6 +177,7 @@ durableFunction.role?.addManagedPolicy(
 ## AWS SAM
 
 **template.yaml:**
+
 ```yaml
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
@@ -202,10 +209,11 @@ Outputs:
   FunctionArn:
     Value: !GetAtt DurableFunction.Arn
   AliasArn:
-    Value: !Ref DurableFunctionAlias
+    Value: !Ref DurableFunction.Alias
 ```
 
 **Deploy:**
+
 ```bash
 sam build
 sam deploy --guided
@@ -216,6 +224,7 @@ sam deploy --guided
 For functions that invoke other durable functions:
 
 **CloudFormation:**
+
 ```yaml
 DurableFunctionRole:
   Type: AWS::IAM::Role
@@ -243,6 +252,7 @@ DurableFunctionRole:
 ```
 
 **CDK:**
+
 ```typescript
 const targetFunction = new lambda.Function(this, 'TargetFunction', {
   // ... configuration
@@ -261,6 +271,7 @@ targetFunction.grantInvoke(orchestratorFunction);
 For external systems to send callbacks:
 
 **IAM Policy:**
+
 ```json
 {
   "Version": "2012-10-17",
@@ -281,6 +292,7 @@ For external systems to send callbacks:
 ## Environment Configuration
 
 **Development:**
+
 ```yaml
 DurableFunction:
   Type: AWS::Lambda::Function
@@ -295,6 +307,7 @@ DurableFunction:
 ```
 
 **Production:**
+
 ```yaml
 DurableFunction:
   Type: AWS::Lambda::Function
@@ -311,6 +324,7 @@ DurableFunction:
 ## Multi-Environment Deployment
 
 **CDK with Stages:**
+
 ```typescript
 const app = new cdk.App();
 
@@ -362,6 +376,7 @@ cat response.json
 ```
 
 **When to use RequestResponse:**
+
 - Short-running workflows (under 15 minutes total)
 - When you need the result immediately
 - Interactive applications requiring synchronous responses
@@ -385,6 +400,7 @@ cat response.json
 ```
 
 **When to use Event:**
+
 - Long-running workflows (hours, days, or longer)
 - Background processing tasks
 - Workflows with wait operations or human-in-the-loop steps
@@ -447,6 +463,7 @@ aws lambda invoke \
 ## Monitoring and Observability
 
 **CloudWatch Logs:**
+
 ```yaml
 DurableFunction:
   Type: AWS::Lambda::Function
@@ -464,6 +481,7 @@ DurableFunctionLogGroup:
 ```
 
 **CloudWatch Alarms:**
+
 ```yaml
 DurableFunctionErrorAlarm:
   Type: AWS::CloudWatch::Alarm
@@ -494,7 +512,7 @@ DurableFunctionErrorAlarm:
 9. **Deploy to multiple environments** (dev, staging, prod)
 10. **Version your infrastructure code** alongside function code
 
-## Troubleshooting
+## Common issues
 
 ### Function Not Durable
 
@@ -507,6 +525,7 @@ DurableFunctionErrorAlarm:
 **Issue:** `InvalidParameterValueException: Durable execution requires qualified function identifier`
 
 **Solution:** Use version, alias, or `$LATEST`:
+
 ```bash
 # ✅ Correct
 aws lambda invoke --function-name myFunction:prod ...
@@ -518,6 +537,6 @@ aws lambda invoke --function-name myFunction ...
 
 ### Checkpoint Permission Denied
 
-**Issue:** `AccessDeniedException: User is not authorized to perform: lambda:CheckpointDurableExecutions`
+**Issue:** `AccessDeniedException: User is not authorized to perform: lambda:CheckpointDurableExecution`
 
 **Solution:** Add `AWSLambdaBasicDurableExecutionRolePolicy` to execution role.

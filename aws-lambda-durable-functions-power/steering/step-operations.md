@@ -7,6 +7,7 @@ Steps are atomic operations with automatic retry and state persistence.
 ### Python: Two Ways to Define Steps
 
 **Recommended: `@durable_step` Decorator**
+
 ```python
 from aws_durable_execution_sdk_python import durable_step, StepContext
 
@@ -19,7 +20,8 @@ def fetch_user(step_ctx: StepContext, user_id: str):
 result = context.step(fetch_user(user_id))
 ```
 
-**Alternative: Inline Lambda**
+Alternative: **Inline Lambda**
+
 ```python
 # For simple one-off operations
 result = context.step(
@@ -29,17 +31,20 @@ result = context.step(
 ```
 
 **Use `@durable_step` for:**
+
 - Reusable step functions
 - Complex logic
 - Better readability and testing
 
 **Use lambda for:**
+
 - Simple inline operations
 - One-off transformations
 
 ### TypeScript: Named Steps
 
 **TypeScript:**
+
 ```typescript
 const result = await context.step('fetch-user', async () => {
   return await fetchUserFromAPI(userId);
@@ -53,6 +58,7 @@ const result = await context.step('fetch-user', async () => {
 ### Exponential Backoff
 
 **TypeScript:**
+
 ```typescript
 import { createRetryStrategy, JitterStrategy } from '@aws/durable-execution-sdk-js';
 
@@ -72,6 +78,7 @@ const result = await context.step(
 ```
 
 **Python:**
+
 ```python
 # Note: api_call is decorated with @durable_step
 from aws_durable_execution_sdk_python.config import StepConfig, Duration
@@ -86,7 +93,7 @@ retry_config = RetryStrategyConfig(
 )
 
 result = context.step(
-    func=api_call,
+    func=api_call(),
     config=StepConfig(retry_strategy=create_retry_strategy(retry_config))
 )
 ```
@@ -94,6 +101,7 @@ result = context.step(
 ### Custom Retry Strategy
 
 **TypeScript:**
+
 ```typescript
 const result = await context.step(
   'custom-retry',
@@ -120,6 +128,7 @@ const result = await context.step(
 ```
 
 **Python:**
+
 ```python
 from aws_durable_execution_sdk_python.retries import RetryDecision
 
@@ -144,6 +153,7 @@ result = context.step(
 ### Retryable Error Types
 
 **TypeScript:**
+
 ```typescript
 const result = await context.step(
   'selective-retry',
@@ -158,10 +168,11 @@ const result = await context.step(
 ```
 
 **Python:**
+
 ```python
 retry_config = RetryStrategyConfig(
     max_attempts=3,
-    retryable_error_types=['NetworkError', 'TimeoutError']
+    retryable_error_types=[NetworkError, TimeoutError]
 )
 ```
 
@@ -172,6 +183,7 @@ retry_config = RetryStrategyConfig(
 Step executes at least once, may execute multiple times on failure/retry.
 
 **TypeScript:**
+
 ```typescript
 const result = await context.step(
   'idempotent-operation',
@@ -185,6 +197,7 @@ const result = await context.step(
 Step executes at most once, never retries. Use for non-idempotent operations.
 
 **TypeScript:**
+
 ```typescript
 const result = await context.step(
   'charge-payment',
@@ -194,12 +207,13 @@ const result = await context.step(
 ```
 
 **Python:**
+
 ```python
 from aws_durable_execution_sdk_python.config import StepSemantics
 
 result = context.step(
     charge_card(amount),
-    config=StepConfig(semantics=StepSemantics.AT_MOST_ONCE)
+    config=StepConfig(step_semantics=StepSemantics.AT_MOST_ONCE_PER_RETRY)
 )
 ```
 
@@ -208,6 +222,7 @@ result = context.step(
 For complex types, provide custom serialization:
 
 **TypeScript:**
+
 ```typescript
 import { createClassSerdesWithDates } from '@aws/durable-execution-sdk-js';
 
@@ -229,6 +244,7 @@ const user = await context.step(
 ```
 
 **Python:**
+
 ```python
 from dataclasses import dataclass
 from datetime import datetime
@@ -249,6 +265,7 @@ user = context.step(
 ## When to Use Steps vs Child Contexts
 
 ### Use Steps For:
+
 - Single atomic operations
 - API calls
 - Database queries
@@ -256,12 +273,14 @@ user = context.step(
 - Operations that should retry as a unit
 
 ### Use Child Contexts For:
+
 - Grouping multiple durable operations
 - Complex workflows with steps, waits, and invokes
 - Isolating state tracking
 - Organizing related operations
 
 **Example:**
+
 ```typescript
 // ❌ WRONG: Cannot nest durable operations in step
 await context.step('process', async () => {
@@ -281,6 +300,7 @@ await context.runInChildContext('process', async (childCtx) => {
 Steps throw errors after all retry attempts are exhausted:
 
 **TypeScript:**
+
 ```typescript
 try {
   const result = await context.step('risky', async () => riskyOperation());
@@ -293,15 +313,27 @@ try {
 ```
 
 **Python:**
-```python
-from aws_durable_execution_sdk_python.exceptions import CallableRuntimeError
 
+```python
 try:
     # Note: risky_operation is decorated with @durable_step
     result = context.step(risky_operation())
-except CallableRuntimeError as error:
-    context.logger.error('Step failed', error.cause)
+except Exception as error:
+    context.logger.error('Step failed: %s', str(error))
     # Handle or rethrow
+```
+
+For SDK-specific exceptions, use the base class or specific types:
+
+```python
+from aws_durable_execution_sdk_python import DurableExecutionsError
+
+try:
+    result = context.step(risky_operation())
+except DurableExecutionsError as error:
+    context.logger.error('SDK error: %s', str(error))
+except Exception as error:
+    context.logger.error('Application error: %s', str(error))
 ```
 
 ## Best Practices
