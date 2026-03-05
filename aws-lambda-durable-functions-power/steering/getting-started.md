@@ -152,22 +152,22 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python.config import CallbackConfig
+from aws_durable_execution_sdk_python.config import WaitForCallbackConfig
 
 @durable_execution
 def handler(event: dict, context: DurableContext) -> dict:
     # Note: generate_plan and perform_action are decorated with @durable_step
     plan = context.step(generate_plan(event))
 
-    # Create callback and send to approver
-    callback = context.create_callback(
-        name='wait-for-approval',
-        config=CallbackConfig(timeout=Duration.from_hours(24))
-    )
-    send_approval_email(event['approver_email'], plan, callback.callback_id)
+    # Wait for external approval
+    def submit_approval(callback_id: str, ctx):
+        send_approval_email(event['approver_email'], plan, callback_id)
 
-    # Wait for result — execution suspends here
-    answer = callback.result()
+    answer = context.wait_for_callback(
+        submitter=submit_approval,
+        name='wait-for-approval',
+        config=WaitForCallbackConfig(timeout=Duration.from_hours(24))
+    )
 
     if answer == 'APPROVED':
         context.step(perform_action(plan))
@@ -243,12 +243,10 @@ my-durable-function/
 │   └── utils/
 │       └── retry_strategies.py
 ├── tests/
-│   ├── conftest.py             # pytest fixtures & durable_runner setup
+│   └── test_handler.py         # Tests with DurableFunctionTestRunner
 │   └── test_handler.py         # Tests with DurableFunctionTestRunner
 ├── infrastructure/
 │   └── template.yaml           # SAM/CloudFormation
-├── requirements.txt            # Production dependencies
-├── requirements-dev.txt        # Test/dev dependencies
 └── pyproject.toml              # Project configuration
 ```
 
@@ -333,35 +331,7 @@ module.exports = {
 - `testMatch` - Specifies test file patterns
 
 ## Python Project Setup
-
-**requirements.txt:**
-
-```
-aws-durable-execution-sdk-python
-```
-
-**requirements-dev.txt:**
-
-```
-aws-durable-execution-sdk-python-testing
-pytest
-```
-
-**conftest.py:**
-
-```python
-from aws_durable_execution_sdk_python_testing.runner import DurableFunctionTestRunner
-
-# The durable_runner fixture is provided automatically by the testing SDK
-# when you use the @pytest.mark.durable_execution marker
-```
-
-**Install dependencies:**
-
-```bash
-pip install -r requirements.txt
-pip install -r requirements-dev.txt
-```
+Add `aws-durable-execution-sdk-python-testing` to your dev/test dependencies in pyproject.toml.
 
 ## Development Workflow
 
@@ -412,7 +382,7 @@ When starting a new durable function project:
 - [ ] Install `aws-durable-execution-sdk-python-testing` and `pytest` for testing
 - [ ] Create handler with `@durable_execution` decorator
 - [ ] Define step functions with `@durable_step` decorator
-- [ ] Write tests using `DurableFunctionTestRunner` with `@pytest.mark.durable_execution`
+- [ ] Write tests using `DurableFunctionTestRunner` class
 - [ ] Run tests: `pytest`
 - [ ] Review replay model rules (no non-deterministic code outside steps)
 

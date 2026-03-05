@@ -52,20 +52,21 @@ export const handler = withDurableExecution(async (event, context) => {
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python.config import CallbackConfig
+from aws_durable_execution_sdk_python.config import WaitForCallbackConfig
 
 @durable_execution
 def handler(event: dict, context: DurableContext) -> dict:
     try:
-        # Create callback and send to external system
-        callback = context.create_callback(
-            name='wait-for-approval',
-            config=CallbackConfig(timeout=Duration.from_hours(24))
-        )
-        send_approval_email(event['approver_email'], callback.callback_id)
+        # Wait for external approval with timeout
+        def submit_approval(callback_id: str, ctx):
+            ctx.logger.info('Sending approval request')
+            send_approval_email(event['approver_email'], callback_id)
 
-        # Wait for result — execution suspends here
-        approval = callback.result()
+        approval = context.wait_for_callback(
+            submitter=submit_approval,
+            name='wait-for-approval',
+            config=WaitForCallbackConfig(timeout=Duration.from_hours(24))
+        )
 
         return {'status': 'approved', 'approval': approval}
 
@@ -113,7 +114,22 @@ export const handler = withDurableExecution(async (event, context) => {
 });
 ```
 
-**Note:** Promise.race only works within a single Lambda invocation. For timeouts across replays, use `timeout` option on `waitForCallback` or `waitForCondition`.
+**Note:** Native setTimeout (and patterns like Promise.race using it) will fail during execution replays. To create a reliable timeout that persists across execution (expands over multi invocations), always use the timeout parameter provided by waitForCallback or waitForCondition.
+
+Don't do this:
+```typescript
+const promise = ctx.callback(...);
+const timeout = new Promise((_, reject) => 
+  setTimeout(() => reject(new Error('Timeout')), 5000)
+);
+
+try {
+  const result = await Promise.race([promise, timeout]);
+  console.log(result);
+} catch (error) {
+  console.error(error.message);
+}
+```
 
 ## Conditional Retry Based on Error Type
 

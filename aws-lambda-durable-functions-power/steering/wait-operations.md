@@ -62,22 +62,21 @@ const result = await context.waitForCallback(
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python.config import CallbackConfig
+from aws_durable_execution_sdk_python.config import WaitForCallbackConfig
 
-# Create callback and get unique ID
-callback = context.create_callback(
+# Wait for external approval
+def submit_approval(callback_id: str, ctx):
+    ctx.logger.info('Sending approval request')
+    send_approval_email(approver_email, callback_id)
+
+result = context.wait_for_callback(
+    submitter=submit_approval,
     name='wait-for-approval',
-    config=CallbackConfig(
+    config=WaitForCallbackConfig(
         timeout=Duration.from_hours(24),
         heartbeat_timeout=Duration.from_minutes(5)
     )
 )
-
-# Send callback ID to external system
-send_approval_email(approver_email, callback.callback_id)
-
-# Wait for result — execution suspends here
-result = callback.result()
 ```
 
 ### Callback Success
@@ -111,7 +110,7 @@ import json
 lambda_client = boto3.client('lambda')
 lambda_client.send_durable_execution_callback_success(
     CallbackId=callback_id,
-    Result=json.dumps({'status': 'approved'}).encode('utf-8')
+    Result=json.dumps({'status': 'approved'})
 )
 ```
 
@@ -378,15 +377,17 @@ try {
 
 ```python
 from aws_durable_execution_sdk_python.exceptions import CallbackError
-from aws_durable_execution_sdk_python.config import CallbackConfig
+from aws_durable_execution_sdk_python.config import WaitForCallbackConfig
 
 try:
-    callback = context.create_callback(
+    def submit_approval(callback_id: str, ctx):
+        send_approval(callback_id)
+
+    result = context.wait_for_callback(
+        submitter=submit_approval,
         name='wait-approval',
-        config=CallbackConfig(timeout=Duration.from_hours(24))
+        config=WaitForCallbackConfig(timeout=Duration.from_hours(24))
     )
-    send_approval(callback.callback_id)
-    result = callback.result()
 except CallbackError as error:
     if error.error_type == 'Timeout':
         context.logger.warn('Approval timed out')

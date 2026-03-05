@@ -17,9 +17,9 @@ Test durable functions locally and in the cloud with comprehensive test runners.
 - ✅ TypeScript: Cast `getResult()` to appropriate type: `execution.getResult() as ResultType`
 - ✅ Python: Use `result.get_step("name")` to find step operations by name
 - ✅ Python: Use `result.operations` to iterate and filter operations by type
-- ✅ Python: Use `@pytest.mark.durable_execution` marker with `handler` and `lambda_function_name`
-- ✅ Python: Use `durable_runner.run(input={...}, timeout=10)` — note `input=` not `payload`
-- ✅ Python: Use `deserialize_operation_payload()` when verifying result values
+- ✅ Python: Instantiate `DurableFunctionTestRunner(handler=my_handler)` directly
+- ✅ Python: Use `runner.run(input={...}, timeout=10)` — note `input=` not `payload`
+- ✅ Python: The value of result.result is serialized. Deserialize using the appropriate SerDes or default json deserializer. 
 
 ### DON'T:
 
@@ -29,7 +29,7 @@ Test durable functions locally and in the cloud with comprehensive test runners.
 - ❌ TypeScript: Forget that callback results are JSON strings — parse them
 - ❌ TypeScript: Test callbacks without proper synchronization (leads to race conditions)
 - ❌ Python: Confuse `DurableFunctionTestRunner` (local) with `DurableFunctionCloudTestRunner` (cloud)
-- ❌ Python: Forget the `with durable_runner:` context manager — it manages execution lifecycle
+- ❌ Python: Forget the `with runner:` context manager — it manages execution lifecycle
 
 ## Local Testing Setup
 
@@ -68,8 +68,7 @@ describe('My Durable Function', () => {
 
 **Python:**
 
-The Python testing SDK uses pytest with a `@pytest.mark.durable_execution` marker and a `durable_runner` fixture.
-The test runner class is `DurableFunctionTestRunner` (local) or `DurableFunctionCloudTestRunner` (cloud).
+The Python testing SDK provides `DurableFunctionTestRunner` for local testing and `DurableFunctionCloudTestRunner` for cloud testing.
 
 Install the testing SDK:
 
@@ -77,54 +76,19 @@ Install the testing SDK:
 pip install aws-durable-execution-sdk-python-testing pytest
 ```
 
-Project structure:
-
-```
-my-project/
-├── src/
-│   ├── __init__.py
-│   └── my_function.py
-├── test/
-│   ├── __init__.py
-│   ├── conftest.py          # Pytest configuration and fixtures
-│   └── test_my_function.py
-├── requirements.txt
-└── pytest.ini
-```
-
-Example conftest.py:
-
-```python
-import pytest
-from aws_durable_execution_sdk_python_testing.runner import DurableFunctionTestRunner
-
-@pytest.fixture
-def durable_runner(request):
-    """Pytest fixture that provides a test runner."""
-    marker = request.node.get_closest_marker("durable_execution")
-    if not marker:
-        pytest.fail("Test must be marked with @pytest.mark.durable_execution")
-
-    handler = marker.kwargs.get("handler")
-    runner = DurableFunctionTestRunner(handler=handler)
-
-    yield runner
-```
-
 Example test:
 
 ```python
-import pytest
+from aws_durable_execution_sdk_python_testing import DurableFunctionTestRunner
 from aws_durable_execution_sdk_python.execution import InvocationStatus
 from src.my_function import handler
 
-@pytest.mark.durable_execution(
-    handler=handler,
-    lambda_function_name='my_function',
-)
-def test_workflow(durable_runner):
-    with durable_runner:
-        result = durable_runner.run(input={'user_id': '123'}, timeout=10)
+def test_workflow():
+    """Test durable function locally."""
+    runner = DurableFunctionTestRunner(handler=handler)
+    
+    with runner:
+        result = runner.run(input={'user_id': '123'}, timeout=10)
 
     assert result.status is InvocationStatus.SUCCEEDED
 ```
@@ -156,20 +120,21 @@ it('should execute steps in order', async () => {
 **Python:**
 
 ```python
-@pytest.mark.durable_execution(handler=handler, lambda_function_name='my_function')
-def test_steps_execute(durable_runner):
-    with durable_runner:
-        result = durable_runner.run(input={'test': True}, timeout=10)
+from aws_durable_execution_sdk_python.lambda_service import OperationType
+def test_steps_execute():
+    """Test step execution."""
+    runner = DurableFunctionTestRunner(handler=handler)
+    
+    with runner:
+        result = runner.run(input={'test': True}, timeout=10)
 
     # ✅ CORRECT: Get step by name
     fetch_step = result.get_step('fetch-user')
     assert fetch_step is not None
 
     # ✅ Also valid: filter result.operations by type
-    from aws_durable_execution_sdk_python.lambda_service import OperationType
-    step_ops = [op for op in result.operations if op.operation_type == OperationType.STEP]
-    step_names = {op.name for op in step_ops}
-    assert 'fetch-user' in step_names
+    step_names = {op.name for op in result.operations if op.operation_type == OperationType.STEP}
+    assert step_names >= {'fetch-user', 'process-data'}
     assert 'process-data' in step_names
 ```
 
@@ -325,19 +290,20 @@ it('should handle callback failure', async () => {
 **Python:**
 
 Testing callbacks in Python follows the same marker pattern. The callback operation
-appears in `result.operations` with `operation_type.value == "CALLBACK"`:
+appears in `result.operations` with `operation_type == OperationType.CALLBACK`:
 
 ```python
-@pytest.mark.durable_execution(handler=handler, lambda_function_name='callback_function')
-def test_callback_creation(durable_runner):
+def test_callback_creation():
     """Test that callback is created correctly."""
-    with durable_runner:
-        result = durable_runner.run(input={'approver': '[email]'}, timeout=10)
+    runner = DurableFunctionTestRunner(handler=handler)
+    
+    with runner:
+        result = runner.run(input={'approver': '[email]'}, timeout=10)
 
     # Find callback operations in the result
     callback_ops = [
         op for op in result.operations
-        if op.operation_type.value == "CALLBACK"
+        if op.operation_type == OperationType.CALLBACK
     ]
     assert len(callback_ops) == 1
     assert callback_ops[0].name == 'wait-for-approval'
@@ -475,8 +441,7 @@ describe('Integration Tests', () => {
 
 **Python:**
 
-Cloud mode uses `DurableFunctionCloudTestRunner` and the same `@pytest.mark.durable_execution` marker.
-Tests work in both local and cloud modes without code changes — the mode is selected via CLI:
+Cloud mode uses `DurableFunctionCloudTestRunner` with the same API:
 
 ```bash
 # Set environment variables for cloud mode
@@ -491,14 +456,15 @@ pytest --runner-mode=cloud -k test_workflow
 The same test works in both modes:
 
 ```python
-@pytest.mark.durable_execution(
-    handler=handler,                       # Used in local mode
-    lambda_function_name='my_function',    # Used in cloud mode
-)
-def test_workflow(durable_runner):
-    """Works in both local and cloud modes."""
-    with durable_runner:
-        result = durable_runner.run(input={'user_id': '123'}, timeout=60)
+def test_workflow_cloud():
+    """Test against deployed Lambda function."""
+    runner = DurableFunctionCloudTestRunner(
+        function_name='my-function:$LATEST',
+        region='us-west-2'
+    )
+    
+    with runner:
+        result = runner.run(input={'user_id': '123'}, timeout=60)
 
     assert result.status is InvocationStatus.SUCCEEDED
 ```
@@ -592,16 +558,6 @@ await callbackOp.sendCallbackSuccess(JSON.stringify({}));
 | Callback result parsing error         | Result is JSON string                 | Parse result: `JSON.parse(result.value)`          |
 | Operation not found by name           | Missing operation name                | Always name operations in handler                 |
 
-### Python
-
-| Error                                          | Cause                                    | Solution                                                          |
-| ---------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------- |
-| `Test must be marked with @pytest.mark...`     | Missing marker on test function          | Add `@pytest.mark.durable_execution(handler=..., ...)`            |
-| `No DurableExecutionArn in response`           | Function not configured as durable       | Ensure handler uses `@durable_execution` decorator                |
-| Result is serialized payload, not plain dict   | Results need deserialization             | Use `deserialize_operation_payload(result.result)`                |
-| `TimeoutError: Execution did not complete`     | Timeout too short or function stuck      | Increase `timeout=` parameter in `durable_runner.run()`           |
-| Test skipped in cloud mode                     | `lambda_function_name` doesn't match env | Set `LAMBDA_FUNCTION_TEST_NAME` to match marker value             |
-| Operation not found by name                    | Missing operation name in handler        | Always pass `name=` when calling `context.step()` or `context.wait()` |
 
 ## Jest Configuration
 

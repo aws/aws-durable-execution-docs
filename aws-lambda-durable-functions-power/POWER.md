@@ -77,17 +77,17 @@ pip install aws-durable-execution-sdk-python-testing
 
 Load the appropriate reference file based on what the user is working on:
 
-- **Getting started**, **basic setup**, **example**, **ESLint**, or **Jest setup** -> see [getting-started.md](references/getting-started.md)
-- **Understanding replay model**, **determinism**, or **non-deterministic errors** -> see [replay-model-rules.md](references/replay-model-rules.md)
-- **Creating steps**, **atomic operations**, or **retry logic** -> see [step-operations.md](references/step-operations.md)
-- **Waiting**, **delays**, **callbacks**, **external systems**, or **polling** -> see [wait-operations.md](references/wait-operations.md)
-- **Parallel execution**, **map operations**, **batch processing**, or **concurrency** -> see [concurrent-operations.md](references/concurrent-operations.md)
-- **Error handling**, **retry strategies**, **saga pattern**, or **compensating transactions** -> see [error-handling.md](references/error-handling.md)
-- **Advanced error handling**, **timeout handling**, **circuit breakers**, or **conditional retries** -> see [advanced-error-handling.md](references/advanced-error-handling.md)
-- **Testing**, **local testing**, **cloud testing**, **test runner**, or **flaky tests** -> see [testing-patterns.md](references/testing-patterns.md)
-- **Deployment**, **CloudFormation**, **CDK**, **SAM**, **log groups**, **deploy**, or **infrastructure** -> see [deployment-iac.md](references/deployment-iac.md)
-- **Advanced patterns**, **GenAI agents**, **completion policies**, **step semantics**, or **custom serialization** -> see [advanced-patterns.md](references/advanced-patterns.md)
-- **troubleshooting**, **stuck execution**, **failed execution**, **debug execution ID**, or **execution history** -> see [troubleshooting-executions.md](references/troubleshooting-executions.md)
+- **Getting started**, **basic setup**, **example**, **ESLint**, or **Jest setup** -> see [getting-started.md](steering/getting-started.md)
+- **Understanding replay model**, **determinism**, or **non-deterministic errors** -> see [replay-model-rules.md](steering/replay-model-rules.md)
+- **Creating steps**, **atomic operations**, or **retry logic** -> see [step-operations.md](steering/step-operations.md)
+- **Waiting**, **delays**, **callbacks**, **external systems**, or **polling** -> see [wait-operations.md](steering/wait-operations.md)
+- **Parallel execution**, **map operations**, **batch processing**, or **concurrency** -> see [concurrent-operations.md](steering/concurrent-operations.md)
+- **Error handling**, **retry strategies**, **saga pattern**, or **compensating transactions** -> see [error-handling.md](steering/error-handling.md)
+- **Advanced error handling**, **timeout handling**, **circuit breakers**, or **conditional retries** -> see [advanced-error-handling.md](steering/advanced-error-handling.md)
+- **Testing**, **local testing**, **cloud testing**, **test runner**, or **flaky tests** -> see [testing-patterns.md](steering/testing-patterns.md)
+- **Deployment**, **CloudFormation**, **CDK**, **SAM**, **log groups**, **deploy**, or **infrastructure** -> see [deployment-iac.md](steering/deployment-iac.md)
+- **Advanced patterns**, **GenAI agents**, **completion policies**, **step semantics**, or **custom serialization** -> see [advanced-patterns.md](steering/advanced-patterns.md)
+- **troubleshooting**, **stuck execution**, **failed execution**, **debug execution ID**, or **execution history** -> see [troubleshooting-executions.md](steering/troubleshooting-executions.md)
 
 ## Quick Reference
 
@@ -127,10 +127,9 @@ def handler(event: dict, context: DurableContext) -> dict:
 The Python SDK differs from TypeScript in several key areas:
 
 - **Steps**: Use `@durable_step` decorator + `context.step(my_step(args))`, or inline `context.step(lambda _: ..., name='...')`. Prefer the decorator for automatic step naming.
-- **Step config**: `config=StepConfig(retry_strategy=...)` keyword, not positional
 - **Wait**: `context.wait(duration=Duration.from_seconds(n), name='...')`
 - **Exceptions**: `ExecutionError` (permanent), `InvocationError` (transient), `CallbackError` (callback failures)
-- **Testing**: `DurableFunctionTestRunner` with `@pytest.mark.durable_execution` marker and `durable_runner` fixture
+- **Testing**: Use `DurableFunctionTestRunner` class directly - instantiate with handler, use context manager, call `run(input=...)`
 
 ### Invocation Requirements
 
@@ -153,6 +152,8 @@ Your Lambda execution role MUST have the `AWSLambdaBasicDurableExecutionRolePoli
 - `lambda:GetDurableExecutionState` - Retrieve execution state
 - CloudWatch Logs permissions
 
+See here: https://docs.aws.amazon.com/lambda/latest/dg/durable-security.html
+
 **Additional permissions needed for:**
 
 - **Durable invokes**: `lambda:InvokeFunction` on target function ARNs
@@ -173,7 +174,7 @@ When implementing or modifying tests for durable functions, ALWAYS verify:
 2. Tests get operations by NAME, never by index
 3. Replay behavior is tested with multiple invocations
 4. TypeScript: Use `LocalDurableTestRunner` for local testing
-5. Python: Use `DurableFunctionTestRunner` with `@pytest.mark.durable_execution` marker and `durable_runner` fixture
+5. Python: Use `DurableFunctionTestRunner` class directly
 
 ## Resources
 

@@ -25,7 +25,7 @@ Alternative: **Inline Lambda**
 ```python
 # For simple one-off operations
 result = context.step(
-    lambda step_ctx: fetch_user_from_api(user_id),
+    func=lambda step_ctx: fetch_user_from_api(user_id),
     name='fetch-user'
 )
 ```
@@ -86,14 +86,14 @@ from aws_durable_execution_sdk_python.retries import RetryStrategyConfig, create
 
 retry_config = RetryStrategyConfig(
     max_attempts=5,
-    initial_delay_seconds=5,
-    max_delay_seconds=60,
+    initial_delay=Duration.from_seconds(5),
+    max_delay=Duration.from_seconds(60),
     backoff_rate=2.0,
     jitter_strategy=JitterStrategy.FULL
 )
 
 result = context.step(
-    api_call(),
+    func=api_call(),
     config=StepConfig(retry_strategy=create_retry_strategy(retry_config))
 )
 ```
