@@ -152,21 +152,22 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python.waits import WaitForCallbackConfig
+from aws_durable_execution_sdk_python.config import CallbackConfig
 
 @durable_execution
 def handler(event: dict, context: DurableContext) -> dict:
     # Note: generate_plan and perform_action are decorated with @durable_step
     plan = context.step(generate_plan(event))
 
-    def submit_approval(callback_id: str):
-        send_approval_email(event['approver_email'], plan, callback_id)
-
-    answer = context.wait_for_callback(
-        submitter=submit_approval,
+    # Create callback and send to approver
+    callback = context.create_callback(
         name='wait-for-approval',
-        config=WaitForCallbackConfig(timeout=Duration.from_hours(24))
+        config=CallbackConfig(timeout=Duration.from_hours(24))
     )
+    send_approval_email(event['approver_email'], plan, callback.callback_id)
+
+    # Wait for result — execution suspends here
+    answer = callback.result()
 
     if answer == 'APPROVED':
         context.step(perform_action(plan))
@@ -208,6 +209,8 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 
 ## Project Structure
 
+### TypeScript
+
 ```
 my-durable-function/
 ├── src/
@@ -225,6 +228,28 @@ my-durable-function/
 ├── jest.config.js              # Jest configuration
 ├── tsconfig.json               # TypeScript configuration
 └── package.json
+```
+
+### Python
+
+```
+my-durable-function/
+├── src/
+│   ├── handler.py              # Main handler
+│   ├── steps/                  # Step functions
+│   │   ├── __init__.py
+│   │   ├── validate.py
+│   │   └── process.py
+│   └── utils/
+│       └── retry_strategies.py
+├── tests/
+│   ├── conftest.py             # pytest fixtures & durable_runner setup
+│   └── test_handler.py         # Tests with DurableFunctionTestRunner
+├── infrastructure/
+│   └── template.yaml           # SAM/CloudFormation
+├── requirements.txt            # Production dependencies
+├── requirements-dev.txt        # Test/dev dependencies
+└── pyproject.toml              # Project configuration
 ```
 
 ## ESLint Plugin Setup
@@ -307,10 +332,51 @@ module.exports = {
 - `transform` - Maps .ts files to ts-jest transformer
 - `testMatch` - Specifies test file patterns
 
+## Python Project Setup
+
+**requirements.txt:**
+
+```
+aws-durable-execution-sdk-python
+```
+
+**requirements-dev.txt:**
+
+```
+aws-durable-execution-sdk-python-testing
+pytest
+```
+
+**conftest.py:**
+
+```python
+from aws_durable_execution_sdk_python_testing.runner import DurableFunctionTestRunner
+
+# The durable_runner fixture is provided automatically by the testing SDK
+# when you use the @pytest.mark.durable_execution marker
+```
+
+**Install dependencies:**
+
+```bash
+pip install -r requirements.txt
+pip install -r requirements-dev.txt
+```
+
 ## Development Workflow
+
+### TypeScript
 
 1. **Write handler** with durable operations
 2. **Test locally** with `LocalDurableTestRunner`
+3. **Validate replay rules** (no non-deterministic code outside steps)
+4. **Deploy** with qualified ARN (version or alias)
+5. **Monitor** execution state and logs
+
+### Python
+
+1. **Write handler** with `@durable_execution` decorator
+2. **Test locally** with `DurableFunctionTestRunner` and pytest
 3. **Validate replay rules** (no non-deterministic code outside steps)
 4. **Deploy** with qualified ARN (version or alias)
 5. **Monitor** execution state and logs
@@ -327,6 +393,8 @@ module.exports = {
 
 When starting a new durable function project:
 
+### TypeScript
+
 - [ ] Install dependencies (`@aws/durable-execution-sdk-js`, testing & eslint packages)
 - [ ] Create `jest.config.js` with ts-jest preset
 - [ ] Configure `tsconfig.json` with proper module resolution
@@ -336,6 +404,16 @@ When starting a new durable function project:
 - [ ] Use `skipTime: true` for fast test execution
 - [ ] Verify TypeScript compilation: `npx tsc --noEmit`
 - [ ] Run tests to confirm setup: `npm test`
+- [ ] Review replay model rules (no non-deterministic code outside steps)
+
+### Python
+
+- [ ] Install `aws-durable-execution-sdk-python`
+- [ ] Install `aws-durable-execution-sdk-python-testing` and `pytest` for testing
+- [ ] Create handler with `@durable_execution` decorator
+- [ ] Define step functions with `@durable_step` decorator
+- [ ] Write tests using `DurableFunctionTestRunner` with `@pytest.mark.durable_execution`
+- [ ] Run tests: `pytest`
 - [ ] Review replay model rules (no non-deterministic code outside steps)
 
 ## Error Scenarios

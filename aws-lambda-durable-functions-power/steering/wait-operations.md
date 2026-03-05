@@ -62,19 +62,22 @@ const result = await context.waitForCallback(
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python.waits import WaitForCallbackConfig
+from aws_durable_execution_sdk_python.config import CallbackConfig
 
-def submit_approval(callback_id: str):
-    send_approval_email(approver_email, callback_id)
-
-result = context.wait_for_callback(
-    submitter=submit_approval,
-    config=WaitForCallbackConfig(
+# Create callback and get unique ID
+callback = context.create_callback(
+    name='wait-for-approval',
+    config=CallbackConfig(
         timeout=Duration.from_hours(24),
         heartbeat_timeout=Duration.from_minutes(5)
-    ),
-    name='wait-for-approval'
+    )
 )
+
+# Send callback ID to external system
+send_approval_email(approver_email, callback.callback_id)
+
+# Wait for result — execution suspends here
+result = callback.result()
 ```
 
 ### Callback Success
@@ -87,7 +90,7 @@ aws lambda send-durable-execution-callback-success \
   --payload '{"status": "approved", "comments": "Looks good"}'
 ```
 
-**SDK:**
+**SDK (TypeScript):**
 
 ```typescript
 import { LambdaClient, SendDurableExecutionCallbackSuccessCommand } from '@aws-sdk/client-lambda';
@@ -97,6 +100,19 @@ await client.send(new SendDurableExecutionCallbackSuccessCommand({
   CallbackId: callbackId,
   Payload: JSON.stringify({ status: 'approved' })
 }));
+```
+
+**SDK (Python / boto3):**
+
+```python
+import boto3
+import json
+
+lambda_client = boto3.client('lambda')
+lambda_client.send_durable_execution_callback_success(
+    CallbackId=callback_id,
+    Result=json.dumps({'status': 'approved'}).encode('utf-8')
+)
 ```
 
 ### Callback Failure
@@ -362,13 +378,15 @@ try {
 
 ```python
 from aws_durable_execution_sdk_python import CallbackError
+from aws_durable_execution_sdk_python.config import CallbackConfig
 
 try:
-    result = context.wait_for_callback(
-        submitter=send_approval,
-        config=WaitForCallbackConfig(timeout=Duration.from_hours(24)),
-        name='wait-approval'
+    callback = context.create_callback(
+        name='wait-approval',
+        config=CallbackConfig(timeout=Duration.from_hours(24))
     )
+    send_approval(callback.callback_id)
+    result = callback.result()
 except CallbackError as error:
     if error.error_type == 'Timeout':
         context.logger.warn('Approval timed out')

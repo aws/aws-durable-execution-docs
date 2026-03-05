@@ -133,7 +133,7 @@ const result = await context.step(
 ```python
 retry_config = RetryStrategyConfig(
     max_attempts=3,
-    retryable_error_types=['NetworkError', 'TimeoutError']
+    retryable_error_types=[NetworkError, TimeoutError]
 )
 ```
 

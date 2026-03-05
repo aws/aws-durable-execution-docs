@@ -88,7 +88,7 @@ def handler(event: dict, context: DurableContext) -> str:
 
         # Execute tool with dynamic step naming
         tool_result = context.step(
-            func=execute_tool(tool, response),
+            execute_tool(tool, response),
             name=f"execute-tool-{tool['name']}"
         )
 

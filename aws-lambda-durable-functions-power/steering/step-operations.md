@@ -25,7 +25,7 @@ Alternative: **Inline Lambda**
 ```python
 # For simple one-off operations
 result = context.step(
-    func=lambda step_ctx: fetch_user_from_api(user_id),
+    lambda step_ctx: fetch_user_from_api(user_id),
     name='fetch-user'
 )
 ```
@@ -93,7 +93,7 @@ retry_config = RetryStrategyConfig(
 )
 
 result = context.step(
-    func=api_call,
+    api_call(),
     config=StepConfig(retry_strategy=create_retry_strategy(retry_config))
 )
 ```
@@ -172,7 +172,7 @@ const result = await context.step(
 ```python
 retry_config = RetryStrategyConfig(
     max_attempts=3,
-    retryable_error_types=['NetworkError', 'TimeoutError']
+    retryable_error_types=[NetworkError, TimeoutError]
 )
 ```
 
@@ -213,7 +213,7 @@ from aws_durable_execution_sdk_python.config import StepSemantics
 
 result = context.step(
     charge_card(amount),
-    config=StepConfig(semantics=StepSemantics.AT_MOST_ONCE)
+    config=StepConfig(step_semantics=StepSemantics.AT_MOST_ONCE_PER_RETRY)
 )
 ```
 

@@ -52,18 +52,20 @@ export const handler = withDurableExecution(async (event, context) => {
 **Python:**
 
 ```python
+from aws_durable_execution_sdk_python.config import CallbackConfig
+
 @durable_execution
 def handler(event: dict, context: DurableContext) -> dict:
     try:
-        # Wait for approval
-        def submit_callback(callback_id: str):
-            send_approval_email(event['approver_email'], callback_id)
-
-        approval = context.wait_for_callback(
-            submitter=submit_callback,
-            config=WaitForCallbackConfig(timeout=Duration.from_hours(24)),
-            name='wait-for-approval'
+        # Create callback and send to external system
+        callback = context.create_callback(
+            name='wait-for-approval',
+            config=CallbackConfig(timeout=Duration.from_hours(24))
         )
+        send_approval_email(event['approver_email'], callback.callback_id)
+
+        # Wait for result — execution suspends here
+        approval = callback.result()
 
         return {'status': 'approved', 'approval': approval}
 
@@ -156,6 +158,9 @@ const result = await context.step(
 **Python:**
 
 ```python
+from aws_durable_execution_sdk_python.config import StepConfig, Duration
+from aws_durable_execution_sdk_python.retries import RetryDecision
+
 def custom_retry_strategy(error: Exception, attempt_count: int) -> RetryDecision:
     # Don't retry client errors
     if hasattr(error, 'status_code'):
@@ -182,7 +187,7 @@ def custom_retry_strategy(error: Exception, attempt_count: int) -> RetryDecision
 result = context.step(
     lambda _: call_external_api(),
     name='api-call',
-    retry_strategy=custom_retry_strategy
+    config=StepConfig(retry_strategy=custom_retry_strategy)
 )
 ```
 
@@ -240,6 +245,10 @@ const result = await context.step(
 **Python:**
 
 ```python
+import time
+from aws_durable_execution_sdk_python.config import StepConfig, Duration
+from aws_durable_execution_sdk_python.retries import RetryDecision
+
 failure_count = 0
 last_failure_time = 0
 CIRCUIT_OPEN_DURATION = 60  # seconds
@@ -276,7 +285,7 @@ def circuit_breaker_retry(error: Exception, attempt_count: int) -> RetryDecision
 result = context.step(
     lambda _: call_with_circuit_breaker(),
     name='call-with-circuit-breaker',
-    retry_strategy=circuit_breaker_retry
+    config=StepConfig(retry_strategy=circuit_breaker_retry)
 )
 ```
 

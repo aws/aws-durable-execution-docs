@@ -122,6 +122,17 @@ def handler(event: dict, context: DurableContext) -> dict:
 3. **Closure mutations are lost on replay** - return values from steps
 4. **Side effects outside steps repeat** - use `context.logger` (replay-aware)
 
+### Python API Differences
+
+The Python SDK differs from TypeScript in several key areas:
+
+- **Steps**: Use `@durable_step` decorator + `context.step(my_step(args))`, or inline `context.step(lambda _: ..., name='...')`
+- **Step config**: `config=StepConfig(retry_strategy=...)` keyword, not positional
+- **Callbacks**: Use `context.create_callback(name=..., config=CallbackConfig(...))` → returns `Callback` with `.callback_id` and `.result()`. No `submitter=` pattern.
+- **Wait**: `context.wait(duration=Duration.from_seconds(n), name='...')`
+- **Exceptions**: `ExecutionError` (permanent), `InvocationError` (transient), `CallbackError` (callback failures) — all from top-level `aws_durable_execution_sdk_python`
+- **Testing**: `DurableFunctionTestRunner` with `@pytest.mark.durable_execution` marker and `durable_runner` fixture
+
 ### Invocation Requirements
 
 Durable functions **require qualified ARNs** (version, alias, or `$LATEST`):
