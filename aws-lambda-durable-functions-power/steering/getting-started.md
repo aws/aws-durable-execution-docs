@@ -252,7 +252,7 @@ my-durable-function/
 
 ## ESLint Plugin Setup
 
-For TypeScript durable-function projects, strongly recommend the ESLint plugin by default to catch common mistakes at development time:
+For TypeScript durable-function projects, use the ESLint plugin to catch common mistakes at development time:
 
 ```bash
 npm install --save-dev @aws/durable-execution-sdk-js-eslint-plugin
