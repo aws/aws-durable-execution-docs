@@ -1,0 +1,5 @@
+context.logger.debug(msg, *args, extra=None)
+context.logger.info(msg, *args, extra=None)
+context.logger.warning(msg, *args, extra=None)
+context.logger.error(msg, *args, extra=None)
+context.logger.exception(msg, *args, extra=None)
