@@ -1,0 +1,22 @@
+# Kiro IDE configuration
+.kiro/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.cache/
+
+# MkDocs build output
+site/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/

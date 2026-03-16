@@ -1,0 +1,1 @@
+def result() -> T | None

@@ -1,11 +1,83 @@
 # Contributing Guidelines
 
-Thank you for your interest in contributing to our project. Whether it's a bug report, new feature, correction, or additional
-documentation, we greatly value feedback and contributions from our community.
+## Authoring
+The copy is written in Markdown and rendered by Zensical.
+Please see [authoring-guide](authoring-guide.md) for samples on how
+to create code-blocks, examples, info boxes and other formatting features.
 
-Please read through this document before submitting any issues or pull requests to ensure we have all the necessary
-information to effectively respond to your bug report or contribution.
+### Adding Code Sample Blocks
 
+Code samples are embedded in documentation pages using the `--8<--` snippet syntax with content tabs for multi-language support.
+
+**IMPORTANT**: All code examples MUST include all three languages (Python, TypeScript, Java) and remain functionally equivalent across languages.
+
+#### Steps to add a new code sample:
+
+1. Create example files under `examples/` following the page folder hierarchy
+2. Use identical names with hyphens across all languages (e.g., `retry-with-backoff.{py,ts,java}`)
+3. Organize by language: `examples/{language}/{section}/{subsection}/{example-name}.{ext}`
+4. Ensure all three language versions demonstrate the same functionality
+5. Reference the examples in your documentation using content tabs:
+
+```markdown
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/core/steps/basic-step.py"
+    ```
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/core/steps/basic-step.ts"
+    ```
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/core/steps/basic-step.java"
+    ```
+```
+
+#### Example structure:
+```
+examples/
+├── python/
+│   ├── getting-started/
+│   │   └── minimal-example.py
+│   ├── core/
+│   │   ├── steps/
+│   │   │   └── basic-step.py
+│   │   └── parallel/
+│   │       └── parallel-execution.py
+│   └── advanced/
+│       └── error-handling/
+│           └── retry-with-backoff.py
+├── typescript/
+│   ├── getting-started/
+│   │   └── minimal-example.ts
+│   ├── core/
+│   │   ├── steps/
+│   │   │   └── basic-step.ts
+│   │   └── parallel/
+│   │       └── parallel-execution.ts
+│   └── advanced/
+│       └── error-handling/
+│           └── retry-with-backoff.ts
+└── java/
+    ├── getting-started/
+    │   └── minimal-example.java
+    ├── core/
+    │   ├── steps/
+    │   │   └── basic-step.java
+    │   └── parallel/
+    │       └── parallel-execution.java
+    └── advanced/
+        └── error-handling/
+            └── retry-with-backoff.java
+```
+
+This approach keeps code samples maintainable, testable, and consistent across all languages.
 
 ## Reporting Bugs/Feature Requests
 

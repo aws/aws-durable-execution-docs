@@ -1,0 +1,6 @@
+@durable_execution
+def process_everything(event: dict, context: DurableContext) -> dict:
+    """Process orders, update inventory, send emails, generate reports..."""
+    # Too many responsibilities - hard to test and maintain
+    # If one part fails, the entire function needs to retry
+    pass
