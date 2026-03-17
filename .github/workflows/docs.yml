@@ -2,9 +2,7 @@ name: publish Documentation to github pages
 on:
   push:
     branches:
-      # - master
-      # - main
-      - docs-draft
+      - main
 
 env:
   AWS_REGION: "us-west-2"
