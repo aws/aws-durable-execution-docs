@@ -1,19 +1,49 @@
 # AWS Lambda durable functions developer documentation source
 
 This repository contains the source for the AWS Lambda durable functions SDK
-documentation website, providing comprehensive guides and references for
-building resilient, long-running applications with AWS Lambda durable
-functions across multiple programming languages.
+documentation website at https://docs.aws.amazon.com/durable-functions,
+providing comprehensive guides and references for building resilient,
+long-running applications with AWS Lambda durable functions across
+multiple programming languages.
 
 ## Repository Structure
 
 ```
-docs/                                    # Documentation source files (coming soon)
+docs/                                    # Documentation source files
+examples/                                # Code source files for code-blocks in docs/
 aws-lambda-durable-functions-power/      # Kiro power for AI assistance
 ```
 
 ## Documentation source
-Coming soon...!
+
+The `docs/` directory contains the Markdown source files that power the
+documentation site.
+
+Code examples are in `examples/`, organized by language
+(`typescript/`, `python/`, `java/`) and mirroring the docs folder hierarchy.
+
+Examples are embedded into documentation pages using snippet syntax — see the
+[Contributing Guide](CONTRIBUTING.md) for details.
+
+### Getting started with the docs
+
+[Zensical](https://zensical.org) builds this site from Markdown to HTML.
+
+To preview locally:
+
+```bash
+python -m venv ~/.venvs/zensical
+source ~/.venvs/zensical/bin/activate
+pip install zensical
+
+# Live preview with hot-reload
+zensical serve
+```
+
+For the full authoring workflow — adding code samples, formatting conventions,
+commit messages, and pull request process — see
+[CONTRIBUTING.md](CONTRIBUTING.md). For Markdown formatting syntax, please see
+the [Authoring Guide](authoring-guide.md).
 
 ## Kiro Power
 
