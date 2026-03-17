@@ -24,7 +24,7 @@ zensical build --clean
 
 ## Authoring
 The copy is written in Markdown and rendered by Zensical.
-Please see [authoring-guide](authoring-guide.md) for samples on how
+Please see the [authoring-guide](authoring-guide.md) for samples on how
 to create code-blocks, examples, info boxes and other formatting features.
 
 Edit documentation in the markdown files under `docs/`.
