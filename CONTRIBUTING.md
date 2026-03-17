@@ -1,9 +1,33 @@
 # Contributing Guidelines
 
+## Dependencies
+
+This project uses [Zensical](https://zensical.org) to build and serve the documentation site. Set up a dedicated Python virtual environment to keep things isolated:
+
+```bash
+python -m venv ~/.venvs/zensical
+source ~/.venvs/zensical/bin/activate
+pip install zensical
+```
+### Preview site locally
+Once installed, activate the venv and run Zensical from the repository root:
+
+```bash
+source ~/.venvs/zensical/bin/activate
+
+# Live preview with hot-reload
+zensical serve
+
+# Production build
+zensical build --clean
+```
+
 ## Authoring
 The copy is written in Markdown and rendered by Zensical.
 Please see [authoring-guide](authoring-guide.md) for samples on how
 to create code-blocks, examples, info boxes and other formatting features.
+
+Edit documentation in the markdown files under `docs/`.
 
 ### Adding Code Sample Blocks
 
@@ -78,6 +102,43 @@ examples/
 ```
 
 This approach keeps code samples maintainable, testable, and consistent across all languages.
+
+### Commit Messages
+
+Use [Conventional Commits](https://www.conventionalcommits.org/) format:
+
+```
+<type>(<scope>): <subject>
+
+<body>
+```
+
+- type and scope are optional
+- Subject line must be 50 characters or less
+- Use lowercase for type and scope
+- Use imperative mood in the subject ("add" not "added" or "adds")
+- No period at the end of the subject line
+- Wrap body text at 72 characters
+- Use the body to explain what changed and why, with bullet points when helpful
+
+Common types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`
+
+Example:
+
+```
+add custom serdes examples
+
+- Add TypeScript, Python, and Java examples for custom
+  serialization
+- Include encryption-at-rest pattern for sensitive data
+- Update serialization doc page with snippet references
+```
+
+## Developer Workflow
+
+1. Create a feature branch and edit the Markdown files under `docs/` (and corresponding code samples under `examples/`).
+2. Preview your changes locally by running `zensical serve` and opening the local URL it prints.
+3. Once you're happy with the result, commit your changes and open a pull request against the *main* branch.
 
 ## Reporting Bugs/Feature Requests
 
