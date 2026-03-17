@@ -7,9 +7,9 @@ to create code-blocks, examples, info boxes and other formatting features.
 
 ### Adding Code Sample Blocks
 
-Code samples are embedded in documentation pages using the `--8<--` snippet syntax with content tabs for multi-language support.
+Embed code samples in documentation pages with the `--8<--` snippet syntax with content tabs for multi-language support.
 
-**IMPORTANT**: All code examples MUST include all three languages (Python, TypeScript, Java) and remain functionally equivalent across languages.
+**IMPORTANT**: All code examples MUST include all three languages (Python, TypeScript, Java) and remain functionally equivalent across languages. The tab order must always be TypeScript → Python → Java.
 
 #### Steps to add a new code sample:
 
@@ -20,16 +20,16 @@ Code samples are embedded in documentation pages using the `--8<--` snippet synt
 5. Reference the examples in your documentation using content tabs:
 
 ```markdown
-=== "Python"
-
-    ```python
-    --8<-- "examples/python/core/steps/basic-step.py"
-    ```
-
 === "TypeScript"
 
     ```typescript
     --8<-- "examples/typescript/core/steps/basic-step.ts"
+    ```
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/core/steps/basic-step.py"
     ```
 
 === "Java"
@@ -42,17 +42,6 @@ Code samples are embedded in documentation pages using the `--8<--` snippet synt
 #### Example structure:
 ```
 examples/
-├── python/
-│   ├── getting-started/
-│   │   └── minimal-example.py
-│   ├── core/
-│   │   ├── steps/
-│   │   │   └── basic-step.py
-│   │   └── parallel/
-│   │       └── parallel-execution.py
-│   └── advanced/
-│       └── error-handling/
-│           └── retry-with-backoff.py
 ├── typescript/
 │   ├── getting-started/
 │   │   └── minimal-example.ts
@@ -64,6 +53,17 @@ examples/
 │   └── advanced/
 │       └── error-handling/
 │           └── retry-with-backoff.ts
+├── python/
+│   ├── getting-started/
+│   │   └── minimal-example.py
+│   ├── core/
+│   │   ├── steps/
+│   │   │   └── basic-step.py
+│   │   └── parallel/
+│   │       └── parallel-execution.py
+│   └── advanced/
+│       └── error-handling/
+│           └── retry-with-backoff.py
 └── java/
     ├── getting-started/
     │   └── minimal-example.java
