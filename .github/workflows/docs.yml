@@ -66,7 +66,7 @@ jobs:
       id-token: write
       contents: read
     env:
-      TARBALL: docs-${{ github.sha }}.tar.gz
+      TARBALL: aws-durable-execution-docs-${{ github.sha }}.tar.gz
     steps:
       - name: Download built docs
         uses: actions/download-artifact@v4
