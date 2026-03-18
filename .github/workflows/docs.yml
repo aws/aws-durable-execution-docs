@@ -80,15 +80,15 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
       
       - name: Create tarball of docs
-        run: tar -czf ${{ env.TARBALL }} -C site .
+        run: tar -czf "${{ env.TARBALL }}" -C site .
       
       - name: Upload tarball to S3
-        run: aws s3 cp ${{ env.TARBALL }} s3://${{ secrets.S3_BUCKET_NAME }}/${{ env.TARBALL }}
+        run: aws s3 cp "${{ env.TARBALL }}" "s3://${{ secrets.S3_BUCKET_NAME }}/${{ env.TARBALL }}"
       
       - name: Invoke Lambda to sync to Gitfarm
         run: |
           aws lambda invoke \
-            --function-name ${{ secrets.SYNC_LAMBDA_ARN }} \
+            --function-name "${{ secrets.SYNC_LAMBDA_ARN }}" \
             --payload '{"gitFarmRepo":"${{ secrets.GF_REPO }}","s3FilePath":"${{ env.TARBALL }}","extractArchive":true,"gitHubRepo":"aws-durable-execution-docs","gitHubCommit":"${{ github.sha }}"}' \
             --cli-binary-format raw-in-base64-out \
             output.txt
