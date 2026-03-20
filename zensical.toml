@@ -29,6 +29,9 @@ site_author = "AWS"
 # Read more: https://zensical.org/docs/setup/basics/#site_url
 site_url = "https://docs.aws.amazon.com/durable-functions"
 
+repo_url = "https://github.com/aws/aws-durable-execution-docs"
+edit_uri = "edit/main/docs/"
+
 # The copyright notice appears in the page footer and can contain an HTML
 # fragment.
 #
@@ -49,13 +52,14 @@ nav = [
   { "Getting Started" = "getting-started.md" },
   { "Best Practices" = "best-practices.md" },
   { "Core" = [
-    { "Steps" = "core/steps.md" },
+    { "Step" = "core/steps.md" },
     { "Wait" = "core/wait.md" },
-    { "Callbacks" = "core/callbacks.md" },
+    { "Wait for Condition" = "core/wait-for-condition.md" },
+    { "Callback" = "core/callbacks.md" },
     { "Invoke" = "core/invoke.md" },
     { "Parallel" = "core/parallel.md" },
     { "Map" = "core/map.md" },
-    { "Child Contexts" = "core/child-contexts.md" },
+    { "Child Context" = "core/child-contexts.md" },
     { "Logger" = "core/logger.md" },
   ]},
   { "Advanced" = [
@@ -149,7 +153,7 @@ features = [
     # will generate a button that allows the user to view the Markdown
     # code for the current page.
     # https://zensical.org/docs/setup/repository/#content-actions
-    #"content.action.view",
+    "content.action.view",
 
     # Code annotations allow you to add an icon with a tooltip to your
     # code blocks to provide explanations at crucial points.
@@ -354,5 +358,11 @@ pygments_lang_class = true
 base_path = ["."]
 check_paths = true
 [project.markdown_extensions.pymdownx.superfences]
+custom_fences = [
+  { name = "mermaid", class = "mermaid", format = "pymdownx.superfences.fence_code_format" }
+]
 [project.markdown_extensions.pymdownx.tabbed]
 alternate_style = true
+[project.markdown_extensions.pymdownx.tabbed.slugify]
+object = "pymdownx.slugs.slugify"
+kwds = { case = "lower" }

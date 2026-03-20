@@ -360,19 +360,19 @@ Check that the wait operation was created with correct timing:
 === "TypeScript"
 
     ``` typescript
-    --8<-- "examples/typescript/core/wait/test-wait-operation.ts"
+    --8<-- "examples/typescript/testing-patterns/basic-tests/test-wait-operation.ts"
     ```
 
 === "Python"
 
     ``` python
-    --8<-- "examples/python/core/wait/test-wait-operation.py"
+    --8<-- "examples/python/testing-patterns/basic-tests/test-wait-operation.py"
     ```
 
 === "Java"
 
     ``` java
-    --8<-- "examples/java/core/wait/test-wait-operation.java"
+    --8<-- "examples/java/testing-patterns/basic-tests/test-wait-operation.java"
     ```
 
 

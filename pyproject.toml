@@ -1,0 +1,19 @@
+[project]
+name = "aws-durable-execution-docs"
+version = "0.1.0"
+
+[project.optional-dependencies]
+# pip install -e ".[docs]"
+docs = [
+    "zensical",
+    "mdformat",
+    "mdformat-mkdocs",
+    "codespell",
+]
+
+[tool.mdformat]
+wrap = 88
+extensions = ["mkdocs"]
+
+[tool.codespell]
+skip = "*.lock"
