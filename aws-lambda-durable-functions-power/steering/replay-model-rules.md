@@ -21,11 +21,11 @@ await context.wait({ seconds: 60 });                                // Line 3: W
 const result = await context.step('process', async () => process(data)); // Line 5: Executes after wait
 ```
 
-## Rule 1: Deterministic Code Outside Steps
+## Rule 1: Deterministic Code Outside Durable Operations
 
-**ALL code outside steps MUST produce the same result on every replay.**
+**ALL code outside durable operations MUST produce the same result on every replay.**
 
-### ❌ WRONG - Non-Deterministic Outside Steps
+### ❌ WRONG - Non-Deterministic Outside Durable Operations
 
 **TypeScript:**
 
@@ -51,7 +51,7 @@ now = datetime.now()                     # Different datetime each time
 context.step(lambda _: save_data({"id": id}), name='save')
 ```
 
-### ✅ CORRECT - Non-Deterministic Inside Steps
+### ✅ CORRECT - Non-Deterministic Inside Durable Operations
 
 **TypeScript:**
 
@@ -75,7 +75,7 @@ now = context.step(lambda _: datetime.now(), name='get-date')
 context.step(lambda _: save_data({"id": id}), name='save')
 ```
 
-### Must Be In Steps
+### Must Be In Durable Operations
 
 - `Date.now()`, `new Date()`, `time.time()`, `datetime.now()`
 - `Math.random()`, `random.random()`
@@ -86,7 +86,76 @@ context.step(lambda _: save_data({"id": id}), name='save')
 - Environment variable reads (if they can change)
 - Any external system interaction
 
-## Rule 2: No Nested Durable Operations
+Durable operations include `context.step(...)`, `waitForCallback(...)`, `waitForCondition(...)`, and branch/item functions passed to `context.parallel(...)` and `context.map(...)`.
+
+## Rule 2: Durable Operation Bodies Are Not Guaranteed To Be Atomic
+
+**Functions passed to durable context APIs must assume the operation is not guaranteed to be atomic with respect to external side effects, and may be re-attempted before the durable runtime has fully recorded the result.**
+
+This rule applies to:
+
+- `context.step(...)`
+- `waitForCallback(...)` submitters
+- `waitForCondition(...)` check functions
+- Branch/item functions used by `context.parallel(...)` and `context.map(...)`
+
+### What This Means
+
+- Non-deterministic computation inside a durable operation body is acceptable because the result can be checkpointed
+- External side effects started from that body should still be safe under re-attempt whenever possible
+- If the side effect needs an identifier for idempotency, derive it from durable inputs/state or generate it once from durable state and reuse it
+- If a **step** cannot be made idempotent and duplicate execution is unacceptable, use `StepSemantics.AtMostOncePerRetry` (TypeScript) or `StepSemantics.AT_MOST_ONCE_PER_RETRY` (Python) with retries disabled so the behavior is effectively zero-or-once rather than more than once
+
+### ❌ WRONG - Unstable External Identity Inside Durable Operation Body
+
+**TypeScript:**
+
+```typescript
+await context.step('start-export', async () => {
+  const jobId = `export-${Date.now()}`;
+  await exportClient.start({ jobId, orderId });
+});
+```
+
+**Python:**
+
+```python
+context.step(
+    lambda _: export_client.start({
+        'job_id': f'export-{time.time()}',
+        'order_id': order_id
+    }),
+    name='start-export'
+)
+```
+
+### ✅ CORRECT - Stable Identity Derived From Durable State
+
+**TypeScript:**
+
+```typescript
+const jobId = `export-${orderId}`;
+
+await context.step('start-export', async () => {
+  await exportClient.start({ jobId, orderId });
+});
+```
+
+**Python:**
+
+```python
+job_id = f'export-{order_id}'
+
+context.step(
+    lambda _: export_client.start({
+        'job_id': job_id,
+        'order_id': order_id
+    }),
+    name='start-export'
+)
+```
+
+## Rule 3: No Nested Durable Operations
 
 **You CANNOT call durable operations inside a step function.**
 
@@ -141,7 +210,7 @@ def process_child(child_ctx: DurableContext):
 context.run_in_child_context(func=process_child, name='process')
 ```
 
-## Rule 3: Closure Mutations Are Lost
+## Rule 4: Closure Mutations Are Lost
 
 **Variables mutated inside steps are NOT preserved across replays.**
 
@@ -188,9 +257,9 @@ counter = context.step(lambda _: counter + 1, name='increment')
 print(counter)  # Correct value
 ```
 
-## Rule 4: Side Effects Outside Steps Repeat
+## Rule 5: Side Effects Outside Durable Operations Repeat
 
-**Side effects outside steps happen on EVERY replay.**
+**Side effects outside durable operations happen on EVERY replay.**
 
 ### ❌ WRONG - Repeated Side Effects
 
@@ -214,7 +283,7 @@ update_database(data)                # Updates multiple times!
 context.step(lambda _: process(), name='process')
 ```
 
-### ✅ CORRECT - Side Effects In Steps
+### ✅ CORRECT - Replay-Aware Logging And Checkpointed Side Effects
 
 **TypeScript:**
 
@@ -238,6 +307,8 @@ context.step(process())
 ### Exception: context.logger
 
 `context.logger` is replay-aware and safe to use anywhere. It automatically deduplicates logs across replays.
+
+Custom loggers are still allowed. If you use a non-replay-aware logger outside durable operations, expect duplicate log entries on replay. If you want to keep an existing logging interface, configure `context.logger` to wrap that existing logger inside the durable handler.
 
 ## Common Pitfalls
 
@@ -286,15 +357,38 @@ if (shouldTakePathA) {
 }
 ```
 
+### Pitfall 4: Assuming Durable Operation Bodies Are Atomic
+
+```typescript
+// ❌ WRONG
+await context.waitForCallback(
+  'wait-payment',
+  async (callbackId) => {
+    const requestId = `payment-${Date.now()}`;
+    await paymentProvider.createPayment({ requestId, callbackId });
+  }
+);
+
+// ✅ CORRECT
+const requestId = `payment-${orderId}`;
+await context.waitForCallback(
+  'wait-payment',
+  async (callbackId) => {
+    await paymentProvider.createPayment({ requestId, callbackId });
+  }
+);
+```
+
 ## Debugging Replay Issues
 
 If you see inconsistent behavior:
 
-1. **Check for non-deterministic code outside steps**
-2. **Verify no nested durable operations**
-3. **Look for closure mutations**
-4. **Search for side effects outside steps**
-5. **Use `context.logger` to trace execution flow**
+1. **Check for non-deterministic code outside durable operations**
+2. **Check durable operation bodies for non-atomic external side effects**
+3. **Verify no nested durable operations**
+4. **Look for closure mutations**
+5. **Search for side effects outside durable operations**
+6. **Use `context.logger` to trace execution flow**
 
 ## Testing Replay Behavior
 

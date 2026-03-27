@@ -252,7 +252,7 @@ my-durable-function/
 
 ## ESLint Plugin Setup
 
-Install the ESLint plugin to catch common durable function mistakes at development time:
+For TypeScript durable-function projects, use the ESLint plugin to catch common mistakes at development time:
 
 ```bash
 npm install --save-dev @aws/durable-execution-sdk-js-eslint-plugin
@@ -304,6 +304,8 @@ export default [
 - Incorrect usage of durable context outside handler
 - Common replay model violations
 
+Use the plugin by default in new TypeScript projects. It is a strong static guardrail, not a runtime guarantee, so equivalent enforcement is acceptable if your team already has it.
+
 ## Jest Configuration
 
 **jest.config.js:**
@@ -339,7 +341,7 @@ Add `aws-durable-execution-sdk-python-testing` to your dev/test dependencies in 
 
 1. **Write handler** with durable operations
 2. **Test locally** with `LocalDurableTestRunner`
-3. **Validate replay rules** (no non-deterministic code outside steps)
+3. **Validate replay rules** (determinism outside durable operations; stable identity and idempotent side effects inside durable operation bodies)
 4. **Deploy** with qualified ARN (version or alias)
 5. **Monitor** execution state and logs
 
@@ -347,13 +349,13 @@ Add `aws-durable-execution-sdk-python-testing` to your dev/test dependencies in 
 
 1. **Write handler** with `@durable_execution` decorator
 2. **Test locally** with `DurableFunctionTestRunner` and pytest
-3. **Validate replay rules** (no non-deterministic code outside steps)
+3. **Validate replay rules** (determinism outside durable operations; stable identity and idempotent side effects inside durable operation bodies)
 4. **Deploy** with qualified ARN (version or alias)
 5. **Monitor** execution state and logs
 
 ## Key Concepts
 
-- **Steps**: Atomic operations with automatic retry and checkpointing
+- **Steps**: Persisted operations with automatic retry and checkpointing
 - **Waits**: Suspend execution without compute charges (up to 1 year)
 - **Child Contexts**: Group multiple durable operations
 - **Callbacks**: Wait for external systems to respond
@@ -368,13 +370,13 @@ When starting a new durable function project:
 - [ ] Install dependencies (`@aws/durable-execution-sdk-js`, testing & eslint packages)
 - [ ] Create `jest.config.js` with ts-jest preset
 - [ ] Configure `tsconfig.json` with proper module resolution
-- [ ] Set up ESLint with durable execution plugin
+- [ ] Set up ESLint with durable execution plugin (strongly recommended default for TypeScript)
 - [ ] Create handler with `withDurableExecution` wrapper
 - [ ] Write tests using `LocalDurableTestRunner`
 - [ ] Use `skipTime: true` for fast test execution
 - [ ] Verify TypeScript compilation: `npx tsc --noEmit`
 - [ ] Run tests to confirm setup: `npm test`
-- [ ] Review replay model rules (no non-deterministic code outside steps)
+- [ ] Review replay model rules (determinism outside durable operations; stable identity and idempotent side effects inside durable operation bodies)
 
 ### Python
 
@@ -384,7 +386,7 @@ When starting a new durable function project:
 - [ ] Define step functions with `@durable_step` decorator
 - [ ] Write tests using `DurableFunctionTestRunner` class
 - [ ] Run tests: `pytest`
-- [ ] Review replay model rules (no non-deterministic code outside steps)
+- [ ] Review replay model rules (determinism outside durable operations; stable identity and idempotent side effects inside durable operation bodies)
 
 ## Error Scenarios
 
