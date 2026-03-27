@@ -2,7 +2,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 import org.junit.jupiter.api.Test;
 import software.amazon.lambda.durable.model.ExecutionStatus;
-import software.amazon.lambda.durable.model.OperationType;
+import software.amazon.awssdk.services.lambda.model.OperationType;
 import software.amazon.lambda.durable.testing.LocalDurableTestRunner;
 
 @Test
