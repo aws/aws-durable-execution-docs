@@ -358,8 +358,8 @@ link = "https://github.com/aws/aws-durable-execution-docs"
 [project.markdown_extensions.pymdownx.details]
 [project.markdown_extensions.attr_list]
 [project.markdown_extensions.pymdownx.emoji]
-emoji_index = "material.extensions.emoji.twemoji"
-emoji_generator = "material.extensions.emoji.to_svg"
+emoji_index = "zensical.extensions.emoji.twemoji"
+emoji_generator = "zensical.extensions.emoji.to_svg"
 [project.markdown_extensions.pymdownx.highlight]
 anchor_linenums = true
 line_spans = "__span"
