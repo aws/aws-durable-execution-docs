@@ -22,6 +22,18 @@ zensical serve
 zensical build --clean
 ```
 
+## Formatting
+
+Run `mdformat` to auto-format Markdown files before committing:
+
+```bash
+# single file
+mdformat docs/index.md
+
+# all docs
+mdformat docs/
+```
+
 ## Authoring
 The copy is written in Markdown and rendered by Zensical.
 Please see the [authoring-guide](authoring-guide.md) for samples on how

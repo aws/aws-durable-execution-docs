@@ -11,7 +11,7 @@
 # The site_name is shown in the page header and the browser window title
 #
 # Read more: https://zensical.org/docs/setup/basics/#site_name
-site_name = "AWS Durable Execution docs"
+site_name = "AWS Durable Execution SDK Developer Guide"
 
 # The site_description is included in the HTML head and should contain a
 # meaningful description of the site content for use by search engines.
@@ -49,10 +49,10 @@ Copyright &copy; 2026 Amazon Web Services, Inc. or its affiliates.
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   { "Home" = "index.md" },
-  { "Get Started" = [
-    { "Get Started" = "get-started/index.md" },
-    { "Key Concepts" = "get-started/key-concepts.md" },
-    { "Quick Start" = "get-started/quick-start.md" },
+  { "Getting Started" = [
+    { "Getting Started" = "getting-started/index.md" },
+    { "Key Concepts" = "getting-started/key-concepts.md" },
+    { "Quick Start" = "getting-started/quick-start.md" },
   ]},
   { "SDK Reference" = [
     { "Operations" = [
@@ -354,6 +354,12 @@ link = "https://github.com/aws/aws-durable-execution-docs"
 # ----------------------------------------------------------------------------
 # Markdown Extensions
 # ----------------------------------------------------------------------------
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.pymdownx.details]
+[project.markdown_extensions.attr_list]
+[project.markdown_extensions.pymdownx.emoji]
+emoji_index = "material.extensions.emoji.twemoji"
+emoji_generator = "material.extensions.emoji.to_svg"
 [project.markdown_extensions.pymdownx.highlight]
 anchor_linenums = true
 line_spans = "__span"
