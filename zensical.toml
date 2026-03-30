@@ -326,6 +326,14 @@ logo = "assets/aws-logo-light.svg"
 # - https://zensical.org/docs/setup/colors/
 # ----------------------------------------------------------------------------
 
+# Palette toggle for automatic mode
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+primary = "custom"
+accent = "custom"
+
 # Palette toggle for light mode
 [[project.theme.palette]]
 media = "(prefers-color-scheme: light)"
@@ -340,7 +348,7 @@ accent = "custom"
 media = "(prefers-color-scheme: dark)"
 scheme = "slate"
 toggle.icon = "lucide/moon"
-toggle.name = "Switch to light mode"
+toggle.name = "Switch to system preference"
 primary = "custom"
 accent = "custom"
 
