@@ -49,28 +49,41 @@ Copyright &copy; 2026 Amazon Web Services, Inc. or its affiliates.
 # Read more: https://zensical.org/docs/setup/navigation/
 nav = [
   { "Home" = "index.md" },
-  { "Getting Started" = "getting-started.md" },
-  { "Best Practices" = "best-practices.md" },
-  { "Core" = [
-    { "Step" = "core/steps.md" },
-    { "Wait" = "core/wait.md" },
-    { "Wait for Condition" = "core/wait-for-condition.md" },
-    { "Callback" = "core/callbacks.md" },
-    { "Invoke" = "core/invoke.md" },
-    { "Parallel" = "core/parallel.md" },
-    { "Map" = "core/map.md" },
-    { "Child Context" = "core/child-contexts.md" },
-    { "Logger" = "core/logger.md" },
+  { "Get Started" = [
+    { "Get Started" = "get-started/index.md" },
+    { "Key Concepts" = "get-started/key-concepts.md" },
+    { "Quick Start" = "get-started/quick-start.md" },
   ]},
-  { "Advanced" = [
-    { "Error Handling" = "advanced/error-handling.md" },
-    { "Serialization" = "advanced/serialization.md" },
-    { "Testing Modes" = "advanced/testing-modes.md" },
+  { "SDK Reference" = [
+    { "Operations" = [
+      { "Step" = "sdk-reference/operations/step.md" },
+      { "Wait" = "sdk-reference/operations/wait.md" },
+      { "Wait for Condition" = "sdk-reference/operations/wait-for-condition.md" },
+      { "Callback" = "sdk-reference/operations/callback.md" },
+      { "Invoke" = "sdk-reference/operations/invoke.md" },
+      { "Parallel" = "sdk-reference/operations/parallel.md" },
+      { "Map" = "sdk-reference/operations/map.md" },
+      { "Child Context" = "sdk-reference/operations/child-context.md" },
+    ]},
+    { "Error Handling" = [
+      { "Errors" = "sdk-reference/error-handling/errors.md" },
+      { "Retries" = "sdk-reference/error-handling/retries.md" },
+    ]},
+    { "State" = [
+      { "Serialization" = "sdk-reference/state/serialization.md" },
+    ]},
+    { "Observability" = [
+      { "Logging" = "sdk-reference/observability/logging.md" },
+    ]},
   ]},
-  { "Testing Patterns" = [
-    { "Basic Tests" = "testing-patterns/basic-tests.md" },
-    { "Complex Workflows" = "testing-patterns/complex-workflows.md" },
-    { "Stores" = "testing-patterns/stores.md" },
+  { "Testing" = [
+    { "Basic Tests" = "testing/basic-tests.md" },
+    { "Complex Workflows" = "testing/complex-workflows.md" },
+    { "Stores" = "testing/stores.md" },
+    { "Testing Modes" = "testing/testing-modes.md" },
+  ]},
+  { "Patterns" = [
+    { "Best Practices" = "patterns/best-practices.md" },
   ]},
 ]
 
@@ -118,7 +131,7 @@ extra_css = ["stylesheets/extra.css"]
 # - https://zensical.org/docs/setup/logo-and-icons/#favicon
 # - https://developer.mozilla.org/en-US/docs/Glossary/Favicon
 #
-#favicon = "images/favicon.png"
+favicon = "assets/favicon.ico"
 
 # Zensical supports more than 60 different languages. This means that the
 # labels and tooltips that Zensical's templates produce are translated.
@@ -240,7 +253,7 @@ features = [
     # When tabs are enabled, top-level sections are rendered in a menu layer
     # below the header for viewports above 1220px, but remain as-is on mobile.
     # https://zensical.org/docs/setup/navigation/#navigation-tabs
-    #"navigation.tabs",
+    "navigation.tabs",
 
     # When sticky tabs are enabled, navigation tabs will lock below the header
     # and always remain visible when scrolling down.
@@ -279,7 +292,7 @@ features = [
 # option in the "theme" subsection. The logo must be a relative path to a file
 # in your "docs_dir", e.g., to use `docs/assets/logo.png` you would set:
 # ----------------------------------------------------------------------------
-#logo = "assets/logo.png"
+logo = "assets/aws-logo-light.svg"
 
 # ----------------------------------------------------------------------------
 # If you don't have a dedicated project logo, you can use a built-in icon from
@@ -313,14 +326,6 @@ features = [
 # - https://zensical.org/docs/setup/colors/
 # ----------------------------------------------------------------------------
 
-# Palette toggle for automatic mode
-[[project.theme.palette]]
-media = "(prefers-color-scheme)"
-toggle.icon = "lucide/sun-moon"
-toggle.name = "Switch to light mode"
-primary = "custom"
-accent = "custom"
-
 # Palette toggle for light mode
 [[project.theme.palette]]
 media = "(prefers-color-scheme: light)"
@@ -335,7 +340,7 @@ accent = "custom"
 media = "(prefers-color-scheme: dark)"
 scheme = "slate"
 toggle.icon = "lucide/moon"
-toggle.name = "Switch to system preference"
+toggle.name = "Switch to light mode"
 primary = "custom"
 accent = "custom"
 

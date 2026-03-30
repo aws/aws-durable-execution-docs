@@ -9,7 +9,7 @@
 - [Quick start](#quick-start)
 - [Next steps](#next-steps)
 
-[← Back to main index](index.md)
+[← Back to Get Started](index.md)
 
 ## Overview
 
@@ -266,25 +266,23 @@ The custom Lambda client is used for all checkpoint and state management operati
 Now that you've built your first durable function, explore the core features:
 
 **Learn the operations:**
-- [Steps](core/steps.md) - Execute code with retry strategies and checkpointing
-- [Wait operations](core/wait.md) - Pause execution for seconds, minutes, or hours
-- [Callbacks](core/callbacks.md) - Wait for external systems to respond
-- [Child contexts](core/child-contexts.md) - Organize complex workflows
-- [Parallel operations](core/parallel.md) - Run multiple operations concurrently
-- [Map operations](core/map.md) - Process collections in parallel
+- [Steps](../sdk-reference/operations/step.md) - Execute code with retry strategies and checkpointing
+- [Wait operations](../sdk-reference/operations/wait.md) - Pause execution for seconds, minutes, or hours
+- [Callbacks](../sdk-reference/operations/callback.md) - Wait for external systems to respond
+- [Child contexts](../sdk-reference/operations/child-context.md) - Organize complex workflows
+- [Parallel operations](../sdk-reference/operations/parallel.md) - Run multiple operations concurrently
+- [Map operations](../sdk-reference/operations/map.md) - Process collections in parallel
 
 **Dive deeper:**
-- [Error handling](advanced/error-handling.md) - Handle failures and implement retry strategies
-- [Testing patterns](testing-patterns/basic-tests.md) - Write effective tests for your workflows
-- [Best practices](best-practices.md) - Avoid common pitfalls
+- [Error handling](../sdk-reference/error-handling/errors.md) - Handle failures and implement retry strategies
+- [Testing patterns](../testing/basic-tests.md) - Write effective tests for your workflows
+- [Best practices](../patterns/best-practices.md) - Avoid common pitfalls
 
 [↑ Back to top](#table-of-contents)
 
 ## See also
 
-- [Documentation index](index.md) - Browse all guides and examples
-- [Architecture diagrams](architecture.md) - Class diagrams and concurrency flows
-- [Logger integration](core/logger.md) - Replay-safe structured logging
-- [Examples directory](https://github.com/awslabs/aws-durable-execution-sdk-python/tree/main/examples) - More working examples
+- [Documentation index](../index.md) - Browse all guides and examples
+- [Logger integration](../sdk-reference/observability/logging.md) - Replay-safe structured logging
 
 [↑ Back to top](#table-of-contents)

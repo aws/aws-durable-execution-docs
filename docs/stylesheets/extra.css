@@ -8,3 +8,7 @@
     --md-accent-fg-color--dark:   #E68A00;
 }
 
+
+[data-md-color-scheme="slate"] .md-header__button.md-logo img {
+  content: url('../assets/aws-logo-dark.svg');
+}

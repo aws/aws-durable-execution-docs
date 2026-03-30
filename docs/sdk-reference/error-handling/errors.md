@@ -1,4 +1,4 @@
-# Error Handling
+# Errors
 
 ## Table of Contents
 
@@ -6,7 +6,6 @@
 - [Terminology](#terminology)
 - [Getting started](#getting-started)
 - [Exception types](#exception-types)
-- [Retry strategies](#retry-strategies)
 - [Error response formats](#error-response-formats)
 - [Common error scenarios](#common-error-scenarios)
 - [Troubleshooting](#troubleshooting)
@@ -287,127 +286,6 @@ Use `InvocationError` for:
     --8<-- "examples/java/advanced/error-handling/serdes-error.java"
     ```
 
-
-[↑ Back to top](#table-of-contents)
-
-## Retry strategies
-
-Configure retry behavior for steps using retry strategies.
-
-### Creating retry strategies
-
-Use `RetryStrategyConfig` to define retry behavior:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/unreliable-operation.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/unreliable-operation.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/unreliable-operation.java"
-    ```
-
-
-### RetryStrategyConfig parameters
-
-**max_attempts** - Maximum number of attempts (including the initial attempt). Default: 3.
-
-**initial_delay_seconds** - Initial delay before first retry in seconds. Default: 5.
-
-**max_delay_seconds** - Maximum delay between retries in seconds. Default: 300 (5 minutes).
-
-**backoff_rate** - Multiplier for exponential backoff. Default: 2.0.
-
-**jitter_strategy** - Jitter strategy to add randomness to delays. Default: `JitterStrategy.FULL`.
-
-**retryable_errors** - List of error message patterns to retry (strings or regex patterns). Default: matches all errors.
-
-**retryable_error_types** - List of exception types to retry. Default: empty (retry all).
-
-### Retry presets
-
-The SDK provides preset retry strategies for common scenarios:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/error-handling/retry-presets.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/error-handling/retry-presets.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/error-handling/retry-presets.java"
-    ```
-
-
-### Retrying specific exceptions
-
-Only retry certain exception types:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/error-handling/retry-specific-exceptions.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/error-handling/retry-specific-exceptions.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/error-handling/retry-specific-exceptions.java"
-    ```
-
-
-### Exponential backoff
-
-Configure exponential backoff to avoid overwhelming failing services:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/error-handling/exponential-backoff.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/error-handling/exponential-backoff.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/error-handling/exponential-backoff.java"
-    ```
-
-
-With this configuration:
-- Attempt 1: Immediate
-- Attempt 2: After 1 second
-- Attempt 3: After 2 seconds
-- Attempt 4: After 4 seconds
-- Attempt 5: After 8 seconds
 
 [↑ Back to top](#table-of-contents)
 
@@ -945,17 +823,18 @@ Inspect error details in test results:
 
 
 For more testing patterns, see:
-- [Basic tests](../testing-patterns/basic-tests.md) - Simple test examples
-- [Complex workflows](../testing-patterns/complex-workflows.md) - Multi-step workflow testing
-- [Best practices](../best-practices.md) - Testing recommendations
+- [Basic tests](../testing/basic-tests.md) - Simple test examples
+- [Complex workflows](../testing/complex-workflows.md) - Multi-step workflow testing
+- [Best practices](../patterns/best-practices.md) - Testing recommendations
 
 [↑ Back to top](#table-of-contents)
 
 ## See also
 
-- [Steps](../core/steps.md) - Configure retry for steps
-- [Callbacks](../core/callbacks.md) - Handle callback errors
-- [Child contexts](../core/child-contexts.md) - Error handling in nested contexts
+- [Retries](retries.md) - Retry strategies and backoff configuration
+- [Step](../operations/step.md) - Configure retry for steps
+- [Callback](../operations/callback.md) - Handle callback errors
+- [Child context](../operations/child-context.md) - Error handling in nested contexts
 - [Examples](https://github.com/awslabs/aws-durable-execution-sdk-python/tree/main/examples/src/step) - Error handling examples
 
 [↑ Back to top](#table-of-contents)
