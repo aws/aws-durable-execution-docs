@@ -14,6 +14,10 @@ Lambda. Your functions can pause execution, wait for external events, retry fail
 operations, and resume exactly where they left off, even if Lambda recycles your
 execution environment.
 
+If you are new, [Get started](getting-started/) over here.
+
+For detailed programming language reference, see [SDK Reference](sdk-reference/).
+
 ## Key features
 
 - **Automatic checkpointing** Workflow state is saved automatically after each operation
