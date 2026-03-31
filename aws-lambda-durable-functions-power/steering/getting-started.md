@@ -64,7 +64,7 @@ import software.amazon.lambda.durable.DurableHandler;
 
 public class MyHandler extends DurableHandler<MyInput, MyOutput> {
     @Override
-    protected MyOutput handleRequest(MyInput input, DurableContext ctx) {
+    public MyOutput handleRequest(MyInput input, DurableContext ctx) {
         var userData = ctx.step("fetch-user", User.class,
             stepCtx -> fetchUserFromDB(input.getUserId()));
 
@@ -152,7 +152,7 @@ def handler(event: dict, context: DurableContext) -> str:
 ```java
 public class AIAgentHandler extends DurableHandler<AgentInput, String> {
     @Override
-    protected String handleRequest(AgentInput input, DurableContext ctx) {
+    public String handleRequest(AgentInput input, DurableContext ctx) {
         var messages = new ArrayList<Map<String, String>>();
         messages.add(Map.of("role", "user", "content", input.getPrompt()));
 
@@ -229,7 +229,7 @@ def handler(event: dict, context: DurableContext) -> dict:
 ```java
 public class ApprovalHandler extends DurableHandler<ApprovalInput, ApprovalResult> {
     @Override
-    protected ApprovalResult handleRequest(ApprovalInput input, DurableContext ctx) {
+    public ApprovalResult handleRequest(ApprovalInput input, DurableContext ctx) {
         var plan = ctx.step("generate-plan", Plan.class,
             stepCtx -> generatePlan(input));
 
@@ -284,7 +284,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 ```java
 public class BookingSaga extends DurableHandler<BookingInput, BookingResult> {
     @Override
-    protected BookingResult handleRequest(BookingInput input, DurableContext ctx) {
+    public BookingResult handleRequest(BookingInput input, DurableContext ctx) {
         var compensations = new ArrayList<Map.Entry<String, Runnable>>();
         try {
             ctx.step("book-flight", Void.class, stepCtx -> { flightClient.book(input); return null; });
@@ -454,6 +454,8 @@ Add `aws-durable-execution-sdk-python-testing` to your dev/test dependencies in 
 ## Java Project Setup
 
 Add the SDK and testing dependencies to your `pom.xml`:
+
+<!-- Check latest version: https://central.sonatype.com/artifact/software.amazon.lambda.durable/aws-durable-execution-sdk-java -->
 
 ```xml
 <dependencies>

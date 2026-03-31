@@ -76,6 +76,8 @@ pip install aws-durable-execution-sdk-python-testing
 
 **For Java (Maven):**
 
+<!-- Check latest version: https://central.sonatype.com/artifact/software.amazon.lambda.durable/aws-durable-execution-sdk-java -->
+
 ```xml
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
@@ -139,7 +141,7 @@ def handler(event: dict, context: DurableContext) -> dict:
 ```java
 public class MyHandler extends DurableHandler<MyInput, MyOutput> {
     @Override
-    protected MyOutput handleRequest(MyInput input, DurableContext ctx) {
+    public MyOutput handleRequest(MyInput input, DurableContext ctx) {
         var result = ctx.step("process", Result.class,
             stepCtx -> processData(input));
         return new MyOutput(result);

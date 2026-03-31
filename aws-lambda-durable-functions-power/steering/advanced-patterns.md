@@ -101,7 +101,7 @@ def handler(event: dict, context: DurableContext) -> str:
 ```java
 public class AIAgentHandler extends DurableHandler<AgentInput, String> {
     @Override
-    protected String handleRequest(AgentInput input, DurableContext ctx) {
+    public String handleRequest(AgentInput input, DurableContext ctx) {
         ctx.getLogger().info("Starting AI agent: {}", input.getPrompt());
         var messages = new ArrayList<Map<String, String>>();
         messages.add(Map.of("role", "user", "content", input.getPrompt()));

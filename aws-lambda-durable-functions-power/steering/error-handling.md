@@ -262,7 +262,7 @@ def handler(event: dict, context: DurableContext) -> dict:
 ```java
 public class OrderSaga extends DurableHandler<OrderInput, OrderResult> {
     @Override
-    protected OrderResult handleRequest(OrderInput input, DurableContext ctx) {
+    public OrderResult handleRequest(OrderInput input, DurableContext ctx) {
         var compensations = new ArrayList<Map.Entry<String, Runnable>>();
         try {
             var reservation = ctx.step("reserve-inventory", Reservation.class,
