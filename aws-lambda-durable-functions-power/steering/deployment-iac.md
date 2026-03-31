@@ -34,8 +34,8 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: myDurableFunction
-      Runtime: nodejs24.x  # or python3.14 (Java requires container images)
-      Handler: index.handler
+      Runtime: nodejs24.x  # or python3.14 or java21
+      Handler: index.handler  # Java: com.example.MyHandler::handleRequest
       Role: !GetAtt DurableFunctionRole.Arn
       Code:
         ZipFile: |
@@ -89,8 +89,8 @@ export class DurableFunctionStack extends cdk.Stack {
     super(scope, id, props);
 
     const durableFunction = new lambda.Function(this, 'DurableFunction', {
-      runtime: lambda.Runtime.NODEJS_24_X,  // or PYTHON_3_14 (Java requires container images)
-      handler: 'index.handler',
+      runtime: lambda.Runtime.NODEJS_24_X,  // or PYTHON_3_14 or JAVA_21
+      handler: 'index.handler',  // Java: com.example.MyHandler::handleRequest
       code: lambda.Code.fromAsset('lambda'),
       durableConfig: {
         executionTimeout: cdk.Duration.hours(1),
@@ -192,8 +192,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: myDurableFunction
-      Runtime: nodejs24.x  # or python3.14
-      Handler: index.handler
+      Runtime: nodejs24.x  # or python3.14 or java21
+      Handler: index.handler  # Java: com.example.MyHandler::handleRequest
       CodeUri: ./src
       DurableConfig:
         ExecutionTimeout: 3600
@@ -217,44 +217,6 @@ Outputs:
 ```bash
 sam build
 sam deploy --guided
-```
-
-### Java SAM Deployment (Container Image)
-
-Java durable functions currently require container images. Use the `PackageType: Image` configuration:
-
-```yaml
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-
-Resources:
-  DurableFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: myJavaDurableFunction
-      PackageType: Image
-      DurableConfig:
-        ExecutionTimeout: 3600
-        RetentionPeriodInDays: 7
-      Policies:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
-      AutoPublishAlias: prod
-      MemorySize: 512
-      Environment:
-        Variables:
-          LOG_LEVEL: INFO
-    Metadata:
-      DockerTag: java21-v1
-      DockerContext: .
-      Dockerfile: Dockerfile
-```
-
-**Example Dockerfile for Java:**
-
-```dockerfile
-FROM public.ecr.aws/lambda/java:21
-COPY target/my-durable-function.jar ${LAMBDA_TASK_ROOT}/lib/
-CMD ["com.example.MyHandler::handleRequest"]
 ```
 
 ## Durable Invokes
