@@ -79,20 +79,18 @@ pip install aws-durable-execution-sdk-python-testing
 
 **For Java (Maven):**
 
-<!-- Check latest version: https://central.sonatype.com/artifact/software.amazon.lambda.durable/aws-durable-execution-sdk-java -->
-
 ```xml
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java</artifactId>
-    <version>VERSION</version>
+    <version>1.0.0</version>
 </dependency>
 
 <!-- Testing utilities -->
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
-    <version>VERSION</version>
+    <version>1.0.0</version>
     <scope>test</scope>
 </dependency>
 ```

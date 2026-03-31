@@ -456,19 +456,17 @@ Add `aws-durable-execution-sdk-python-testing` to your dev/test dependencies in 
 
 Add the SDK and testing dependencies to your `pom.xml`:
 
-<!-- Check latest version: https://central.sonatype.com/artifact/software.amazon.lambda.durable/aws-durable-execution-sdk-java -->
-
 ```xml
 <dependencies>
     <dependency>
         <groupId>software.amazon.lambda.durable</groupId>
         <artifactId>aws-durable-execution-sdk-java</artifactId>
-        <version>VERSION</version>
+        <version>1.0.0</version>
     </dependency>
     <dependency>
         <groupId>software.amazon.lambda.durable</groupId>
         <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
-        <version>VERSION</version>
+        <version>1.0.0</version>
         <scope>test</scope>
     </dependency>
 </dependencies>
