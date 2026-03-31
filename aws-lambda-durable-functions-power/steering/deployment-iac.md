@@ -34,8 +34,8 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: myDurableFunction
-      Runtime: nodejs24.x  # or python3.14 or java21
-      Handler: index.handler  # Java: com.example.MyHandler::handleRequest
+      Runtime: nodejs24.x  # or python3.14 (see Java SAM section below for Java)
+      Handler: index.handler
       Role: !GetAtt DurableFunctionRole.Arn
       Code:
         ZipFile: |
@@ -89,8 +89,8 @@ export class DurableFunctionStack extends cdk.Stack {
     super(scope, id, props);
 
     const durableFunction = new lambda.Function(this, 'DurableFunction', {
-      runtime: lambda.Runtime.NODEJS_24_X,  // or PYTHON_3_14 or JAVA_21
-      handler: 'index.handler',  // Java: com.example.MyHandler::handleRequest
+      runtime: lambda.Runtime.NODEJS_24_X,  // or PYTHON_3_14 (see Java SAM section for Java)
+      handler: 'index.handler',
       code: lambda.Code.fromAsset('lambda'),
       durableConfig: {
         executionTimeout: cdk.Duration.hours(1),
@@ -192,8 +192,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: myDurableFunction
-      Runtime: nodejs24.x  # or python3.14 or java21
-      Handler: index.handler  # Java: com.example.MyHandler::handleRequest
+      Runtime: nodejs24.x  # or python3.14
+      Handler: index.handler
       CodeUri: ./src
       DurableConfig:
         ExecutionTimeout: 3600
@@ -218,6 +218,43 @@ Outputs:
 sam build
 sam deploy --guided
 ```
+
+### Java SAM Deployment
+
+For Java, `CodeUri` must point to the project root where `pom.xml` lives — SAM runs the Maven build itself. Use `java21` runtime with the `handleRequest` handler format:
+
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  DurableFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: myJavaDurableFunction
+      Runtime: java21
+      Handler: com.example.MyHandler::handleRequest
+      CodeUri: .   # Must point to directory containing pom.xml
+      DurableConfig:
+        ExecutionTimeout: 3600
+        RetentionPeriodInDays: 7
+      Policies:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
+      AutoPublishAlias: prod
+      MemorySize: 512
+      Environment:
+        Variables:
+          LOG_LEVEL: INFO
+```
+
+**Build and deploy:**
+
+```bash
+sam build -t infrastructure/template.yaml
+sam deploy --guided
+```
+
+**Important:** `CodeUri: .` tells SAM to look for `pom.xml` in the current directory. If your template is in an `infrastructure/` subfolder, use `CodeUri: ../` to point to the project root.
 
 ## Durable Invokes
 
