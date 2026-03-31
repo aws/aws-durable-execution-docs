@@ -55,6 +55,29 @@ def handler(event: dict, context: DurableContext) -> dict:
     return {'success': True, 'data': result}
 ```
 
+**Java:**
+
+```java
+import java.time.Duration;
+import software.amazon.lambda.durable.DurableContext;
+import software.amazon.lambda.durable.DurableHandler;
+
+public class MyHandler extends DurableHandler<MyInput, MyOutput> {
+    @Override
+    protected MyOutput handleRequest(MyInput input, DurableContext ctx) {
+        var userData = ctx.step("fetch-user", User.class,
+            stepCtx -> fetchUserFromDB(input.getUserId()));
+
+        ctx.wait(null, Duration.ofSeconds(5));
+
+        var result = ctx.step("process", ProcessResult.class,
+            stepCtx -> processUser(userData));
+
+        return new MyOutput(true, result);
+    }
+}
+```
+
 ## Common Patterns
 
 ### Multi-Step Workflow
@@ -124,6 +147,31 @@ def handler(event: dict, context: DurableContext) -> str:
         messages.append({"role": "assistant", "content": tool_result})
 ```
 
+**Java:**
+
+```java
+public class AIAgentHandler extends DurableHandler<AgentInput, String> {
+    @Override
+    protected String handleRequest(AgentInput input, DurableContext ctx) {
+        var messages = new ArrayList<Map<String, String>>();
+        messages.add(Map.of("role", "user", "content", input.getPrompt()));
+
+        while (true) {
+            var result = ctx.step("invoke-model", AIResponse.class,
+                stepCtx -> invokeAIModel(messages));
+
+            if (result.getTool() == null) return result.getResponse();
+
+            var toolResult = ctx.step("tool-" + result.getTool().getName(),
+                String.class,
+                stepCtx -> executeTool(result.getTool(), result.getResponse()));
+
+            messages.add(Map.of("role", "assistant", "content", toolResult));
+        }
+    }
+}
+```
+
 ### Human-in-the-Loop Approval
 
 **TypeScript:**
@@ -176,6 +224,30 @@ def handler(event: dict, context: DurableContext) -> dict:
     return {'status': 'rejected'}
 ```
 
+**Java:**
+
+```java
+public class ApprovalHandler extends DurableHandler<ApprovalInput, ApprovalResult> {
+    @Override
+    protected ApprovalResult handleRequest(ApprovalInput input, DurableContext ctx) {
+        var plan = ctx.step("generate-plan", Plan.class,
+            stepCtx -> generatePlan(input));
+
+        var answer = ctx.waitForCallback("wait-for-approval", String.class,
+            (callbackId, stepCtx) -> sendApprovalEmail(input.getApproverEmail(), plan, callbackId),
+            WaitForCallbackConfig.builder()
+                .callbackConfig(CallbackConfig.builder().timeout(Duration.ofHours(24)).build())
+                .build());
+
+        if ("APPROVED".equals(answer)) {
+            ctx.step("execute", Void.class, stepCtx -> { performAction(plan); return null; });
+            return new ApprovalResult("completed");
+        }
+        return new ApprovalResult("rejected");
+    }
+}
+```
+
 ### Saga Pattern (Compensating Transactions)
 
 **TypeScript:**
@@ -205,6 +277,36 @@ export const handler = withDurableExecution(async (event, context: DurableContex
     throw error;
   }
 });
+```
+
+**Java:**
+
+```java
+public class BookingSaga extends DurableHandler<BookingInput, BookingResult> {
+    @Override
+    protected BookingResult handleRequest(BookingInput input, DurableContext ctx) {
+        var compensations = new ArrayList<Map.Entry<String, Runnable>>();
+        try {
+            ctx.step("book-flight", Void.class, stepCtx -> { flightClient.book(input); return null; });
+            compensations.add(Map.entry("cancel-flight", () -> flightClient.cancel(input)));
+
+            ctx.step("book-hotel", Void.class, stepCtx -> { hotelClient.book(input); return null; });
+            compensations.add(Map.entry("cancel-hotel", () -> hotelClient.cancel(input)));
+
+            return new BookingResult(true);
+        } catch (Exception error) {
+            Collections.reverse(compensations);
+            for (var comp : compensations) {
+                try {
+                    ctx.step(comp.getKey(), Void.class, stepCtx -> { comp.getValue().run(); return null; });
+                } catch (Exception compError) {
+                    ctx.getLogger().error("Compensation {} failed", comp.getKey(), compError);
+                }
+            }
+            throw error;
+        }
+    }
+}
 ```
 
 ## Project Structure
@@ -248,6 +350,22 @@ my-durable-function/
 ├── infrastructure/
 │   └── template.yaml           # SAM/CloudFormation
 └── pyproject.toml              # Project configuration
+```
+
+### Java
+
+```
+my-durable-function/
+├── src/
+│   ├── main/java/com/example/
+│   │   ├── MyHandler.java          # Main handler (extends DurableHandler)
+│   │   ├── model/                  # Input/output POJOs
+│   │   └── service/                # Business logic
+│   └── test/java/com/example/
+│       └── MyHandlerTest.java      # Tests with LocalDurableTestRunner
+├── infrastructure/
+│   └── template.yaml               # SAM/CloudFormation
+└── pom.xml
 ```
 
 ## ESLint Plugin Setup
@@ -333,6 +451,28 @@ module.exports = {
 ## Python Project Setup
 Add `aws-durable-execution-sdk-python-testing` to your dev/test dependencies in pyproject.toml.
 
+## Java Project Setup
+
+Add the SDK and testing dependencies to your `pom.xml`:
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>software.amazon.lambda.durable</groupId>
+        <artifactId>aws-durable-execution-sdk-java</artifactId>
+        <version>VERSION</version>
+    </dependency>
+    <dependency>
+        <groupId>software.amazon.lambda.durable</groupId>
+        <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
+        <version>VERSION</version>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+Java 17+ is required. The handler class extends `DurableHandler<I, O>` and implements `handleRequest(I input, DurableContext ctx)`.
+
 ## Development Workflow
 
 ### TypeScript
@@ -347,6 +487,14 @@ Add `aws-durable-execution-sdk-python-testing` to your dev/test dependencies in 
 
 1. **Write handler** with `@durable_execution` decorator
 2. **Test locally** with `DurableFunctionTestRunner` and pytest
+3. **Validate replay rules** (no non-deterministic code outside steps)
+4. **Deploy** with qualified ARN (version or alias)
+5. **Monitor** execution state and logs
+
+### Java
+
+1. **Write handler** extending `DurableHandler<I, O>`
+2. **Test locally** with `LocalDurableTestRunner` and JUnit
 3. **Validate replay rules** (no non-deterministic code outside steps)
 4. **Deploy** with qualified ARN (version or alias)
 5. **Monitor** execution state and logs
@@ -384,6 +532,16 @@ When starting a new durable function project:
 - [ ] Define step functions with `@durable_step` decorator
 - [ ] Write tests using `DurableFunctionTestRunner` class
 - [ ] Run tests: `pytest`
+- [ ] Review replay model rules (no non-deterministic code outside steps)
+
+### Java
+
+- [ ] Add `aws-durable-execution-sdk-java` Maven dependency
+- [ ] Add `aws-durable-execution-sdk-java-testing` test dependency
+- [ ] Create handler extending `DurableHandler<I, O>`
+- [ ] Implement `handleRequest(I input, DurableContext ctx)`
+- [ ] Write tests using `LocalDurableTestRunner.create(InputType.class, handler)`
+- [ ] Run tests: `mvn test`
 - [ ] Review replay model rules (no non-deterministic code outside steps)
 
 ## Error Scenarios

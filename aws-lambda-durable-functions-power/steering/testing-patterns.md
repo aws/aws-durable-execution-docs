@@ -20,6 +20,10 @@ Test durable functions locally and in the cloud with comprehensive test runners.
 - ✅ Python: Instantiate `DurableFunctionTestRunner(handler=my_handler)` directly
 - ✅ Python: Use `runner.run(input={...}, timeout=10)` — note `input=` not `payload`
 - ✅ Python: The value of result.result is serialized. Deserialize using the appropriate SerDes or default json deserializer. 
+- ✅ Java: Use `result.getOperation("name")` to find operations by name
+- ✅ Java: Use `LocalDurableTestRunner.create(InputType.class, handler)` to create runner
+- ✅ Java: Use `runner.runUntilComplete(input)` for auto-time-skipping tests
+- ✅ Java: Use `result.getResult(OutputType.class)` to get typed results
 
 ### DON'T:
 
@@ -93,6 +97,21 @@ def test_workflow():
     assert result.status is InvocationStatus.SUCCEEDED
 ```
 
+**Java:**
+
+```java
+@Test
+void testWorkflow() {
+    var handler = new MyHandler();
+    var runner = LocalDurableTestRunner.create(MyInput.class, handler);
+
+    var result = runner.runUntilComplete(new MyInput("123"));
+
+    assertEquals(ExecutionStatus.SUCCEEDED, result.getStatus());
+    assertNotNull(result.getResult(MyOutput.class));
+}
+```
+
 ## Getting Operations
 
 **CRITICAL: Always get operations by NAME, not by index.**
@@ -136,6 +155,29 @@ def test_steps_execute():
     step_names = {op.name for op in result.operations if op.operation_type == OperationType.STEP}
     assert step_names >= {'fetch-user', 'process-data'}
     assert 'process-data' in step_names
+```
+
+**Java:**
+
+```java
+@Test
+void testStepsExecute() {
+    var runner = LocalDurableTestRunner.create(MyInput.class, handler);
+    var result = runner.runUntilComplete(input);
+
+    // ✅ CORRECT: Get by name
+    var fetchOp = result.getOperation("fetch-user");
+    assertNotNull(fetchOp);
+    assertEquals(OperationStatus.SUCCEEDED, fetchOp.getStatus());
+
+    // Get typed step result
+    var userData = fetchOp.getStepResult(User.class);
+    assertNotNull(userData);
+
+    // Inspect all operations
+    List<TestOperation> succeeded = result.getSucceededOperations();
+    List<TestOperation> failed = result.getFailedOperations();
+}
 ```
 
 ## Testing Replay Behavior
@@ -467,6 +509,16 @@ def test_workflow_cloud():
         result = runner.run(input={'user_id': '123'}, timeout=60)
 
     assert result.status is InvocationStatus.SUCCEEDED
+```
+
+**Java:**
+
+```java
+var runner = CloudDurableTestRunner.create(
+    "arn:aws:lambda:us-east-1:123456789012:function:order-processor:$LATEST",
+    Order.class, OrderResult.class);
+var result = runner.run(new Order("order-123", items));
+assertEquals(ExecutionStatus.SUCCEEDED, result.getStatus());
 ```
 
 ## Test Assertions

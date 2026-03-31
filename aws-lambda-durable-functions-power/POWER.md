@@ -31,6 +31,7 @@ Before using AWS Lambda durable functions, verify:
 2. **Runtime environment** is ready:
    - For TypeScript/JavaScript: Node.js 22+ (`node --version`)
    - For Python: Python 3.11+ (`python --version`. Note that currently only Lambda runtime environments 3.13+ come with the Durable Execution SDK pre-installed. 3.11 is the min supported Python version by the Durable SDK itself, however, you could use OCI to bring your own container image with your own Python runtime + Durable SDK.)
+   - For Java: Java 17+ (`java --version`)
 
 3. **Deployment capability** exists (one of):
    - AWS SAM CLI (`sam --version`) 1.153.1 or higher
@@ -71,6 +72,24 @@ npm install --save-dev @aws/durable-execution-sdk-js-testing
 ```bash
 pip install aws-durable-execution-sdk-python
 pip install aws-durable-execution-sdk-python-testing
+```
+
+**For Java (Maven):**
+
+```xml
+<dependency>
+    <groupId>software.amazon.lambda.durable</groupId>
+    <artifactId>aws-durable-execution-sdk-java</artifactId>
+    <version>VERSION</version>
+</dependency>
+
+<!-- Testing utilities -->
+<dependency>
+    <groupId>software.amazon.lambda.durable</groupId>
+    <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
+    <version>VERSION</version>
+    <scope>test</scope>
+</dependency>
 ```
 
 ## When to Load Reference Files
@@ -115,12 +134,25 @@ def handler(event: dict, context: DurableContext) -> dict:
     return result
 ```
 
+**Java:**
+
+```java
+public class MyHandler extends DurableHandler<MyInput, MyOutput> {
+    @Override
+    protected MyOutput handleRequest(MyInput input, DurableContext ctx) {
+        var result = ctx.step("process", Result.class,
+            stepCtx -> processData(input));
+        return new MyOutput(result);
+    }
+}
+```
+
 ### Critical Rules
 
-1. **All non-deterministic code MUST be in steps** (Date.now, Math.random, API calls)
+1. **All non-deterministic code MUST be in steps** (Date.now, Math.random, UUID.randomUUID, API calls)
 2. **Cannot nest durable operations** - use `runInChildContext` to group operations
 3. **Closure mutations are lost on replay** - return values from steps
-4. **Side effects outside steps repeat** - use `context.logger` (replay-aware)
+4. **Side effects outside steps repeat** - use `context.logger` / `ctx.getLogger()` (replay-aware)
 
 ### Python API Differences
 
@@ -130,6 +162,22 @@ The Python SDK differs from TypeScript in several key areas:
 - **Wait**: `context.wait(duration=Duration.from_seconds(n), name='...')`
 - **Exceptions**: `ExecutionError` (permanent), `InvocationError` (transient), `CallbackError` (callback failures)
 - **Testing**: Use `DurableFunctionTestRunner` class directly - instantiate with handler, use context manager, call `run(input=...)`
+
+### Java API Differences
+
+The Java SDK differs from TypeScript/Python in several key areas:
+
+- **Handler**: Extend `DurableHandler<I, O>` and implement `handleRequest(I input, DurableContext ctx)`
+- **Steps**: `ctx.step("name", ResultType.class, stepCtx -> ...)` — type class required for deserialization
+- **Generic types**: Use `TypeToken` for parameterized types: `ctx.step("name", new TypeToken<List<User>>() {}, stepCtx -> ...)`
+- **Wait**: `ctx.wait("name", Duration.ofMinutes(5))` — uses `java.time.Duration`
+- **Async**: `stepAsync()`, `waitAsync()`, `mapAsync()`, `runInChildContextAsync()` return `DurableFuture<T>`
+- **Callbacks**: `ctx.createCallback("name", Type.class)` returns `DurableCallbackFuture<T>`; or use `ctx.waitForCallback()`
+- **Map**: `ctx.map("name", items, Type.class, (item, index, childCtx) -> ...)` with `MapFunction<I, O>` interface
+- **Configuration**: Override `createConfiguration()` to return `DurableConfig` for custom SerDes, thread pools, Lambda client
+- **Exceptions**: `StepFailedException`, `StepInterruptedException`, `CallbackTimeoutException`, `CallbackFailedException`, `WaitForConditionFailedException`
+- **Testing**: `LocalDurableTestRunner.create(InputType.class, handler)` with `runUntilComplete(input)` and `getOperation("name")`
+- **Logging**: `ctx.getLogger()` returns `DurableLogger` (SLF4J MDC-based, replay-aware)
 
 ### Invocation Requirements
 
@@ -163,10 +211,10 @@ See here: https://docs.aws.amazon.com/lambda/latest/dg/durable-security.html
 
 When writing or reviewing durable function code, ALWAYS check for these replay model violations:
 
-1. **Non-deterministic code outside steps**: `Date.now()`, `Math.random()`, UUID generation, API calls, database queries must all be inside steps
+1. **Non-deterministic code outside steps**: `Date.now()`, `Math.random()`, `UUID.randomUUID()`, API calls, database queries must all be inside steps
 2. **Nested durable operations in step functions**: Cannot call `context.step()`, `context.wait()`, or `context.invoke()` inside a step function — use `context.runInChildContext()` instead
 3. **Closure mutations that won't persist**: Variables mutated inside steps are NOT preserved across replays — return values from steps instead
-4. **Side effects outside steps that repeat on replay**: Use `context.logger` for logging (it is replay-aware and deduplicates automatically)
+4. **Side effects outside steps that repeat on replay**: Use `context.logger` / `ctx.getLogger()` for logging (it is replay-aware and deduplicates automatically)
 
 When implementing or modifying tests for durable functions, ALWAYS verify:
 
@@ -175,10 +223,12 @@ When implementing or modifying tests for durable functions, ALWAYS verify:
 3. Replay behavior is tested with multiple invocations
 4. TypeScript: Use `LocalDurableTestRunner` for local testing
 5. Python: Use `DurableFunctionTestRunner` class directly
+6. Java: Use `LocalDurableTestRunner.create(InputType.class, handler)` with `runUntilComplete(input)`
 
 ## Resources
 
 - [AWS Lambda durable functions Documentation](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html)
 - [JavaScript SDK Repository](https://github.com/aws/aws-durable-execution-sdk-js)
 - [Python SDK Repository](https://github.com/aws/aws-durable-execution-sdk-python)
+- [Java SDK Repository](https://github.com/aws/aws-durable-execution-sdk-java)
 - [IAM Policy Reference](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSLambdaBasicDurableExecutionRolePolicy.html)

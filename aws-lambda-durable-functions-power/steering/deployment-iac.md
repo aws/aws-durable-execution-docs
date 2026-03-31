@@ -34,8 +34,8 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: myDurableFunction
-      Runtime: nodejs24.x  # or python3.14
-      Handler: index.handler
+      Runtime: nodejs24.x  # or python3.14 or java21
+      Handler: index.handler  # Java: com.example.MyHandler::handleRequest
       Role: !GetAtt DurableFunctionRole.Arn
       Code:
         ZipFile: |
@@ -89,8 +89,8 @@ export class DurableFunctionStack extends cdk.Stack {
     super(scope, id, props);
 
     const durableFunction = new lambda.Function(this, 'DurableFunction', {
-      runtime: lambda.Runtime.NODEJS_24_X,  // or PYTHON_3_14
-      handler: 'index.handler',
+      runtime: lambda.Runtime.NODEJS_24_X,  // or PYTHON_3_14 or JAVA_21
+      handler: 'index.handler',  // Java: com.example.MyHandler::handleRequest
       code: lambda.Code.fromAsset('lambda'),
       durableConfig: {
         executionTimeout: cdk.Duration.hours(1),
@@ -192,8 +192,8 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: myDurableFunction
-      Runtime: nodejs24.x  # or python3.14
-      Handler: index.handler
+      Runtime: nodejs24.x  # or python3.14 or java21
+      Handler: index.handler  # Java: com.example.MyHandler::handleRequest
       CodeUri: ./src
       DurableConfig:
         ExecutionTimeout: 3600
