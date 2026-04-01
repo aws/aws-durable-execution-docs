@@ -1,38 +1,19 @@
 # Getting Started
 
-## Installation
+This section will help you get started building durable functions in
+[AWS Lambda](https://docs.aws.amazon.com/lambda/latest/dg/welcome.html).
 
-Install the SDK using pip:
+Please see the [SDK Reference](../sdk-reference/) section for in-depth detail of the
+concepts introduced here.
 
-```console
-pip install aws-durable-execution-sdk-python
-```
+## Prerequisites
 
-## Quick example
+- An AWS account with permissions to create and execute AWS Lambda functions
+- Familiarity with writing AWS Lambda functions
 
-Here's a simple durable function that processes an order:
+## In this section
 
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/index/quick-example.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/index/quick-example.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/index/quick-example.java"
-    ```
-
-Each `context.step()` call is checkpointed automatically. If Lambda recycles your execution environment, the function resumes from the last completed step.
-
-## Next steps
-
-- [Key Concepts](key-concepts.md) - Understand the mental model behind durable execution
-- [Quick Start](quick-start.md) - Build and test your first durable function
+- [Key Concepts](key-concepts.md) Understand durable execution, checkpoints, replay, and
+    the DurableContext before writing code
+- [Quick Start](quick-start.md) Install the SDK, write your first durable function, and
+    test it locally

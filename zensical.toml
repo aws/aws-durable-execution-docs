@@ -55,6 +55,7 @@ nav = [
     { "Quick Start" = "getting-started/quick-start.md" },
   ]},
   { "SDK Reference" = [
+    { "SDK Reference" = "sdk-reference/index.md" },
     { "Operations" = [
       { "Step" = "sdk-reference/operations/step.md" },
       { "Wait" = "sdk-reference/operations/wait.md" },
@@ -75,14 +76,22 @@ nav = [
     { "Observability" = [
       { "Logging" = "sdk-reference/observability/logging.md" },
     ]},
+    { "Language Guides" = [
+      { "Language Guides" = "sdk-reference/languages/index.md" },
+      { "TypeScript" = "sdk-reference/languages/typescript/index.md" },
+      { "Python" = "sdk-reference/languages/python/index.md" },
+      { "Java" = "sdk-reference/languages/java/index.md" },
+    ]},
   ]},
   { "Testing" = [
+    { "Testing" = "testing/index.md" },
     { "Basic Tests" = "testing/basic-tests.md" },
     { "Complex Workflows" = "testing/complex-workflows.md" },
     { "Stores" = "testing/stores.md" },
     { "Testing Modes" = "testing/testing-modes.md" },
   ]},
   { "Patterns" = [
+    { "Patterns" = "patterns/index.md" },
     { "Best Practices" = "patterns/best-practices.md" },
   ]},
 ]
@@ -362,6 +371,9 @@ link = "https://github.com/aws/aws-durable-execution-docs"
 # ----------------------------------------------------------------------------
 # Markdown Extensions
 # ----------------------------------------------------------------------------
+[project.markdown_extensions.toc]
+permalink = true
+
 [project.markdown_extensions.admonition]
 [project.markdown_extensions.pymdownx.details]
 [project.markdown_extensions.attr_list]

@@ -13,6 +13,7 @@ docs = [
 
 [tool.mdformat]
 wrap = 88
+number = true
 extensions = ["mkdocs"]
 
 [tool.codespell]
