@@ -15,5 +15,11 @@ concepts introduced here.
 
 - [Key Concepts](key-concepts.md) Understand durable execution, checkpoints, replay, and
     the DurableContext before writing code
-- [Quick Start](quick-start.md) Install the SDK, write your first durable function, and
-    test it locally
+- [Quickstart](quickstart.md) Install the SDK, write your first durable function, and
+    deploy it with the AWS CLI
+- [Quickstart for Container Image](quickstart-container-image.md) Deploy a durable
+    function in a container image
+- [Manage Executions](manage-executions.md) List, inspect, stop, update, and delete
+    durable functions and executions
+- [Development Environment](development-environment.md) Development workflow, SDK
+    installation, and testing setup
