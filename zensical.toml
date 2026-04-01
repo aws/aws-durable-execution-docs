@@ -52,7 +52,10 @@ nav = [
   { "Getting Started" = [
     { "Getting Started" = "getting-started/index.md" },
     { "Key Concepts" = "getting-started/key-concepts.md" },
-    { "Quick Start" = "getting-started/quick-start.md" },
+    { "Quickstart" = "getting-started/quickstart.md" },
+    { "Quickstart for Container Image" = "getting-started/quickstart-container-image.md" },
+    { "Manage Executions" = "getting-started/manage-executions.md" },
+    { "Development Environment" = "getting-started/development-environment.md" },
   ]},
   { "SDK Reference" = [
     { "SDK Reference" = "sdk-reference/index.md" },
@@ -75,6 +78,10 @@ nav = [
     ]},
     { "Observability" = [
       { "Logging" = "sdk-reference/observability/logging.md" },
+    ]},
+    { "Configuration" = [
+      { "Configuration" = "sdk-reference/configuration/index.md" },
+      { "Custom Lambda Client" = "sdk-reference/configuration/custom-lambda-client.md" },
     ]},
     { "Language Guides" = [
       { "Language Guides" = "sdk-reference/languages/index.md" },
