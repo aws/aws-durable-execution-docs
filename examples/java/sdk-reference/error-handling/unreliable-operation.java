@@ -6,22 +6,25 @@ import software.amazon.lambda.durable.config.StepConfig;
 import software.amazon.lambda.durable.retry.JitterStrategy;
 import software.amazon.lambda.durable.retry.RetryStrategies;
 
-public class ExponentialBackoffExample extends DurableHandler<Object, String> {
+public class UnreliableOperationExample extends DurableHandler<Object, String> {
     @Override
     public String handleRequest(Object input, DurableContext context) {
         StepConfig config = StepConfig.builder()
             .retryStrategy(RetryStrategies.exponentialBackoff(
                 3,
                 Duration.ofSeconds(1),
-                Duration.ofSeconds(10),
+                Duration.ofMinutes(5),
                 2.0,
                 JitterStrategy.FULL))
             .build();
 
-        String result = context.step("retry_step", String.class,
-            (StepContext ctx) -> "Step with exponential backoff",
+        String result = context.step("unreliable_operation", String.class,
+            (StepContext ctx) -> {
+                if (Math.random() > 0.5) throw new RuntimeException("Random error occurred");
+                return "Operation succeeded";
+            },
             config);
 
-        return "Result: " + result;
+        return result;
     }
 }

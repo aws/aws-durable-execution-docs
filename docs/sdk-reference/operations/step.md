@@ -1,233 +1,348 @@
 # Steps
 
-## Table of Contents
+## Checkpointed results
 
-- [What are steps?](#what-are-steps)
-- [Terminology](#terminology)
-- [Key features](#key-features)
-- [Getting started](#getting-started)
-- [Method signature](#method-signature)
-- [Using the @durable_step decorator](#using-the-durable_step-decorator)
-- [Naming steps](#naming-steps)
-- [Configuration](#configuration)
-- [Advanced patterns](#advanced-patterns)
-- [Best practices](#best-practices)
-- [FAQ](#faq)
-- [Testing](#testing)
-- [See also](#see-also)
+A step executes the code you provide and checkpoints the result. On replay, the SDK
+returns the checkpointed result rather than re-running the code inside the step.
 
-[← Back to main index](../index.md)
+Use steps to encapsulate any code that should not re-run once it has completed.
 
-## Terminology
+Wrapping non-deterministic code in steps is the primary way you ensure that your durable
+execution is [deterministic](../../getting-started/key-concepts.md#determinism).
+Non-deterministic code includes fetching the current time, generating a random number or
+UUID, causing side-effects such as writing to disk, or calling an API that might return
+a different result on different calls.
 
-**Step** - A durable operation that executes a function and checkpoints its result. Created using `context.step()`.
+When you encapsulate such code in a step it becomes deterministic in your durable
+execution because the step doesn’t generate different results on replay.
 
-**Step function** - A function decorated with `@durable_step` that can be executed as a step. Receives a `StepContext` as its first parameter.
-
-**Checkpoint** - A saved state of execution that allows your function to resume from a specific point. The SDK creates checkpoints automatically after each step completes.
-
-**Replay** - The process of re-executing your function code when resuming from a checkpoint. Completed steps return their saved results instantly without re-executing.
-
-**Step semantics** - Controls how many times a step executes per retry attempt. At-least-once (default) re-executes on retry. At-most-once executes only once per retry attempt.
-
-**StepContext** - A context object passed to step functions containing metadata about the current execution.
-
-[↑ Back to top](#table-of-contents)
-
-## What are steps?
-
-Steps are the fundamental building blocks of durable functions. A step is a unit of work that executes your code and automatically checkpoints the result. A completed step won't execute again, it returns its saved result instantly. If a step fails to complete, it automatically retries and saves the error after all retry attempts are exhausted.
-
-Use steps to:
-- Execute business logic with automatic checkpointing
-- Retry operations that might fail
-- Control execution semantics (at-most-once or at-least-once)
-- Break complex workflows into manageable units
-
-[↑ Back to top](#table-of-contents)
-
-## Key features
-
-- **Automatic checkpointing** - Results are saved automatically after execution
-- **Configurable retry** - Define retry strategies with custom backoff
-- **Execution semantics** - Choose at-most-once or at-least-once per retry
-- **Named operations** - Identify steps by name for debugging and testing
-- **Custom serialization** - Control how inputs and results are serialized
-- **Instant replay** - Completed steps return saved results without re-executing
-
-[↑ Back to top](#table-of-contents)
-
-## Getting started
-
-Here's a simple example of using steps:
+If a step fails during execution, it retries according to its configured retry strategy.
+The step will checkpoint the last error after exhausting all retry attempts.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/add-numbers.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/steps/add-numbers.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/steps/add-numbers.py"
+    ```python
+    --8<-- "examples/python/operations/steps/add-numbers.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/steps/add-numbers.java"
+    ```java
+    --8<-- "examples/java/operations/steps/add-numbers.java"
     ```
-
-
-When this function runs:
-1. `add_numbers(5, 3)` executes and returns 8
-2. The result is checkpointed automatically
-3. If the durable function replays, the step returns 8 instantly without re-executing the `add_numbers` function
-
-[↑ Back to top](#table-of-contents)
 
 ## Method signature
 
-### context.step()
+### step
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/step-signature.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/steps/step-signature.ts"
     ```
+
+    **Parameters:**
+
+    - `name` (optional) A name for the step. Pass `undefined` to omit.
+    - `fn` A function that receives a `StepContext` and returns a `Promise<T>`.
+    - `config` (optional) A `StepConfig<T>` object.
+
+    **Returns:** `DurablePromise<T>`. Use `await` to get the result.
+
+    **Throws:** `DurableOperationError` wrapping the original error after retries are
+    exhausted. `StepInterruptedError` if an at-most-once step was interrupted.
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/steps/step-signature.py"
+    ```python
+    --8<-- "examples/python/operations/steps/step-signature.py"
+    ```
+
+    **Parameters:**
+
+    - `func` A callable that receives a `StepContext` and returns `T`.
+    - `name` (optional) A name for the step. Defaults to the function's name when using
+        `@durable_step`.
+    - `config` (optional) A `StepConfig` object.
+
+    **Returns:** `T`, the return value of `func`.
+
+    **Raises:** `CallableRuntimeError` wrapping the original exception after retries are
+    exhausted. `StepInterruptedError` if an at-most-once step was interrupted.
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/operations/steps/step-signature.java"
+    ```
+
+    **Parameters:**
+
+    - `name` (required) A name for the step.
+    - `resultType` The `Class<T>` or `TypeToken<T>` for deserialization.
+    - `func` A `Function<StepContext, T>` to execute.
+    - `config` (optional) A `StepConfig` object.
+
+    **Returns:** `T` (sync) or `DurableFuture<T>` (async via `stepAsync()`).
+
+    **Throws:** The original exception re-thrown after deserialization if possible,
+    otherwise `StepFailedException`. `StepInterruptedException` if an at-most-once step was
+    interrupted.
+
+### StepConfig
+
+=== "TypeScript"
+
+    ```typescript
+    interface StepConfig<T> {
+      retryStrategy?: (error: Error, attemptCount: number) => RetryDecision;
+      semantics?: StepSemantics;
+      serdes?: Serdes<T>;
+    }
+    ```
+
+    **Parameters:**
+
+    - `retryStrategy` (optional) A function returning a `RetryDecision`. Use
+        `createRetryStrategy()` to build one. See
+        [Retry strategies](../error-handling/retries.md).
+    - `semantics` (optional) `StepSemantics.AtLeastOncePerRetry` (default) or
+        `StepSemantics.AtMostOncePerRetry`.
+    - `serdes` (optional) Custom `Serdes<T>` for the step result. See
+        [Serialization](../state/serialization.md).
+
+=== "Python"
+
+    ```python
+    @dataclass(frozen=True)
+    class StepConfig:
+        retry_strategy: Callable[[Exception, int], RetryDecision] | None = None
+        step_semantics: StepSemantics = StepSemantics.AT_LEAST_ONCE_PER_RETRY
+        serdes: SerDes | None = None
+    ```
+
+    **Parameters:**
+
+    - `retry_strategy` (optional) A callable returning a `RetryDecision`. Use
+        `create_retry_strategy()` to build one. See
+        [Retry strategies](../error-handling/retries.md).
+    - `step_semantics` (optional) `StepSemantics.AT_LEAST_ONCE_PER_RETRY` (default) or
+        `StepSemantics.AT_MOST_ONCE_PER_RETRY`.
+    - `serdes` (optional) Custom `SerDes` for the step result. See
+        [Serialization](../state/serialization.md).
+
+=== "Java"
+
+    ```java
+    StepConfig.builder()
+        .retryStrategy(RetryStrategy)  // optional
+        .semantics(StepSemantics)      // optional
+        .serDes(SerDes)                // optional
+        .build()
+    ```
+
+    **Parameters:**
+
+    - `retryStrategy` (optional) A `RetryStrategy` instance. Use
+        `RetryStrategies.exponentialBackoff()` to build one. See
+        [Retry strategies](../error-handling/retries.md).
+    - `semantics` (optional) `StepSemantics.AT_LEAST_ONCE_PER_RETRY` (default) or
+        `StepSemantics.AT_MOST_ONCE_PER_RETRY`.
+    - `serDes` (optional) Custom `SerDes` for the step result. See
+        [Serialization](../state/serialization.md).
+
+### StepContext
+
+=== "TypeScript"
+
+    ```typescript
+    interface StepContext {
+      logger: DurableContextLogger;
+    }
+    ```
+
+    - `logger` A logger enriched with execution context metadata. See
+        [Logging](../observability/logging.md).
+
+=== "Python"
+
+    ```python
+    @dataclass(frozen=True)
+    class StepContext:
+        logger: LoggerInterface
+    ```
+
+    - `logger` A logger enriched with execution context metadata. See
+        [Logging](../observability/logging.md).
+
+=== "Java"
+
+    ```java
+    interface StepContext {
+        DurableLogger getLogger();
+        int getAttempt();      // current retry attempt, 0-based
+        boolean isReplaying();
+    }
+    ```
+
+    - `getLogger()` A logger enriched with execution context metadata. See
+        [Logging](../observability/logging.md).
+    - `getAttempt()` The current retry attempt number (0-based).
+    - `isReplaying()` Whether the function is currently replaying from a checkpoint.
+
+### StepSemantics
+
+=== "TypeScript"
+
+    ```typescript
+    enum StepSemantics {
+      AtLeastOncePerRetry = "AT_LEAST_ONCE_PER_RETRY",
+      AtMostOncePerRetry  = "AT_MOST_ONCE_PER_RETRY",
+    }
+    ```
+
+    - `AtLeastOncePerRetry` (default) Re-executes the step if the function replays before
+        the result is checkpointed. Safe for idempotent operations.
+    - `AtMostOncePerRetry` Executes the step at most once per retry attempt. If the function
+        replays before the result is checkpointed, the SDK skips the step and raises
+        `StepInterruptedError`. Use for operations with side effects.
+
+=== "Python"
+
+    ```python
+    class StepSemantics(Enum):
+        AT_LEAST_ONCE_PER_RETRY = "AT_LEAST_ONCE_PER_RETRY"
+        AT_MOST_ONCE_PER_RETRY  = "AT_MOST_ONCE_PER_RETRY"
+    ```
+
+    - `AT_LEAST_ONCE_PER_RETRY` (default) Re-execute the step if the function replays before
+        the result has checkpointed. Safe for idempotent operations.
+    - `AT_MOST_ONCE_PER_RETRY` Execute the step at most once per retry attempt. If the
+        function replays before the result has checkpointed, the SDK skips the step and
+        raises `StepInterruptedError`. Use for operations with side effects.
+
+=== "Java"
+
+    ```java
+    enum StepSemantics {
+        AT_LEAST_ONCE_PER_RETRY,
+        AT_MOST_ONCE_PER_RETRY
+    }
+    ```
+
+    - `AT_LEAST_ONCE_PER_RETRY` (default) Re-executes the step if the function replays
+        before the result is checkpointed. Safe for idempotent operations.
+    - `AT_MOST_ONCE_PER_RETRY` Executes the step at most once per retry attempt. If the
+        function replays before the result is checkpointed, the SDK skips the step and
+        throws `StepInterruptedException`. Use for operations with side effects.
+
+## The Step's function
+
+A step function receives a `StepContext` as its first parameter.
+
+=== "TypeScript"
+
+    Pass any async function directly.
+
+    ```typescript
+    --8<-- "examples/typescript/operations/steps/validate-order.ts"
+    ```
+
+    Step functions are async. `await` the result of `context.step()`.
+
+=== "Python"
+
+    Use the `@durable_step` decorator. It automatically uses the function's name as the step
+    name. Step functions must be synchronous.
+
+    ```python
+    --8<-- "examples/python/operations/steps/validate-order.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/steps/step-signature.java"
+    Pass a lambda or method reference directly. Step functions are synchronous. Use
+    `stepAsync()` to get a `DurableFuture<T>` you can compose with other async operations.
+
+    ```java
+    --8<-- "examples/java/operations/steps/validate-order.java"
     ```
 
+### Anonymous step functions
 
-**Parameters:**
-
-- `func` - A callable that receives a `StepContext` and returns a result. Use the `@durable_step` decorator to create step functions.
-- `name` (optional) - A name for the step, useful for debugging. If you decorate `func` with `@durable_step`, the SDK uses the function's name automatically.
-- `config` (optional) - A `StepConfig` object to configure retry behavior, execution semantics, and serialization.
-
-**Returns:** The result of executing the step function.
-
-**Raises:** Any exception raised by the step function (after retries are exhausted if configured).
-
-[↑ Back to top](#table-of-contents)
-
-## Using the @durable_step decorator
-
-The `@durable_step` decorator marks a function as a step function. Step functions receive a `StepContext` as their first parameter:
+You can also use inline lambdas.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/validate-order.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/steps/lambda-step-no-name.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/steps/validate-order.py"
+    If you use an anonymous function it will not automatically get named like the
+    `@durable_step` decorator does.
+
+    ```python
+    --8<-- "examples/python/operations/steps/lambda-step-no-name.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/steps/validate-order.java"
+    ```java
+    --8<-- "examples/java/operations/steps/lambda-step-no-name.java"
     ```
 
-
-**Why use @durable_step?**
-
-The decorator wraps your function so it can be called with arguments and passed to `context.step()`. It also automatically uses the wrapped function's name as the step's name. You can optionally use lambda functions instead:
+### Pass arguments to the step function
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/lambda-step-no-name.ts"
+    Capture arguments in a closure:
+
+    ```typescript
+    --8<-- "examples/typescript/operations/steps/multi-argument-step.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/steps/lambda-step-no-name.py"
+    Use `@durable_step` and pass arguments when calling the function:
+
+    ```python
+    --8<-- "examples/python/operations/steps/multi-argument-step.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/steps/lambda-step-no-name.java"
+    Capture arguments in a lambda:
+
+    ```java
+    --8<-- "examples/java/operations/steps/multi-argument-step.java"
     ```
-
-
-**StepContext parameter:**
-
-The `StepContext` provides metadata about the current execution. While you must include it in your function signature, you typically don't need to use it unless you need execution metadata or custom logging.
-
-[↑ Back to top](#table-of-contents)
 
 ## Naming steps
 
-You can name steps explicitly using the `name` parameter. Named steps are easier to identify in logs and tests:
+Name your steps so they're easy to identify in logs and tests. Use descriptive names
+that explain what the step does. Names don't need to be unique, but distinct names make
+debugging easier.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/explicit-step-name.ts"
-    ```
+    The name is the first argument. Pass `undefined` to omit it.
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/steps/explicit-step-name.py"
-    ```
+    The `@durable_step` decorator uses the function's name automatically as the step name.
+    Override it with the `name` keyword argument.
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/steps/explicit-step-name.java"
-    ```
-
-
-If you don't provide a name, the SDK uses the function's name automatically when using `@durable_step`:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/process-payment.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/process-payment.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/process-payment.java"
-    ```
-
-
-**Naming best practices:**
-
-- Use descriptive names that explain what the step does
-- Keep names consistent across your codebase
-- Use names when you need to inspect specific steps in tests
-- Let the SDK auto-name steps when using `@durable_step`
-
-**Note:** Names don't need to be unique, but using distinct names improves observability when debugging or monitoring your workflows.
-
-[↑ Back to top](#table-of-contents)
+    The name is always the first argument. Pass `null` for no name. 
 
 ## Configuration
 
@@ -235,348 +350,84 @@ Configure step behavior using `StepConfig`:
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/process-data.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/steps/process-data.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/steps/process-data.py"
+    ```python
+    --8<-- "examples/python/operations/steps/process-data.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/steps/process-data.java"
+    ```java
+    --8<-- "examples/java/operations/steps/process-data.java"
     ```
 
+## Pass data between steps
 
-### StepConfig parameters
+Pass data between steps through return values. Do not use shared variables or closure
+mutations. Steps return cached results on replay, so mutations to outer variables are
+lost.
 
-**retry_strategy** - A function that determines whether to retry after an exception. Use `create_retry_strategy()` to build one from `RetryStrategyConfig`.
-
-**step_semantics** - Controls execution behavior on retry:
-- `AT_LEAST_ONCE_PER_RETRY` (default) - Step re-executes on each retry attempt
-- `AT_MOST_ONCE_PER_RETRY` - Step executes only once per retry attempt, even if the function is replayed
-
-**serdes** - Custom serialization/deserialization for the step result. If not provided, uses JSON serialization.
-
-[↑ Back to top](#table-of-contents)
-
-## Advanced patterns
-
-### Retry with exponential backoff
-
-Configure steps to retry with exponential backoff when they fail:
+### wrong way to pass data between steps
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/exponential-backoff.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/steps/passing-data-wrong.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/steps/exponential-backoff.py"
+    ```python
+    --8<-- "examples/python/operations/steps/passing-data-wrong.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/steps/exponential-backoff.java"
+    ```java
+    --8<-- "examples/java/operations/steps/passing-data-wrong.java"
     ```
 
-
-This configuration:
-- Retries up to 3 times
-- Waits 1 second before the first retry
-- Doubles the wait time for each subsequent retry (2s, 4s, 8s)
-- Caps the wait time at 10 seconds
-
-### Retry specific exceptions
-
-Only retry certain types of errors:
+### correct way to pass data between steps
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/unreliable-operation.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/steps/passing-data-correct.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/steps/unreliable-operation.py"
+    ```python
+    --8<-- "examples/python/operations/steps/passing-data-correct.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/steps/unreliable-operation.java"
+    ```java
+    --8<-- "examples/java/operations/steps/passing-data-correct.java"
     ```
 
+## Nesting steps
 
-### At-most-once semantics
+You cannot nest steps. Do not attempt to invoke another step from inside a step. If you
+want to group or nest operations, use a [child context](child-context.md).
 
-Use at-most-once semantics when your step has side effects that shouldn't be repeated:
+## Concurrency
 
-=== "TypeScript"
+Do not run steps concurrently. For concurrent operations, see [map](map.md) and
+[parallel](parallel.md).
 
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/charge-credit-card.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/charge-credit-card.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/charge-credit-card.java"
-    ```
-
-
-With at-most-once semantics:
-- The step executes only once per retry attempt
-- If the function replays due to Lambda recycling, the step returns the saved result
-- Use this for operations with side effects like payments, emails, or database writes
-
-### Multiple steps in sequence
-
-Chain multiple steps together to build complex workflows:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/fetch-user.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/fetch-user.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/fetch-user.java"
-    ```
-
-
-Each step is checkpointed independently. If the function is interrupted after step 1, it resumes at step 2 without re-fetching the user.
-
-[↑ Back to top](#table-of-contents)
-
-## Best practices
-
-**Use @durable_step for reusable functions** - Decorate functions you'll use as steps to get automatic naming and convenient with succinct syntax.
-
-**Name steps for debugging** - Use explicit names for steps you'll need to inspect in logs or tests.
-
-**Keep steps focused** - Each step should do one thing. Break complex operations into multiple steps.
-
-**Use retry for transient failures** - Configure retry strategies for operations that might fail temporarily (network calls, rate limits).
-
-**Choose semantics carefully** - Use at-most-once for operations with side effects. Use at-least-once (default) for idempotent operations.
-
-**Don't share state between steps** - Pass data between steps through return values, not global variables.
-
-**Wrap non-deterministic code in steps** - All non-deterministic code, such as random values or timestamps, must be wrapped in a step. Once the step completes, the result won't change on replay.
-
-**Handle errors explicitly** - Catch and handle exceptions in your step functions. Let retries handle transient failures.
-
-[↑ Back to top](#table-of-contents)
-
-## FAQ
-
-**Q: What's the difference between a step and a regular function call?**
-
-A: A step is checkpointed automatically. Completed steps return their saved results without re-executing. Regular function calls execute every time your function runs.
-
-**Q: When should I use at-most-once vs at-least-once semantics?**
-
-A: Use at-most-once for operations with side effects (payments, emails, database writes). Use at-least-once (default) for idempotent operations (calculations, data transformations).
-
-**Q: Can I use async functions as steps?**
-
-A: No, step functions must be synchronous. If you need to call async code, use `asyncio.run()` inside your step function.
-
-**Q: How do I pass multiple arguments to a step?**
-
-A: Use the `@durable_step` decorator and pass arguments when calling the function:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/multi-argument-step.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/multi-argument-step.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/multi-argument-step.java"
-    ```
-
-
-**Q: Can I nest steps inside other steps?**
-
-A: No, you can't call `context.step()` inside a step function. Steps are leaf operations. Use child contexts if you need nested operations.
-
-**Q: What happens if a step raises an exception?**
-
-A: If no retry strategy is configured, the exception propagates and fails the execution. If retry is configured, the SDK retries according to your strategy. After exhausting retries, the step checkpoints the error and the exception propagates.
-
-**Q: How do I access the StepContext?**
-
-A: The `StepContext` is passed as the first parameter to your step function. It contains metadata about the execution, though you typically don't need to use it.
-
-**Q: Can I use lambda functions as steps?**
-
-A: Yes, but they won't have automatic names:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/lambda-step-example.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/lambda-step-example.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/lambda-step-example.java"
-    ```
-
-
-Use `@durable_step` for better ergonomics.
-
-[↑ Back to top](#table-of-contents)
-
-## Testing
-
-You can test steps using the testing SDK. The test runner executes your function and lets you inspect step results.
-
-### Basic step testing
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/basic-step-testing.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/basic-step-testing.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/basic-step-testing.java"
-    ```
-
-
-### Inspecting step results
-
-Use `result.get_step()` to inspect individual step results:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/test-error-handling.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/test-error-handling.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/test-error-handling.java"
-    ```
-
-
-### Testing retry behavior
-
-Test that steps retry correctly on failure:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/test-retry-behavior.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/test-retry-behavior.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/test-retry-behavior.java"
-    ```
-
-
-### Testing error handling
-
-Test that steps fail correctly when errors occur:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/inspect-step-results.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/inspect-step-results.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/inspect-step-results.java"
-    ```
-
-
-For more testing patterns, see:
-- [Basic tests](../testing-patterns/basic-tests.md) - Simple test examples
-- [Complex workflows](../testing-patterns/complex-workflows.md) - Multi-step workflow testing
-- [Best practices](../best-practices.md) - Testing recommendations
-
-[↑ Back to top](#table-of-contents)
+To code your own concurrency use a [child context](child-context.md) to encapsulate each
+concurrent code path.
 
 ## See also
 
-- [Retry strategies](../advanced/error-handling.md) - Implementing retry logic
-- [Wait operations](wait.md) - Pause execution between steps
-- [Child contexts](child-contexts.md) - Organize complex workflows
-- [Examples](https://github.com/awslabs/aws-durable-execution-sdk-python/tree/main/examples/src/step) - More step examples
-
-[↑ Back to top](#table-of-contents)
-
-[↑ Back to top](#table-of-contents)
+- [Retries](../error-handling/retries.md)
+- [Testing](../../testing/basic-tests.md)
+- [Wait operations](wait.md)
+- [Child contexts](child-context.md)
