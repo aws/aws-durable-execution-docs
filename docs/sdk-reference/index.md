@@ -30,6 +30,11 @@ The core building blocks for constructing durable workflows:
 
 - [Logging](observability/logging.md) Structured logging within durable functions
 
+## Configuration
+
+- [Custom Lambda Client](configuration/custom-lambda-client.md) Configure the Lambda
+    client used by the SDK
+
 ## Language Guides
 
 Language-specific installation and configuration:
