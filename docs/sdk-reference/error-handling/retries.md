@@ -1,144 +1,94 @@
-# Retries
+# Retry strategies
 
-## Table of Contents
+Retry strategies configure how the SDK responds to failures in steps. You control the
+number of attempts, delay between retries, backoff rate, and which exceptions trigger a
+retry. If no retry strategy is configured on a step, any exception propagates
+immediately and fails the execution.
 
-- [Overview](#overview)
-- [Creating retry strategies](#creating-retry-strategies)
-- [RetryStrategyConfig parameters](#retrystrategyconfig-parameters)
-- [Retry presets](#retry-presets)
-- [Retrying specific exceptions](#retrying-specific-exceptions)
-- [Exponential backoff](#exponential-backoff)
+## Creating a retry strategy
 
-[← Back to main index](../index.md)
-
-## Overview
-
-Retry strategies configure how the SDK responds to transient failures in steps. You can control the number of attempts, delay between retries, backoff rate, and which exceptions trigger a retry.
-
-[↑ Back to top](#table-of-contents)
-
-## Creating retry strategies
-
-Use `RetryStrategyConfig` to define retry behavior:
+Use `createRetryStrategy()` (TypeScript/Python) or
+`RetryStrategies.exponentialBackoff()` (Java) to build a strategy, then pass it to
+`StepConfig`:
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/steps/unreliable-operation.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/steps/unreliable-operation.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/steps/unreliable-operation.java"
-    ```
-
-[↑ Back to top](#table-of-contents)
-
-## RetryStrategyConfig parameters
-
-**max_attempts** - Maximum number of attempts (including the initial attempt). Default: 3.
-
-**initial_delay_seconds** - Initial delay before first retry in seconds. Default: 5.
-
-**max_delay_seconds** - Maximum delay between retries in seconds. Default: 300 (5 minutes).
-
-**backoff_rate** - Multiplier for exponential backoff. Default: 2.0.
-
-**jitter_strategy** - Jitter strategy to add randomness to delays. Default: `JitterStrategy.FULL`.
-
-**retryable_errors** - List of error message patterns to retry (strings or regex patterns). Default: matches all errors.
-
-**retryable_error_types** - List of exception types to retry. Default: empty (retry all).
-
-[↑ Back to top](#table-of-contents)
-
-## Retry presets
-
-The SDK provides preset retry strategies for common scenarios:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/error-handling/retry-presets.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/error-handling/retry-presets.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/error-handling/retry-presets.java"
-    ```
-
-[↑ Back to top](#table-of-contents)
-
-## Retrying specific exceptions
-
-Only retry certain exception types:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/error-handling/retry-specific-exceptions.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/error-handling/retry-specific-exceptions.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/error-handling/retry-specific-exceptions.java"
-    ```
-
-[↑ Back to top](#table-of-contents)
-
-## Exponential backoff
-
-Configure exponential backoff to avoid overwhelming failing services:
-
-=== "TypeScript"
-
-    ``` typescript
+    ```typescript
     --8<-- "examples/typescript/advanced/error-handling/exponential-backoff.ts"
     ```
 
 === "Python"
 
-    ``` python
+    ```python
     --8<-- "examples/python/advanced/error-handling/exponential-backoff.py"
     ```
 
 === "Java"
 
-    ``` java
+    ```java
     --8<-- "examples/java/advanced/error-handling/exponential-backoff.java"
     ```
 
-With this configuration:
-- Attempt 1: Immediate
-- Attempt 2: After 1 second
-- Attempt 3: After 2 seconds
-- Attempt 4: After 4 seconds
-- Attempt 5: After 8 seconds
+## RetryStrategyConfig parameters
 
-[↑ Back to top](#table-of-contents)
+**max_attempts / maxAttempts** Maximum number of attempts including the initial attempt.
+Default: 3.
+
+**initial_delay / initialDelay** Delay before the first retry. Default: 5 seconds.
+
+**max_delay / maxDelay** Maximum delay between retries. Default: 5 minutes.
+
+**backoff_rate / backoffRate** Multiplier for exponential backoff. Default: 2.0.
+
+**jitter_strategy / jitter** Jitter strategy to spread retries. Default: `FULL`.
+
+**retryable_errors / retryableErrors** Error message patterns to retry (strings or
+regex). Default: matches all errors.
+
+**retryable_error_types / retryableErrorTypes** Exception types to retry. Default: empty
+(retries all).
+
+## Retry presets
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/advanced/error-handling/retry-presets.ts"
+    ```
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/advanced/error-handling/retry-presets.py"
+    ```
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/advanced/error-handling/retry-presets.java"
+    ```
+
+## Retrying specific exceptions
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/error-handling/unreliable-operation.ts"
+    ```
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/sdk-reference/error-handling/unreliable-operation.py"
+    ```
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/sdk-reference/error-handling/unreliable-operation.java"
+    ```
 
 ## See also
 
-- [Errors](errors.md) - Exception types and error responses
-- [Step](../operations/step.md) - Configure retry for steps
+- [Errors](errors.md)
+- [Steps](../operations/step.md)

@@ -122,11 +122,21 @@ durable operation calls on every invocation.
 ## Determinism
 
 Because your code runs again on replay, it must be **deterministic**. Deterministic
-means that the code always produces the same results given the same inputs. Given the
-same inputs and checkpoint log, your function must make the same sequence of durable
-operation calls. Avoid operations with side effects (like generating random numbers or
-getting the current time) outside of steps, as these can produce different values during
-replay and cause non-deterministic behavior.
+means that the code always produces the same results given the same inputs. During
+replay, your function runs from the beginning and must follow the same execution path as
+the original run. Given the same inputs and checkpoint log, your function must make the
+same sequence of durable operation calls. Avoid operations with side effects outside of
+steps, as these can produce different values during replay and cause non-deterministic
+behavior.
+
+These are some examples of non-deterministic code:
+
+- Random number generation and UUIDs
+- Current time or timestamps
+- External API calls and database queries
+- File system operations
+
+Wrap such non-deterministic code in [steps](../sdk-reference/operations/step.md).
 
 ### Rules for deterministic durable operations
 
