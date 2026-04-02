@@ -31,7 +31,7 @@ Before using AWS Lambda durable functions, verify:
 2. **Runtime environment** is ready:
    - For TypeScript/JavaScript: Node.js 22+ (`node --version`)
    - For Python: Python 3.11+ (`python --version`. Note that currently only Lambda runtime environments 3.13+ come with the Durable Execution SDK pre-installed. 3.11 is the min supported Python version by the Durable SDK itself, however, you could use OCI to bring your own container image with your own Python runtime + Durable SDK.)
-   - For Java: Java 17+ (`java --version`). Note: Java durable functions require container images (Docker) for deployment — managed runtimes do not support `DurableConfig` yet.
+   - For Java: Java 17+ (`java --version`)
 
 3. **Deployment capability** exists (one of):
    - AWS SAM CLI (`sam --version`) 1.153.1 or higher

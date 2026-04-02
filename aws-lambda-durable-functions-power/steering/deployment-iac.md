@@ -219,56 +219,6 @@ sam build
 sam deploy --guided
 ```
 
-### Java SAM Deployment
-
-Java durable functions require container images — managed runtimes (`java21`, `java17`) do not support `DurableConfig`. Use `PackageType: Image`:
-
-```yaml
-AWSTemplateFormatVersion: '2010-09-09'
-Transform: AWS::Serverless-2016-10-31
-
-Resources:
-  DurableFunction:
-    Type: AWS::Serverless::Function
-    Properties:
-      FunctionName: myJavaDurableFunction
-      PackageType: Image
-      DurableConfig:
-        ExecutionTimeout: 3600
-        RetentionPeriodInDays: 7
-      Policies:
-        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
-      AutoPublishAlias: prod
-      MemorySize: 512
-      Environment:
-        Variables:
-          LOG_LEVEL: INFO
-    Metadata:
-      DockerTag: v1
-      DockerContext: .          # Must point to directory containing pom.xml and Dockerfile
-      Dockerfile: Dockerfile
-```
-
-**Dockerfile:**
-
-```dockerfile
-FROM public.ecr.aws/lambda/java:21
-
-# Copy the built jar (use maven-shade-plugin or maven-assembly-plugin to create an uber-jar)
-COPY target/my-durable-function.jar ${LAMBDA_TASK_ROOT}/lib/
-
-CMD ["com.example.MyHandler::handleRequest"]
-```
-
-**Build and deploy:**
-
-```bash
-sam build -t infrastructure/template.yaml
-sam deploy --guided
-```
-
-**Important:** The `DockerContext` must point to the directory containing both `pom.xml` and `Dockerfile`. SAM builds the Docker image, which copies the pre-built jar. Run `mvn package` before `sam build` if your Dockerfile copies from `target/`.
-
 ## Durable Invokes
 
 For functions that invoke other durable functions:

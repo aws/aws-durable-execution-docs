@@ -365,20 +365,9 @@ my-durable-function/
 │   └── test/java/com/example/
 │       └── MyHandlerTest.java      # Tests with LocalDurableTestRunner
 ├── infrastructure/
-│   └── template.yaml               # SAM template (PackageType: Image)
-├── Dockerfile                       # Required — Java durable functions need container images
+│   └── template.yaml               # SAM/CloudFormation
 └── pom.xml
 ```
-
-**Dockerfile (required for Java durable functions):**
-
-```dockerfile
-FROM public.ecr.aws/lambda/java:21
-COPY target/my-durable-function.jar ${LAMBDA_TASK_ROOT}/lib/
-CMD ["com.example.MyHandler::handleRequest"]
-```
-
-When scaffolding a Java durable function project, always generate this Dockerfile alongside the `pom.xml` and SAM template. Do NOT generate a Dockerfile for TypeScript or Python projects — those use managed runtimes and do not need container images.
 
 ## ESLint Plugin Setup (TypeScript/JavaScript only)
 
@@ -483,7 +472,7 @@ Add the SDK and testing dependencies to your `pom.xml`:
 </dependencies>
 ```
 
-Java 17+ is required. The handler class extends `DurableHandler<I, O>` and implements `handleRequest(I input, DurableContext ctx)`. Java durable functions require container images for deployment — managed runtimes do not support `DurableConfig` yet.
+Java 17+ is required. The handler class extends `DurableHandler<I, O>` and implements `handleRequest(I input, DurableContext ctx)`.
 
 ## Development Workflow
 
@@ -550,10 +539,9 @@ When starting a new durable function project:
 
 - [ ] Add `aws-durable-execution-sdk-java` Maven dependency
 - [ ] Add `aws-durable-execution-sdk-java-testing` test dependency
-- [ ] Create `Dockerfile` using `public.ecr.aws/lambda/java:21` base image
 - [ ] Create handler extending `DurableHandler<I, O>`
 - [ ] Implement `handleRequest(I input, DurableContext ctx)`
-- [ ] Create SAM template with `PackageType: Image` and `DurableConfig`
+- [ ] Create SAM template with `DurableConfig`
 - [ ] Write tests using `LocalDurableTestRunner.create(InputType.class, handler)`
 - [ ] Run tests: `mvn test`
 - [ ] Build and deploy: `mvn package && sam build && sam deploy --guided`
