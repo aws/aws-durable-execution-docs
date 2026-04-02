@@ -96,6 +96,32 @@ def handler(event: dict, context: DurableContext) -> str:
         context.logger.debug('Tool result added', extra={'tool': tool['name']})
 ```
 
+**Java:**
+
+```java
+public class AIAgentHandler extends DurableHandler<AgentInput, String> {
+    @Override
+    public String handleRequest(AgentInput input, DurableContext ctx) {
+        ctx.getLogger().info("Starting AI agent: {}", input.getPrompt());
+        var messages = new ArrayList<Map<String, String>>();
+        messages.add(Map.of("role", "user", "content", input.getPrompt()));
+
+        while (true) {
+            var result = ctx.step("invoke-model", AIResponse.class,
+                stepCtx -> invokeAIModel(messages));
+
+            if (result.getTool() == null) return result.getResponse();
+
+            var toolResult = ctx.step("execute-tool-" + result.getTool().getName(),
+                String.class,
+                stepCtx -> executeTool(result.getTool(), result.getResponse()));
+
+            messages.add(Map.of("role", "assistant", "content", toolResult));
+        }
+    }
+}
+```
+
 ## Step Semantics Deep Dive
 
 ### AtMostOncePerRetry vs AtLeastOncePerRetry
@@ -265,6 +291,29 @@ const result = await context.step(
 
 // result is properly deserialized User instance with Date objects
 console.log(result.createdAt instanceof Date); // true
+```
+
+### Java Custom SerDes
+
+```java
+// Java uses Jackson by default — POJOs serialize automatically
+// For custom serialization, implement the SerDes interface:
+public interface SerDes {
+    String serialize(Object value);
+    <T> T deserialize(String data, Class<T> type);
+    <T> T deserialize(String data, TypeToken<T> typeToken);
+}
+
+// Per-step custom SerDes
+var result = ctx.step("fetch-data", ComplexType.class,
+    stepCtx -> fetchComplexData(),
+    StepConfig.builder().serDes(new MyCustomSerDes()).build());
+
+// Global custom SerDes via DurableConfig
+@Override
+protected DurableConfig createConfiguration() {
+    return DurableConfig.builder().withSerDes(new MyCustomSerDes()).build();
+}
 ```
 
 ### Complex Object Graphs

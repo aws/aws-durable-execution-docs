@@ -32,6 +32,20 @@ context.wait(duration=Duration.from_days(7))
 context.wait(duration=Duration.from_seconds(60), name='rate-limit-delay')
 ```
 
+**Java:**
+
+```java
+ctx.wait(null, Duration.ofSeconds(30));
+ctx.wait(null, Duration.ofMinutes(5));
+ctx.wait(null, Duration.ofHours(1).plusMinutes(30));
+ctx.wait("rate-limit-delay", Duration.ofSeconds(60));
+
+// Async wait — returns DurableFuture, doesn't block
+DurableFuture<Void> timer = ctx.waitAsync("min-delay", Duration.ofSeconds(5));
+var result = ctx.step("process", String.class, stepCtx -> doWork());
+timer.get(); // block until wait elapses
+```
+
 **Max wait duration:** Up to 1 year
 
 ## Wait for Callback
@@ -77,6 +91,29 @@ result = context.wait_for_callback(
         heartbeat_timeout=Duration.from_minutes(5)
     )
 )
+```
+
+**Java:**
+
+```java
+// waitForCallback (combined creation + submission)
+var result = ctx.waitForCallback("wait-for-approval", String.class,
+    (callbackId, stepCtx) -> sendApprovalEmail(approverEmail, callbackId),
+    WaitForCallbackConfig.builder()
+        .callbackConfig(CallbackConfig.builder()
+            .timeout(Duration.ofHours(24))
+            .heartbeatTimeout(Duration.ofMinutes(5))
+            .build())
+        .build());
+
+// Or createCallback (separate creation and waiting)
+var callback = ctx.createCallback("approval", String.class,
+    CallbackConfig.builder().timeout(Duration.ofHours(24)).build());
+ctx.step("send-notification", String.class, stepCtx -> {
+    notificationService.sendApprovalRequest(callback.callbackId(), requestDetails);
+    return "sent";
+});
+String approvalResult = callback.get(); // suspends until callback received
 ```
 
 ### Callback Success
@@ -210,6 +247,24 @@ result = context.wait_for_condition(
     ),
     name='wait-for-job'
 )
+```
+
+**Java:**
+
+```java
+var status = ctx.waitForCondition(
+    "wait-for-shipment", String.class,
+    (currentStatus, stepCtx) -> {
+        var latest = orderService.getStatus(orderId);
+        return "SHIPPED".equals(latest)
+            ? WaitForConditionResult.stopPolling(latest)
+            : WaitForConditionResult.continuePolling(latest);
+    },
+    "PENDING",
+    WaitForConditionConfig.<String>builder()
+        .waitStrategy(WaitStrategies.exponentialBackoff(
+            60, Duration.ofSeconds(5), Duration.ofSeconds(30), 1.5, JitterStrategy.FULL))
+        .build());
 ```
 
 ### Custom Wait Strategy
@@ -393,4 +448,16 @@ except CallbackError as error:
         context.logger.warn('Approval timed out')
     else:
         context.logger.error('Callback failed', error)
+```
+
+**Java:**
+
+```java
+try {
+    var result = callback.get();
+} catch (CallbackTimeoutException e) {
+    ctx.getLogger().warn("Approval timed out");
+} catch (CallbackFailedException e) {
+    ctx.getLogger().error("Callback failed: {}", e.getMessage());
+}
 ```
