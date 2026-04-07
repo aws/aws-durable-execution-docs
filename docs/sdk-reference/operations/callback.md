@@ -1,702 +1,524 @@
-# Callbacks
+# Callback
 
-## Table of Contents
+## Wait for external systems
 
-- [Terminology](#terminology)
-- [What are callbacks?](#what-are-callbacks)
-- [Key features](#key-features)
-- [Getting started](#getting-started)
-- [Method signatures](#method-signatures)
-- [Configuration](#configuration)
-- [Waiting for callbacks](#waiting-for-callbacks)
-- [Integration patterns](#integration-patterns)
-- [Advanced patterns](#advanced-patterns)
-- [Best practices](#best-practices)
-- [FAQ](#faq)
-- [Testing](#testing)
-- [See also](#see-also)
+A callback suspends a durable function and waits for an external system to provide
+input. When you create a callback, the SDK checkpoints the operation and returns a
+unique callback ID. After you send the callback ID to an external system, the SDK
+suspends the durable function and terminates the current invocation. The function does
+not incur compute charges while suspended.
 
-[← Back to main index](../index.md)
+External systems [send callback results](#send-callback-results) using the
+`SendDurableExecutionCallbackSuccess` or `SendDurableExecutionCallbackFailure` Lambda
+APIs.
 
-## Terminology
+When the external system calls back with the ID, the backend starts a new invocation to
+resume your function from where it suspended.
 
-**Callback** - A mechanism that pauses execution and waits for an external system to provide a result. Created using `context.create_callback()`.
+Use callbacks when you need to pause execution until a human approves a request, or a
+payment processor confirms a transaction, or any other external system completes work
+asynchronously. The SDK provides two ways to work with callbacks, either create a
+callback and manage the external system notification and wait yourself, or use
+`waitForCallback` to handle submission and waiting in one operation.
 
-**Callback ID** - A unique identifier for a callback that you send to external systems. The external system uses this ID to send the result back.
+The SDK provides two operations for working with callbacks.
 
-**Callback timeout** - The maximum time to wait for a callback response. If the timeout expires without a response, the callback fails.
+### Create Callback
 
-**Heartbeat timeout** - The maximum time between heartbeat signals from the external system. Use this to detect when external systems stop responding.
+Create a callback and return a callback ID along with a handle to wait for the result.
+The wait does not consume compute.
 
-**Wait for callback** - The operation that pauses execution until the callback receives a result. Created using `context.wait_for_callback()`.
-
-[↑ Back to top](#table-of-contents)
-
-## What are callbacks?
-
-Callbacks let your durable function pause and wait for external systems to respond. When you create a callback, you get a unique callback ID that you can send to external systems like approval workflows, payment processors, or third-party APIs. Your function pauses until the external system calls back with a result.
-
-Use callbacks to:
-- Wait for human approvals in workflows
-- Integrate with external payment systems
-- Coordinate with third-party APIs
-- Handle long-running external processes
-- Implement request-response patterns with external systems
-
-[↑ Back to top](#table-of-contents)
-
-## Key features
-
-- **External system integration** - Pause execution and wait for external responses
-- **Unique callback IDs** - Each callback gets a unique identifier for routing
-- **Configurable timeouts** - Set maximum wait times and heartbeat intervals
-- **Type-safe results** - Callbacks are generic and preserve result types
-- **Automatic checkpointing** - Callback results are saved automatically
-- **Heartbeat monitoring** - Detect when external systems stop responding
-
-[↑ Back to top](#table-of-contents)
-
-## Getting started
-
-Callbacks let you pause your durable function while waiting for an external system to respond. Think of it like this:
-
-**Your durable function:**
-1. Creates a callback and gets a unique `callback_id`
-2. Sends the `callback_id` to an external system (payment processor, approval system, etc.)
-3. Calls `callback.result()` - execution pauses here ⏸️
-4. When the callback is notified, execution resumes ▶️
-
-**Your notification handler** (separate Lambda or service):
-1. Receives the result from the external system (via webhook, queue, etc.)
-2. Calls AWS Lambda API `SendDurableExecutionCallbackSuccess` with the `callback_id`
-3. This wakes up your durable function
-
-The key insight: callbacks need two pieces working together - one that waits, and one that notifies.
-
-### Basic example
-
-Here's a simple example showing the durable function side:
+You send the callback ID to an external system. The external system uses that ID to
+[send callback results](#send-callback-results) using the Lambda API.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/basic-example.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/callbacks/basic-example.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/callbacks/basic-example.py"
+    ```python
+    --8<-- "examples/python/operations/callbacks/basic-example.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/callbacks/basic-example.java"
+    ```java
+    --8<-- "examples/java/operations/callbacks/basic-example.java"
     ```
 
+### Wait for Callback
 
-### Notifying the callback
+Wait for Callback combines callback creation, submission, and waiting for the result in
+one operation.
 
-When your external system finishes processing, you need to notify the callback using AWS Lambda APIs:
+Internally the SDK creates a child context containing a
+[create callback](#create-callback) operation followed by a step that runs the submitter
+function and then waits for the result.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/notify-success.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/callbacks/wait-for-callback-example.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/callbacks/notify-success.py"
+    ```python
+    --8<-- "examples/python/operations/callbacks/wait-for-callback-example.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/callbacks/notify-success.java"
+    ```java
+    --8<-- "examples/java/operations/callbacks/wait-for-callback-example.java"
     ```
 
+### Callback lifecycle
 
-### Complete example with message broker
+A callback spans multiple invocations within a single execution.
 
-Here's a complete example showing both sides of the callback flow:
+```mermaid
+sequenceDiagram
+    participant Inv1 as Invocation 1
+    participant Backend as Durable Backend
+    participant Ext as External System
+    participant Inv2 as Invocation 2
 
-=== "TypeScript"
+    note over Inv1, Inv2: Single Execution
 
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/message-broker-durable-function.ts"
-    ```
+    Inv1->>Backend: createCallback → checkpoint & get callback ID
+    Inv1->>Ext: Send callback ID
+    Inv1->>Backend: Suspend (invocation terminates, no compute)
 
-=== "Python"
+    Ext->>Ext: Do async work
+    Ext->>Backend: SendDurableExecutionCallbackSuccess/Failure
 
-    ``` python
-    --8<-- "examples/python/core/callbacks/message-broker-durable-function.py"
-    ```
+    Backend->>Inv2: Start new invocation, resume from checkpoint
+    Inv2->>Inv2: Continue execution with callback result
+```
 
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/message-broker-durable-function.java"
-    ```
-
-
-### Key points
-
-- **Callbacks require two parts**: Your durable function creates the callback, and a separate process notifies the result
-- **Use Lambda APIs to notify**: `SendDurableExecutionCallbackSuccess`, `SendDurableExecutionCallbackFailure`, or `SendDurableExecutionCallbackHeartbeat`
-- **Execution suspends at `callback.result()`**: Your function stops running and doesn't consume resources while waiting
-- **Execution resumes when notified**: When you call the Lambda API with the callback ID, your function resumes from where it suspended
-- **Heartbeats keep callbacks alive**: For long operations, send heartbeats to prevent timeout
-
-[↑ Back to top](#table-of-contents)
+- **Function** The durable Lambda function. This contains your code.
+- **Execution** The complete end-to-end lifecycle of an AWS Lambda durable function
+- **Invocation** A single invocation of the function during the over-all execution. The
+    invocation terminates at a callback wait. The backend re-invokes the function when
+    the callback resolves, and [replays](../../getting-started/key-concepts/#replay) to
+    resume at the callback wait point with the result.
 
 ## Method signatures
 
-### context.create_callback()
+### createCallback
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/create-callback-signature.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/callbacks/create-callback-signature.ts"
+    ```
+
+    **Parameters:**
+
+    - `name` (optional) A name for the callback. Pass `undefined` to omit.
+    - `config` (optional) A `CreateCallbackConfig<TOutput>` object.
+
+    **Returns:** `DurablePromise<[DurablePromise<TOutput>, string]>`. Destructure with
+    `await` to get `[callbackPromise, callbackId]`. Await `callbackPromise` to suspend until
+    the external system calls back.
+
+    **Throws:** `CallbackError` if the callback fails, times out, or the external system
+    reports failure. The error is thrown by `callbackPromise`, not by `createCallback`
+    itself.
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/operations/callbacks/create-callback-signature.py"
+    ```
+
+    **Parameters:**
+
+    - `name` (optional) A name for the callback.
+    - `config` (optional) A `CallbackConfig` object.
+
+    **Returns:** A `Callback` object. Access `callback.callback_id` to get the ID to send to
+    the external system. Call `callback.result()` to suspend until the external system calls
+    back.
+
+    **Raises:** `CallbackError` from `callback.result()` if the callback fails or times out.
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/operations/callbacks/create-callback-signature.java"
+    ```
+
+    **Parameters:**
+
+    - `name` (required) A name for the callback.
+    - `resultType` The `Class<T>` or `TypeToken<T>` for deserialization.
+    - `config` (optional) A `CallbackConfig` object.
+
+    **Returns:** `DurableCallbackFuture<T>`. Call `callback.callbackId()` to get the ID to
+    send to the external system. Call `callback.get()` to suspend until the external system
+    calls back.
+
+    **Throws:** `CallbackFailedException` if the external system reports failure.
+    `CallbackTimeoutException` if the callback times out.
+
+### Callback Handle
+
+The object returned by `createCallback`.
+
+=== "TypeScript"
+
+    `[callbackPromise, callbackId]` — a tuple destructured from the awaited result.
+
+    - `callbackId` (`string`) The unique ID to send to the external system.
+    - `callbackPromise` (`DurablePromise<TOutput>`) Await to suspend until the external
+        system calls back.
+
+=== "Python"
+
+    ```python
+    class Callback:
+        callback_id: str
+        def result(self) -> T | None: ...
+    ```
+
+    - `callback_id` The unique ID to send to the external system.
+    - `result()` Suspends until the external system calls back. Raises `CallbackError` if
+        the callback fails or times out.
+
+=== "Java"
+
+    ```java
+    interface DurableCallbackFuture<T> extends DurableFuture<T> {
+        String callbackId();
+        T get();
+    }
+    ```
+
+    - `callbackId()` The unique ID to send to the external system.
+    - `get()` Blocks until the external system calls back. Throws `CallbackFailedException`
+        or `CallbackTimeoutException` on failure.
+
+### CallbackConfig
+
+=== "TypeScript"
+
+    ```typescript
+    interface CreateCallbackConfig<TOutput = string> {
+      timeout?: Duration;
+      heartbeatTimeout?: Duration;
+      serdes?: Omit<Serdes<TOutput>, "serialize">;
+    }
+    ```
+
+    **Parameters:**
+
+    - `timeout` (optional) Maximum time to wait for the callback result. See
+        [Duration](wait.md#duration) for how to specify durations.
+    - `heartbeatTimeout` (optional) Maximum time between heartbeat signals from the external
+        system. If the external system does not send a heartbeat within this interval, the
+        callback fails.
+    - `serdes` (optional) Custom deserializer for the callback result. See
+        [Serialization](../state/serialization.md).
+
+=== "Python"
+
+    ```python
+    @dataclass(frozen=True)
+    class CallbackConfig:
+        timeout: Duration = Duration()
+        heartbeat_timeout: Duration = Duration()
+        serdes: SerDes | None = None
+    ```
+
+    **Parameters:**
+
+    - `timeout` (optional) Maximum time to wait for the callback result. See
+        [Duration](wait.md#duration) for how to specify durations.
+    - `heartbeat_timeout` (optional) Maximum time between heartbeat signals from the
+        external system. If the external system does not send a heartbeat within this
+        interval, the callback fails.
+    - `serdes` (optional) Custom `SerDes` for the callback result. See
+        [Serialization](../state/serialization.md).
+
+=== "Java"
+
+    ```java
+    CallbackConfig.builder()
+        .timeout(Duration)          // optional
+        .heartbeatTimeout(Duration) // optional
+        .serDes(SerDes)             // optional
+        .build()
+    ```
+
+    **Parameters:**
+
+    - `timeout` (optional) Maximum time to wait for the callback result. Uses
+        `java.time.Duration`.
+    - `heartbeatTimeout` (optional) Maximum time between heartbeat signals from the external
+        system. If the external system does not send a heartbeat within this interval, the
+        callback fails.
+    - `serDes` (optional) Custom `SerDes` for the callback result. See
+        [Serialization](../state/serialization.md).
+
+### waitForCallback
+
+`waitForCallback` is a composite operation that combines `createCallback` with a step
+that runs your submitter function. The submitter receives the callback ID and is
+responsible for sending it to the external system. If the submitter fails, the SDK
+retries it according to the step's retry strategy.
+
+The external system [sends callback results](#send-callback-results) using the
+`SendDurableExecutionCallbackSuccess` or `SendDurableExecutionCallbackFailure` Lambda
+APIs.
+
+Use `waitForCallback` when you want the SDK to handle the retry logic for submitting the
+callback ID rather than coding it yourself.
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/operations/callbacks/wait-for-callback-signature.ts"
+    ```
+
+    **Parameters:**
+
+    - `name` (optional) A name for the operation. Pass `undefined` to omit.
+    - `submitter` A function that receives the callback ID and a `WaitForCallbackContext`,
+        and submits the ID to the external system.
+    - `config` (optional) A `WaitForCallbackConfig<TOutput>` object.
+
+    **Returns:** `DurablePromise<TOutput>`. Await to get the callback result.
+
+    **Throws:** `CallbackError` if the callback fails, times out, or the external system
+    reports failure.
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/operations/callbacks/wait-for-callback-signature.py"
+    ```
+
+    **Parameters:**
+
+    - `submitter` A callable that receives the callback ID and a `WaitForCallbackContext`,
+        and submits the ID to the external system.
+    - `name` (optional) A name for the operation.
+    - `config` (optional) A `WaitForCallbackConfig` object.
+
+    **Returns:** The callback result.
+
+    **Raises:** `CallbackError` if the callback fails or times out.
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/operations/callbacks/wait-for-callback-signature.java"
+    ```
+
+    **Parameters:**
+
+    - `name` (required) A nullable name for the operation.
+    - `resultType` The `Class<T>` or `TypeToken<T>` for deserialization.
+    - `func` A `BiConsumer<String, StepContext>` that receives the callback ID and submits
+        it to the external system.
+    - `config` (optional) A `WaitForCallbackConfig` object.
+
+    **Returns:** `T` (sync) or `DurableFuture<T>` (async via `waitForCallbackAsync()`).
+
+    **Throws:** `CallbackFailedException` if the external system reports failure.
+    `CallbackTimeoutException` if the callback times out. `CallbackSubmitterException` if
+    the submitter step fails after exhausting retries.
+
+### WaitForCallbackConfig
+
+`WaitForCallbackConfig` extends `CallbackConfig` with retry configuration for the
+submitter step.
+
+=== "TypeScript"
+
+    ```typescript
+    interface WaitForCallbackConfig<TOutput = string> {
+      timeout?: Duration;
+      heartbeatTimeout?: Duration;
+      retryStrategy?: (error: Error, attemptCount: number) => RetryDecision;
+      serdes?: Omit<Serdes<TOutput>, "serialize">;
+    }
+    ```
+
+    - `retryStrategy` (optional) A function returning a `RetryDecision` for the submitter
+        step. See [Retry strategies](../error-handling/retries.md).
+
+=== "Python"
+
+    ```python
+    @dataclass(frozen=True)
+    class WaitForCallbackConfig(CallbackConfig):
+        retry_strategy: Callable[[Exception, int], RetryDecision] | None = None
+    ```
+
+    - `retry_strategy` (optional) A callable returning a `RetryDecision` for the submitter
+        step. See [Retry strategies](../error-handling/retries.md).
+
+=== "Java"
+
+    ```java
+    WaitForCallbackConfig.builder()
+        .stepConfig(StepConfig)       // optional
+        .callbackConfig(CallbackConfig) // optional
+        .build()
+    ```
+
+    - `stepConfig` (optional) A `StepConfig` for the submitter step, including retry
+        strategy. See [Retry strategies](../error-handling/retries.md).
+    - `callbackConfig` (optional) A `CallbackConfig` for the callback wait.
+
+## Timeout configuration
+
+Set a `timeout` to limit the duration the function waits for the external system. If the
+timeout expires before the external system calls back, the SDK raises a
+`CallbackTimeoutException` (Java) or `CallbackError` (TypeScript, Python) from the
+result call.
+
+The timeout is bound by the `ExecutionTimeout` you set on the
+[DurableConfig](https://docs.aws.amazon.com/lambda/latest/api/API_DurableConfig.html).
+The `ExecutionTimeout` applies to the entire durable execution, not individual function
+invocations.
+
+The durable execution terminates with a timeout error if the callback does not receive a
+response within the `ExecutionTimeout`.
+
+Since the durable function suspends and does not consume compute during the wait, the
+callback timeout can exceed the
+[Lambda function invocation timeout](https://docs.aws.amazon.com/lambda/latest/dg/configuration-timeout.html).
+
+Set a `heartbeatTimeout` when the external system can send periodic heartbeat signals
+during long-running work. If the external system stops sending heartbeats within the
+interval, the callback fails before the main timeout expires. Heartbeat timeouts can
+help detect stalled external systems sooner.
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/operations/callbacks/callback-config.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/callbacks/create-callback-signature.py"
+    ```python
+    --8<-- "examples/python/operations/callbacks/callback-config.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/callbacks/create-callback-signature.java"
+    ```java
+    --8<-- "examples/java/operations/callbacks/callback-config.java"
     ```
 
+## Naming callbacks
 
-**Parameters:**
-
-- `name` (optional) - A name for the callback, useful for debugging and testing
-- `config` (optional) - A `CallbackConfig` object to configure timeout behavior
-
-**Returns:** A `Callback` object with a `callback_id` property
-
-**Type parameter:** `T` - The type of result the callback will receive
-
-### callback.callback_id
+Name callbacks to make them easier to identify in logs and tests. Use a name that
+describes what the callback is waiting for.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/get-callback-id.ts"
-    ```
+    The name is the first argument. Pass `undefined` to omit it.
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/callbacks/get-callback-id.py"
-    ```
+    Pass `name` as a keyword argument.
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/callbacks/get-callback-id.java"
-    ```
+    The name is always the first argument. Pass `null` to omit it.
 
+## Send callback results
 
-A unique identifier for this callback. Send this ID to external systems so they can return results.
+External systems send results back using the
+[`SendDurableExecutionCallbackSuccess`](https://docs.aws.amazon.com/lambda/latest/api/API_SendDurableExecutionCallbackSuccess.html)
+or
+[`SendDurableExecutionCallbackFailure`](https://docs.aws.amazon.com/lambda/latest/api/API_SendDurableExecutionCallbackFailure.html)
+Lambda APIs. The callback ID returned from `createCallback` or passed into
+`waitForCallback` is the key that routes the result back to the waiting function. For
+long-running callbacks, external systems can send periodic
+[`SendDurableExecutionCallbackHeartbeat`](https://docs.aws.amazon.com/lambda/latest/api/API_SendDurableExecutionCallbackHeartbeat.html)
+signals to prevent the `heartbeatTimeout` from expiring.
 
-### callback.result()
+Most production integrations call these APIs using the AWS SDK for your programming
+language. You can also send callbacks from the Console, the AWS CLI, or the SAM CLI. In
+the Console, open the Durable Executions tab, select the running execution, find the
+callback under Durable Operations, and use the Actions drop-down to send a response.
 
-=== "TypeScript"
+### AWS CLI
 
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/get-callback-result.ts"
-    ```
+The AWS CLI sends callbacks directly to the Lambda backend and requires AWS credentials.
 
-=== "Python"
+**Success:**
 
-    ``` python
-    --8<-- "examples/python/core/callbacks/get-callback-result.py"
-    ```
+```bash
+aws lambda send-durable-execution-callback-success \
+  --callback-id <callback-id> \
+  --cli-binary-format raw-in-base64-out \
+  --result '{"status":"approved"}'
+```
 
-=== "Java"
+`--result` is a blob. AWS CLI v2 expects blobs as base64 by default, so pass
+`--cli-binary-format raw-in-base64-out` to send a plain string inline, or use
+`fileb://result.json` to read from a file.
 
-    ``` java
-    --8<-- "examples/java/core/callbacks/get-callback-result.java"
-    ```
+**Failure:**
 
+```bash
+aws lambda send-durable-execution-callback-failure \
+  --callback-id <callback-id> \
+  --error ErrorType=PaymentDeclined,ErrorMessage="Insufficient funds"
+```
 
-Returns the callback result. Blocks until the result is available or the callback times out.
+The `--error` value accepts shorthand syntax (`Key=value,...`) or JSON, and supports
+`ErrorType`, `ErrorMessage`, `ErrorData`, and `StackTrace`.
 
-[↑ Back to top](#table-of-contents)
+### SAM CLI
 
-## Configuration
+The SAM CLI provides two subcommands depending on where your function is running.
 
-Configure callback behavior using `CallbackConfig`:
+`sam local callback` sends the callback to the SAM local runner. Use this during local
+development when your function is running via `sam local start-lambda`. It does not
+require AWS credentials.
 
-=== "TypeScript"
+`sam remote callback` sends the callback to the actual Lambda backend. Use this when
+your function is deployed to AWS. It requires AWS credentials.
 
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/callback-config.ts"
-    ```
+**Success:**
 
-=== "Python"
+```bash
+# local runner
+sam local callback succeed <callback-id> --result '{"status":"approved"}'
 
-    ``` python
-    --8<-- "examples/python/core/callbacks/callback-config.py"
-    ```
+# Lambda backend
+sam remote callback succeed <callback-id> --result '{"status":"approved"}'
+```
 
-=== "Java"
+**Failure:**
 
-    ``` java
-    --8<-- "examples/java/core/callbacks/callback-config.java"
-    ```
+```bash
+# local runner
+sam local callback fail <callback-id> \
+  --error-type "PaymentDeclined" \
+  --error-message "Insufficient funds"
 
-
-### CallbackConfig parameters
-
-**timeout** - Maximum time to wait for the callback response. Use `Duration` helpers to specify:
-- `Duration.from_seconds(60)` - 60 seconds
-- `Duration.from_minutes(5)` - 5 minutes
-- `Duration.from_hours(2)` - 2 hours
-- `Duration.from_days(1)` - 1 day
-
-**heartbeat_timeout** - Maximum time between heartbeat signals from the external system. If the external system doesn't send a heartbeat within this interval, the callback fails. Set to 0 or omit to disable heartbeat monitoring.
-
-**serdes** (optional) - Custom serialization/deserialization for the callback result. If not provided, uses JSON serialization.
-
-### Duration helpers
-
-The `Duration` class provides convenient methods for specifying timeouts:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/duration-helpers.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/duration-helpers.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/duration-helpers.java"
-    ```
-
-
-[↑ Back to top](#table-of-contents)
-
-## Waiting for callbacks
-
-After creating a callback, you typically wait for its result. There are two ways to do this:
-
-### Using callback.result()
-
-Call `result()` on the callback object to wait for the response:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/wait-using-result.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/wait-using-result.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/wait-using-result.java"
-    ```
-
-
-### Using context.wait_for_callback()
-
-Alternatively, use `wait_for_callback()` to wait for a callback by its ID:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/wait-using-wait-for-callback.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/wait-using-wait-for-callback.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/wait-using-wait-for-callback.java"
-    ```
-
-
-[↑ Back to top](#table-of-contents)
-
-## Integration patterns
-
-### Human approval workflow
-
-Use callbacks to pause execution while waiting for human approval:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/human-approval-workflow.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/human-approval-workflow.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/human-approval-workflow.java"
-    ```
-
-
-### Payment processing
-
-Integrate with external payment processors:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/payment-processing.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/payment-processing.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/payment-processing.java"
-    ```
-
-
-### Third-party API integration
-
-Wait for responses from third-party APIs:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/third-party-api-integration.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/third-party-api-integration.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/third-party-api-integration.java"
-    ```
-
-
-### Multiple callbacks
-
-Handle multiple external systems in parallel:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/multiple-callbacks.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/multiple-callbacks.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/multiple-callbacks.java"
-    ```
-
-
-[↑ Back to top](#table-of-contents)
-
-## Advanced patterns
-
-### Callback with retry
-
-Combine callbacks with retry logic for resilient integrations:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/wait-for-external-system.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/wait-for-external-system.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/wait-for-external-system.java"
-    ```
-
-
-### Conditional callback handling
-
-Handle different callback results based on conditions:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/conditional-callback-handling.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/conditional-callback-handling.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/conditional-callback-handling.java"
-    ```
-
-
-### Callback with fallback
-
-Implement fallback logic when callbacks timeout:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/callback-with-fallback.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/callback-with-fallback.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/callback-with-fallback.java"
-    ```
-
-
-[↑ Back to top](#table-of-contents)
-
-## Best practices
-
-**Set appropriate timeouts** - Choose timeout values based on your external system's expected response time. Add buffer for network delays and processing time.
-
-**Use heartbeat timeouts for long operations** - Enable heartbeat monitoring for callbacks that take more than a few minutes. This helps detect when external systems stop responding.
-
-**Send callback IDs securely** - Treat callback IDs as sensitive data. Use HTTPS when sending them to external systems.
-
-**Handle timeout scenarios** - Always handle the case where `callback.result()` returns `None` due to timeout. Implement fallback logic or error handling.
-
-**Name callbacks for debugging** - Use descriptive names to identify callbacks in logs and tests.
-
-**Don't reuse callback IDs** - Each callback gets a unique ID. Don't try to reuse IDs across different operations.
-
-**Validate callback results** - Always validate the structure and content of callback results before using them.
-
-**Use type hints** - Specify the expected result type when creating callbacks: `Callback[dict]`, `Callback[str]`, etc.
-
-**Monitor callback metrics** - Track callback success rates, timeout rates, and response times to identify integration issues.
-
-**Document callback contracts** - Clearly document what data external systems should send back and in what format.
-
-[↑ Back to top](#table-of-contents)
-
-## FAQ
-
-**Q: What happens if a callback times out?**
-
-A: If the timeout expires before receiving a result, `callback.result()` returns `None`. You should handle this case in your code.
-
-**Q: Can I cancel a callback?**
-
-A: No, callbacks can't be cancelled once created. They either receive a result or timeout.
-
-**Q: How do external systems send results back?**
-
-A: External systems use the callback ID to send results through your application's callback endpoint. You need to implement an endpoint that receives the callback ID and result, then forwards it to the durable execution service.
-
-**Q: Can I create multiple callbacks in one function?**
-
-A: Yes, you can create as many callbacks as needed. Each gets a unique callback ID.
-
-**Q: What's the maximum timeout for a callback?**
-
-A: You can set any timeout value using `Duration` helpers. For long-running operations (hours or days), use longer timeouts and enable heartbeat monitoring to detect if external systems stop responding.
-
-**Q: Do I need to wait for a callback immediately after creating it?**
-
-A: No, you can create a callback, send its ID to an external system, perform other operations, and wait for the result later in your function.
-
-**Q: Can callbacks be used with steps?**
-
-A: Yes, you can create and wait for callbacks inside step functions. However, `context.wait_for_callback()` is a convenience method that already wraps the callback in a step with retry logic for you.
-
-**Q: What happens if the external system sends a result after the timeout?**
-
-A: Late results are ignored. The callback has already failed due to timeout.
-
-**Q: How do I test functions with callbacks?**
-
-A: Use the testing SDK to simulate callback responses. See the Testing section below for examples.
-
-**Q: Can I use callbacks in child contexts?**
-
-A: Yes, callbacks work in child contexts just like in the main context.
-
-**Q: What's the difference between timeout and heartbeat_timeout?**
-
-A: `timeout` is the maximum total wait time. `heartbeat_timeout` is the maximum time between heartbeat signals. Use heartbeat timeout to detect when external systems stop responding before the main timeout expires.
-
-[↑ Back to top](#table-of-contents)
-
-## Testing
-
-You can test callbacks using the testing SDK. The test runner lets you simulate callback responses and verify callback behavior.
-
-### Basic callback testing
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/basic-callback-testing.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/basic-callback-testing.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/basic-callback-testing.java"
-    ```
-
-
-### Inspecting callback operations
-
-Use `result.operations` to inspect callback details:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/inspect-callback-operations.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/inspect-callback-operations.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/inspect-callback-operations.java"
-    ```
-
-
-### Testing callback timeouts
-
-Test that callbacks handle timeouts correctly:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/test-callback-timeout.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/test-callback-timeout.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/test-callback-timeout.java"
-    ```
-
-
-### Testing callback integration patterns
-
-Test complete integration workflows:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/callbacks/test-integration-workflow.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/callbacks/test-integration-workflow.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/callbacks/test-integration-workflow.java"
-    ```
-
-
-For more testing patterns, see:
-- [Basic tests](../testing-patterns/basic-tests.md) - Simple test examples
-- [Complex workflows](../testing-patterns/complex-workflows.md) - Multi-step workflow testing
-- [Best practices](../best-practices.md) - Testing recommendations
-
-[↑ Back to top](#table-of-contents)
+# Lambda backend
+sam remote callback fail <callback-id> \
+  --error-type "PaymentDeclined" \
+  --error-message "Insufficient funds"
+```
 
 ## See also
 
-- [Steps](steps.md) - Combine callbacks with steps for retry logic
-- [Child contexts](child-contexts.md) - Use callbacks in nested contexts
-- [Error handling](../advanced/error-handling.md) - Handle callback failures
-- [Examples](https://github.com/awslabs/aws-durable-execution-sdk-python/tree/main/examples/src/callback) - More callback examples
-
-[↑ Back to top](#table-of-contents)
-
-## License
-
-See the LICENSE file for our project's licensing.
-
-[↑ Back to top](#table-of-contents)
+- [Wait for Condition](wait-for-condition.md) Poll for a status change, rather than
+    waiting for the callback
+- [Wait](wait.md) Time-based durable waits.
+- [Error handling](../error-handling/retries.md)
