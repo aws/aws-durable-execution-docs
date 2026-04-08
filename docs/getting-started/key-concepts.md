@@ -141,8 +141,9 @@ Wrap such non-deterministic code in [steps](../sdk-reference/operations/step.md)
 ### Rules for deterministic durable operations
 
 1. All durable operations in a context must start sequentially.
-2. To run durable operations concurrently, wrap each set of operations in its own child
-    context and then run the child contexts concurrently.
+2. To run durable operations concurrently, wrap each set of operations in its own
+    [child context](../sdk-reference/operations/child-context.md) and then run the
+    child contexts concurrently.
 3. Only use the child `DurableContext` in the child context scope. Do not use any
     parent's context in a child context scope.
 
