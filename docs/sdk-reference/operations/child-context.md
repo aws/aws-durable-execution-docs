@@ -1,522 +1,324 @@
-# Child Contexts
+# Child Context
 
-## Table of Contents
+## Isolate execution scope
 
-- [Terminology](#terminology)
-- [What are child contexts?](#what-are-child-contexts)
-- [Key features](#key-features)
-- [Getting started](#getting-started)
-- [Method signatures](#method-signatures)
-- [Using the @durable_with_child_context decorator](#using-the-durable_with_child_context-decorator)
-- [Naming child contexts](#naming-child-contexts)
-- [Use cases for isolation](#use-cases-for-isolation)
-- [Advanced patterns](#advanced-patterns)
-- [Best practices](#best-practices)
-- [FAQ](#faq)
-- [Testing](#testing)
-- [See also](#see-also)
+A child context creates an isolated execution scope within a durable function for
+grouping operations. It has its own operation namespace and its own set of checkpoints.
+Unlike a [step](step.md), which wraps a single function call, a child context can
+contain multiple durable operations, such as steps, waits, and other operations.
 
-[← Back to main index](../index.md)
+When the child context completes, the SDK checkpoints the result as a single unit in the
+parent context. On replay, the SDK returns the checkpointed result without re-running
+the operations inside the child context. If the result exceeds the checkpoint size limit
+the child context will reconstruct the result in memory from the checkpointed results of
+its child operations without rerunning the child operations.
 
-## Terminology
-
-**Child context** - An isolated execution scope within a durable function. Created using `context.run_in_child_context()`.
-
-**Parent context** - The main durable function context that creates child contexts.
-
-**Context function** - A function decorated with `@durable_with_child_context` that receives a `DurableContext` and can execute operations.
-
-**Context isolation** - Child contexts have their own operation namespace, preventing naming conflicts with the parent context.
-
-**Context result** - The return value from a child context function, which is checkpointed as a single unit in the parent context.
-
-[↑ Back to top](#table-of-contents)
-
-## What are child contexts?
-
-A child context creates a scope in which you can nest durable operations. It creates an isolated execution scope with its own set of operations, checkpoints, and state. This is often useful as a unit of concurrency that lets you run concurrent operations within your durable function. You can also use child contexts to wrap large chunks of durable logic into a single piece - once completed, that logic won't run or replay again.
-
-Use child contexts to:
-- Run concurrent operations (steps, waits, callbacks) in parallel
-- Wrap large blocks of logic that should execute as a single unit
-- Handle large data that exceeds individual step limits
-- Isolate groups of related operations
-- Create reusable components
-- Improve code organization and maintainability
-
-[↑ Back to top](#table-of-contents)
-
-## Key features
-
-- **Concurrency unit** - Run multiple operations concurrently within your function
-- **Execution isolation** - Child contexts have their own operation namespace
-- **Single-unit checkpointing** - Completed child contexts never replay
-- **Large data handling** - Process data that exceeds individual step limits
-- **Named contexts** - Identify contexts by name for debugging and testing
-
-[↑ Back to top](#table-of-contents)
-
-## Getting started
-
-Here's an example showing why child contexts are useful - they let you group multiple operations that execute as a single unit:
+Use child contexts to group multiple durable operations. This is useful to organize
+complex workflows, implement sub-workflows and maintain determinism when running
+multiple child contexts concurrently.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/validate-order.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/child-contexts/basic-child-context.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/child-contexts/validate-order.py"
+    ```python
+    --8<-- "examples/python/operations/child-contexts/basic-child-context.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/child-contexts/validate-order.java"
+    ```java
+    --8<-- "examples/java/operations/child-contexts/basic-child-context.java"
     ```
 
+## Method signature
 
-**Why use a child context here?**
-
-Child contexts let you group related operations into a logical unit. Once `process_order` completes, its result is saved just like a step - everything inside won't replay even if the function continues or restarts. This provides organizational benefits and a small optimization by avoiding unnecessary replays.
-
-**Key benefits:**
-
-- **Organization**: Group related operations together for better code structure and readability
-- **Reusability**: Call `process_order` multiple times in the same function, and each execution is tracked independently
-- **Isolation**: Child contexts act like checkpointed functions - once done, they're done
-
-[↑ Back to top](#table-of-contents)
-
-## Method signatures
-
-### context.run_in_child_context()
+### Run in ChildContext
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/run-in-child-context-signature.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/child-contexts/run-in-child-context-signature.ts"
+    ```
+
+    **Parameters:**
+
+    - `name` (optional) A name for the child context. Pass `undefined` to omit.
+    - `fn` An async function that receives a `DurableContext` and returns `Promise<T>`.
+    - `config` (optional) A `ChildConfig<T>` object.
+
+    **Returns:** `DurablePromise<T>`. Use `await` to get the result.
+
+    **Throws:** `ChildContextError` wrapping the original error if the child context
+    function throws.
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/operations/child-contexts/run-in-child-context-signature.py"
+    ```
+
+    **Parameters:**
+
+    - `func` A callable that receives a `DurableContext` and returns `T`. Use the
+        `@durable_with_child_context` decorator to create one.
+    - `name` (optional) A name for the child context. Defaults to the function's name when
+        using `@durable_with_child_context`.
+    - `config` (optional) A `ChildConfig` object.
+
+    **Returns:** `T`, the return value of `func`.
+
+    **Raises:** `CallableRuntimeError` wrapping the original exception if the child context
+    function raises.
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/operations/child-contexts/run-in-child-context-signature.java"
+    ```
+
+    The name is always required. Pass `null` to omit it.
+
+    **Parameters:**
+
+    - `name` (required) A name for the child context. Pass `null` to omit.
+    - `resultType` The `Class<T>` or `TypeToken<T>` for deserialization.
+    - `func` A `Function<DurableContext, T>` to execute.
+    - `config` (optional) A `RunInChildContextConfig` object.
+
+    **Returns:** `T` (sync) or `DurableFuture<T>` (async via `runInChildContextAsync()`).
+
+    **Throws:** The original exception re-thrown after deserialization if possible,
+    otherwise `ChildContextFailedException`.
+
+### Child Config
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/operations/child-contexts/child-config-signature.ts"
+    ```
+
+    **Parameters:**
+
+    - `serdes` (optional) Custom `Serdes<T>` for the child context result. See
+        [Serialization](../state/serialization.md).
+    - `subType` (optional) An internal subtype identifier. Used by `map` and `parallel`
+        internally; not needed for direct use.
+    - `summaryGenerator` (optional) A function that generates a compact summary when the
+        result exceeds the checkpoint size limit. Used internally by `map` and `parallel`.
+    - `errorMapper` (optional) A function that maps child context errors to custom error
+        types.
+    - `virtualContext` (optional) If `true`, skips checkpointing and uses the parent's ID
+        for child operations.
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/operations/child-contexts/child-config-signature.py"
+    ```
+
+    **Parameters:**
+
+    - `serdes` (optional) Custom `SerDes` for the child context result. See
+        [Serialization](../state/serialization.md).
+    - `item_serdes` (optional) Custom `SerDes` for individual items within the child
+        context.
+    - `sub_type` (optional) An internal subtype identifier. Used by `map` and `parallel`
+        internally; not needed for direct use.
+    - `summary_generator` (optional) A function that generates a compact summary when the
+        result exceeds the checkpoint size limit. Used internally by `map` and `parallel`.
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/operations/child-contexts/child-config-signature.java"
+    ```
+
+    **Parameters:**
+
+    - `serDes` (optional) Custom `SerDes` for the child context result. See
+        [Serialization](../state/serialization.md).
+
+## The child context's function
+
+The child context function receives a `DurableContext` as its argument. This is the
+child context.
+
+Code inside the child context can can call any durable operation on that child context,
+such as steps, waits, callbacks and further nested child contexts.
+
+Do not use the parent context inside the child context via closure because it will
+corrupt execution state and cause non-deterministic behaviour.
+
+=== "TypeScript"
+
+    Pass any async function directly. The function receives a `DurableContext` and must
+    return a `Promise<T>`.
+
+    ```typescript
+    --8<-- "examples/typescript/operations/child-contexts/context-function.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/child-contexts/run-in-child-context-signature.py"
+    Use the `@durable_with_child_context` decorator. It wraps your function so it can be
+    called with arguments and passed to `context.run_in_child_context()`. The decorator
+    automatically uses the function's name as the child context name.
+
+    ```python
+    --8<-- "examples/python/operations/child-contexts/context-function.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/child-contexts/run-in-child-context-signature.java"
+    Pass a lambda or method reference directly. The function receives a `DurableContext` and
+    returns `T`.
+
+    ```java
+    --8<-- "examples/java/operations/child-contexts/context-function.java"
     ```
 
-
-**Parameters:**
-
-- `func` - A callable that receives a `DurableContext` and returns a result. Use the `@durable_with_child_context` decorator to create context functions.
-- `name` (optional) - A name for the child context, useful for debugging and testing
-
-**Returns:** The result of executing the context function.
-
-**Raises:** Any exception raised by the context function.
-
-### @durable_with_child_context decorator
+### Pass arguments to the child context
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/decorator-example.ts"
+    Capture arguments in a closure:
+
+    ```typescript
+    --8<-- "examples/typescript/operations/child-contexts/pass-arguments.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/child-contexts/decorator-example.py"
+    Pass arguments when calling the decorated function:
+
+    ```python
+    --8<-- "examples/python/operations/child-contexts/pass-arguments.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/child-contexts/decorator-example.java"
+    Capture arguments in a lambda:
+
+    ```java
+    --8<-- "examples/java/operations/child-contexts/pass-arguments.java"
     ```
-
-
-The decorator wraps your function so it can be called with arguments and passed to `context.run_in_child_context()`.
-
-[↑ Back to top](#table-of-contents)
-
-## Using the @durable_with_child_context decorator
-
-The `@durable_with_child_context` decorator marks a function as a context function. Context functions receive a `DurableContext` as their first parameter and can execute any durable operations:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/process-order.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/child-contexts/process-order.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/child-contexts/process-order.java"
-    ```
-
-
-**Why use @durable_with_child_context?**
-
-The decorator wraps your function so it can be called with arguments and passed to `context.run_in_child_context()`. It provides a convenient way to define reusable workflow components.
-
-[↑ Back to top](#table-of-contents)
 
 ## Naming child contexts
 
-You can name child contexts explicitly using the `name` parameter. Named contexts are easier to identify in logs and tests:
+Name child contexts to make them easier to identify in logs and tests.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/data-processing.ts"
+    The name is the first argument. Pass `undefined` to omit it.
+
+    ```typescript
+    --8<-- "examples/typescript/operations/child-contexts/named-child-context.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/child-contexts/data-processing.py"
+    The `@durable_with_child_context` decorator uses the function's name automatically.
+    Override it with the `name` keyword argument to `run_in_child_context()`.
+
+    ```python
+    --8<-- "examples/python/operations/child-contexts/named-child-context.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/child-contexts/data-processing.java"
+    The name is always the first argument. Pass `null` to omit it.
+
+    ```java
+    --8<-- "examples/java/operations/child-contexts/named-child-context.java"
     ```
 
+## Concurrency
 
-**Naming best practices:**
+!!! note
 
-- Use descriptive names that explain what the context does
-- Keep names consistent across your codebase
-- Use names when you need to inspect specific contexts in tests
-- Names help with debugging and monitoring
+    [Parallel](parallel.md) and [map](map.md) operations manage the complexity of
+    concurrency for you with concurrency control and completion policies, so you don't have
+    to code it yourself using child contexts.
 
-[↑ Back to top](#table-of-contents)
+It is not deterministic to run durable operations concurrently without wrapping each
+concurrent branch in its own child context. The reason for this is that to ensure
+deterministic replay, each durable operation gets an incrementing ID from a sequential
+counter. If two operations start concurrently, the counter increments in whatever order
+they happen to execute. On replay that order could differ, which could result in
+unexpected behaviour. For example, an operation could receive a different operation ID
+on replay and then retrieve a different operation's result.
 
-## Use cases for isolation
+A child context has its own isolated operation ID counter, so internal operations do not
+affect the parent's checkpoint state. You must still start each child context
+sequentially in the parent.
 
-### Organizing complex workflows
+### Concurrency rules
 
-Use child contexts to organize complex workflows into logical units:
+1. All durable operations inside a context must start sequentially.
+2. To run durable operations concurrently, enclose each set of operations in its own
+    child context.
+3. Start each child context serially. You do not have to wait for the previous child
+    context to complete before starting the next.
+4. Inside the child function you must use the child context argument, not the parent
+    context.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/inventory-check.ts"
+    Don't `await` each child context immediately. Start them all, then await together.
+
+    ```typescript
+    --8<-- "examples/typescript/operations/child-contexts/concurrent-child-contexts.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/child-contexts/inventory-check.py"
-    ```
+    Use [parallel](parallel.md) or [map](map.md) to run code concurrently.
+
+    !!! warning
+
+        In Python, `ThreadPoolExecutor.submit` and `Thread.start` do not guarantee the order in
+        which the interpreter actually runs the handler functions.
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/child-contexts/inventory-check.java"
+    Use `runInChildContextAsync()` to get a `DurableFuture<T>`, then block with
+    `DurableFuture.allOf()`.
+
+    ```java
+    --8<-- "examples/java/operations/child-contexts/concurrent-child-contexts.java"
     ```
-
-
-### Creating reusable components
-
-Child contexts make it easy to create reusable workflow components:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/send-notifications.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/child-contexts/send-notifications.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/child-contexts/send-notifications.java"
-    ```
-
-
-[↑ Back to top](#table-of-contents)
-
-## Advanced patterns
-
-### Conditional child contexts
-
-Execute child contexts based on conditions:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/standard-processing.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/child-contexts/standard-processing.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/child-contexts/standard-processing.java"
-    ```
-
-
-### Error handling in child contexts
-
-Handle errors within child contexts:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/risky-operation.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/child-contexts/risky-operation.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/child-contexts/risky-operation.java"
-    ```
-
-
-### Sequential child contexts
-
-Execute multiple child contexts sequentially:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/process-region-a.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/child-contexts/process-region-a.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/child-contexts/process-region-a.java"
-    ```
-
-
-For parallel execution, use `context.parallel()` instead. See [Parallel operations](parallel.md) for details.
-
-[↑ Back to top](#table-of-contents)
-
-## Best practices
-
-**Use child contexts for logical grouping** - Group related operations together in a child context to improve code organization and readability.
-
-**Name contexts descriptively** - Use clear names that explain what the context does. This helps with debugging and testing.
-
-**Keep context functions focused** - Each context function should have a single, well-defined purpose. Don't create overly complex context functions.
-
-**Use child contexts for large data** - When processing data that exceeds step size limits, break it into multiple steps within a child context.
-
-**Create reusable components** - Design context functions that can be reused across different workflows.
-
-**Handle errors appropriately** - Decide whether to handle errors within the child context or let them propagate to the parent.
-
-**Pass data through parameters** - Pass data to child contexts through function parameters, not global variables.
-
-**Document context functions** - Add docstrings explaining what the context does and what it returns.
-
-**Test context functions independently** - Write tests for individual context functions to ensure they work correctly in isolation.
-
-[↑ Back to top](#table-of-contents)
-
-## FAQ
-
-**Q: What's the difference between a child context and a step?**
-
-A: A step is a single operation that checkpoints its result. A child context is a collection of operations (steps, waits, callbacks, etc.) that execute in an isolated scope. The entire child context result is checkpointed as a single unit in the parent context.
-
-**Q: Can I use steps inside child contexts?**
-
-A: Yes, child contexts can contain any durable operations: steps, waits, and callbacks.
-
-**Q: When should I use a child context vs multiple steps?**
-
-A: Use child contexts when you want to:
-- Group related operations logically
-- Create reusable workflow components
-- Handle data larger than step size limits
-- Isolate operations from the parent context
-
-Use multiple steps when operations are independent and don't need isolation.
-
-**Q: Can child contexts access the parent context?**
-
-A: No, child contexts receive their own `DurableContext` instance. They can't access the parent context directly. Pass data through function parameters.
-
-**Q: What happens if a child context fails?**
-
-A: If an operation within a child context raises an exception, the exception propagates to the parent context unless you handle it within the child context.
-
-**Q: Can I create multiple child contexts in one function?**
-
-A: Yes, you can create as many child contexts as needed. They execute sequentially by default. For parallel execution, use `context.parallel()` instead.
-
-**Q: Can I use callbacks in child contexts?**
-
-A: Yes, child contexts support all durable operations including callbacks, waits, and steps.
-
-**Q: Can I pass large data to child contexts?**
-
-A: Yes, but be mindful of Lambda payload limits. If data is very large, consider storing it externally (S3, DynamoDB) and passing references.
-
-**Q: Do child contexts share the same logger?**
-
-A: Yes, the logger is inherited from the parent context, but you can access it through the child context's `ctx.logger`.
-
-[↑ Back to top](#table-of-contents)
 
 ## Testing
 
-You can test child contexts using the testing SDK. The test runner executes your function and lets you inspect child context results.
-
-### Basic child context testing
+The testing SDK records child context operations as `CONTEXT` type operations. Inspect
+them to verify the child context ran and produced the expected result.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/basic-child-context-testing.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/child-contexts/test-child-context.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/child-contexts/basic-child-context-testing.py"
+    ```python
+    --8<-- "examples/python/operations/child-contexts/test-child-context.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/child-contexts/basic-child-context-testing.java"
+    ```java
+    --8<-- "examples/java/operations/child-contexts/test-child-context.java"
     ```
-
-
-### Inspecting child context operations
-
-Use `result.get_context()` to inspect child context results:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/inspect-child-context-operations.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/child-contexts/inspect-child-context-operations.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/child-contexts/inspect-child-context-operations.java"
-    ```
-
-
-### Testing large data handling
-
-Test that child contexts handle large data correctly:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/test-large-data-handling.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/child-contexts/test-large-data-handling.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/child-contexts/test-large-data-handling.java"
-    ```
-
-
-
-
-### Testing error handling
-
-Test that child contexts handle errors correctly:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/child-contexts/test-error-handling.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/child-contexts/test-error-handling.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/child-contexts/test-error-handling.java"
-    ```
-
-
-For more testing patterns, see:
-- [Basic tests](../testing-patterns/basic-tests.md) - Simple test examples
-- [Complex workflows](../testing-patterns/complex-workflows.md) - Multi-step workflow testing
-- [Best practices](../best-practices.md) - Testing recommendations
-
-[↑ Back to top](#table-of-contents)
 
 ## See also
 
-- [Steps](steps.md) - Use steps within child contexts
-- [Wait operations](wait.md) - Use waits within child contexts
-- [Callbacks](callbacks.md) - Use callbacks within child contexts
-- [Parallel operations](parallel.md) - Execute child contexts in parallel
-- [Examples](https://github.com/awslabs/aws-durable-execution-sdk-python/tree/main/examples/src/run_in_child_context) - More child context examples
-
-[↑ Back to top](#table-of-contents)
-
-## License
-
-See the LICENSE file for our project's licensing.
-
-[↑ Back to top](#table-of-contents)
+- [Steps](steps.md) Run a single function with automatic checkpointing
+- [Parallel operations](parallel.md) Execute operations concurrently
+- [Map operations](map.md) Run operation for each item in a collection
