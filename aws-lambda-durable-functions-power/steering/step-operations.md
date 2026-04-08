@@ -53,6 +53,26 @@ const result = await context.step('fetch-user', async () => {
 
 **Best Practice:** Always name steps for easier debugging and testing.
 
+### Java: Typed Steps
+
+```java
+// Basic step — type class required for deserialization
+var result = ctx.step("fetch-user", User.class,
+    stepCtx -> userService.getUser(userId));
+
+// Generic types — use TypeToken for parameterized types
+var users = ctx.step("fetch-users", new TypeToken<List<User>>() {},
+    stepCtx -> userService.getAllUsers());
+
+// Async steps for concurrency
+DurableFuture<User> userFuture = ctx.stepAsync("fetch-user", User.class,
+    stepCtx -> userService.getUser(userId));
+DurableFuture<List<Order>> ordersFuture = ctx.stepAsync("fetch-orders",
+    new TypeToken<List<Order>>() {}, stepCtx -> orderService.getOrders(userId));
+User user = userFuture.get();
+List<Order> orders = ordersFuture.get();
+```
+
 ## Retry Configuration
 
 ### Exponential Backoff
@@ -96,6 +116,17 @@ result = context.step(
     func=api_call(),
     config=StepConfig(retry_strategy=create_retry_strategy(retry_config))
 )
+```
+
+**Java:**
+
+```java
+var result = ctx.step("api-call", Response.class,
+    stepCtx -> callExternalAPI(),
+    StepConfig.builder()
+        .retryStrategy(RetryStrategies.exponentialBackoff(
+            5, Duration.ofSeconds(1), Duration.ofSeconds(60), 2.0, JitterStrategy.FULL))
+        .build());
 ```
 
 ### Custom Retry Strategy
@@ -148,6 +179,20 @@ result = context.step(
     risky_operation(),
     config=StepConfig(retry_strategy=custom_retry)
 )
+```
+
+**Java:**
+
+```java
+var result = ctx.step("custom-retry", Result.class,
+    stepCtx -> riskyOperation(),
+    StepConfig.builder()
+        .retryStrategy((error, attempt) -> {
+            if (error instanceof ValidationException) return RetryDecision.noRetry();
+            if (attempt < 3) return RetryDecision.retryAfter(Duration.ofSeconds((long) Math.pow(2, attempt)));
+            return RetryDecision.noRetry();
+        })
+        .build());
 ```
 
 ### Retryable Error Types
@@ -217,6 +262,25 @@ result = context.step(
 )
 ```
 
+**Java:**
+
+```java
+// AT_MOST_ONCE_PER_RETRY — non-idempotent operations
+var result = ctx.step("charge-payment", Result.class,
+    stepCtx -> paymentService.charge(amount),
+    StepConfig.builder()
+        .semantics(StepSemantics.AT_MOST_ONCE_PER_RETRY)
+        .build());
+
+// True at-most-once: combine with no-retry strategy
+var result = ctx.step("charge-payment", Result.class,
+    stepCtx -> paymentService.charge(amount),
+    StepConfig.builder()
+        .semantics(StepSemantics.AT_MOST_ONCE_PER_RETRY)
+        .retryStrategy(RetryStrategies.Presets.NO_RETRY)
+        .build());
+```
+
 ## Custom Serialization
 
 For complex types, provide custom serialization:
@@ -260,6 +324,22 @@ user = context.step(
     lambda _: User('123', 'Alice', datetime.now()),
     name='fetch-user'
 )
+```
+
+**Java:**
+
+```java
+// Java SDK uses Jackson by default — POJOs serialize automatically
+// For custom serialization, provide a per-step SerDes:
+var result = ctx.step("fetch-data", ComplexType.class,
+    stepCtx -> fetchComplexData(),
+    StepConfig.builder().serDes(new MyCustomSerDes()).build());
+
+// Or configure globally via DurableConfig:
+@Override
+protected DurableConfig createConfiguration() {
+    return DurableConfig.builder().withSerDes(new MyCustomSerDes()).build();
+}
 ```
 
 ## When to Use Steps vs Child Contexts
@@ -334,6 +414,19 @@ except DurableExecutionsError as error:
     context.logger.error('SDK error: %s', str(error))
 except Exception as error:
     context.logger.error('Application error: %s', str(error))
+```
+
+**Java:**
+
+```java
+try {
+    var result = ctx.step("risky", Result.class, stepCtx -> riskyOperation());
+} catch (StepFailedException e) {
+    ctx.getLogger().error("Step failed after all retries: {}", e.getMessage());
+} catch (StepInterruptedException e) {
+    // AT_MOST_ONCE step was interrupted — check external state
+    ctx.getLogger().warn("Step interrupted: {}", e.getOperation().id());
+}
 ```
 
 ## Best Practices

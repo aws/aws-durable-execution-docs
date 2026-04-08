@@ -55,6 +55,17 @@ result = context.step(
 )
 ```
 
+**Java:**
+
+```java
+var result = ctx.step("api-call", Response.class,
+    stepCtx -> callAPI(),
+    StepConfig.builder()
+        .retryStrategy(RetryStrategies.exponentialBackoff(
+            5, Duration.ofSeconds(1), Duration.ofSeconds(60), 2.0, JitterStrategy.FULL))
+        .build());
+```
+
 ## Custom Retry Logic
 
 **TypeScript:**
@@ -98,6 +109,20 @@ def custom_retry(error: Exception, attempt: int) -> RetryDecision:
         )
     
     return RetryDecision(should_retry=False)
+```
+
+**Java:**
+
+```java
+var result = ctx.step("custom-retry", Response.class,
+    stepCtx -> riskyOperation(),
+    StepConfig.builder()
+        .retryStrategy((error, attemptCount) -> {
+            if (error instanceof ClientException) return RetryDecision.noRetry();
+            if (attemptCount < 5) return RetryDecision.retryAfter(Duration.ofSeconds((long) Math.pow(2, attemptCount)));
+            return RetryDecision.noRetry();
+        })
+        .build());
 ```
 
 ## Error Classification
@@ -232,6 +257,41 @@ def handler(event: dict, context: DurableContext) -> dict:
         raise error
 ```
 
+**Java:**
+
+```java
+public class OrderSaga extends DurableHandler<OrderInput, OrderResult> {
+    @Override
+    public OrderResult handleRequest(OrderInput input, DurableContext ctx) {
+        var compensations = new ArrayList<Map.Entry<String, Runnable>>();
+        try {
+            var reservation = ctx.step("reserve-inventory", Reservation.class,
+                stepCtx -> inventoryService.reserve(input.getItems()));
+            compensations.add(Map.entry("cancel-reservation",
+                () -> inventoryService.cancelReservation(reservation.getId())));
+
+            var payment = ctx.step("charge-payment", Payment.class,
+                stepCtx -> paymentService.charge(input.getPaymentMethod(), input.getAmount()));
+            compensations.add(Map.entry("refund-payment",
+                () -> paymentService.refund(payment.getId())));
+
+            return new OrderResult(true, payment.getOrderId());
+        } catch (Exception error) {
+            ctx.getLogger().error("Order failed, executing compensations", error);
+            Collections.reverse(compensations);
+            for (var comp : compensations) {
+                try {
+                    ctx.step(comp.getKey(), Void.class, stepCtx -> { comp.getValue().run(); return null; });
+                } catch (Exception compError) {
+                    ctx.getLogger().error("Compensation {} failed", comp.getKey(), compError);
+                }
+            }
+            throw error;
+        }
+    }
+}
+```
+
 ## Unrecoverable Errors
 
 Mark errors as unrecoverable to stop execution immediately:
@@ -284,6 +344,21 @@ The SDK provides these exception types for different failure scenarios:
 | `InvocationError` | Yes (by Lambda) | Transient infrastructure issues (Lambda retries invocation) |
 | `CallbackError` | No | Callback handling failures |
 | `DurableExecutionsError` | — | Base class for all SDK exceptions |
+
+### Java Exception Hierarchy
+
+```
+DurableExecutionException              - General durable exception
+├── NonDeterministicExecutionException - Code changed between executions
+├── SerDesException                    - Serialization/deserialization error
+└── DurableOperationException          - General operation exception
+    ├── StepFailedException            - Step exhausted all retry attempts
+    ├── StepInterruptedException       - AT_MOST_ONCE step interrupted
+    ├── CallbackFailedException        - External system sent error
+    ├── CallbackTimeoutException       - Callback exceeded timeout
+    ├── WaitForConditionFailedException- Polling exceeded max attempts
+    └── ChildContextFailedException    - Child context failed
+```
 
 ## Error Determinism
 
