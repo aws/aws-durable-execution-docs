@@ -1,186 +1,455 @@
-# Map Operations
+# Map
 
-## Table of Contents
+## Apply a function to each item in a collection
 
-- [What are map operations?](#what-are-map-operations)
-- [Terminology](#terminology)
-- [Key features](#key-features)
-- [Getting started](#getting-started)
-- [Method signature](#method-signature)
-- [Map function signature](#map-function-signature)
-- [Configuration](#configuration)
-- [Advanced patterns](#advanced-patterns)
-- [Best practices](#best-practices)
-- [Performance tips](#performance-tips)
-- [FAQ](#faq)
-- [Testing](#testing)
-- [See also](#see-also)
+Map executes a function for each item in a collection concurrently. It manages
+concurrency, collects results as items complete, and checkpoints the outcome.
 
-[← Back to main index](../index.md)
+Each item runs in its own [child context](child-context.md) and checkpoints its result
+independently as it completes.
 
-## Terminology
-
-**Map operation** - A durable operation that processes a collection of items in parallel, where each item is processed independently and checkpointed. Created using `context.map()`.
-
-**Map function** - A function that processes a single item from the collection. Receives the context, item, index, and full collection as parameters.
-
-**BatchResult** - The result type returned by map operations, containing results from all processed items with success/failure status.
-
-**Concurrency control** - Limiting how many items process simultaneously using `max_concurrency` in `MapConfig`.
-
-**Completion criteria** - Rules that determine when a map operation succeeds or fails based on individual item results.
-
-[↑ Back to top](#table-of-contents)
-
-## What are map operations?
-
-Map operations let you process collections durably by applying a function to each item in parallel. Each item's processing is checkpointed independently, so if your function is interrupted, completed items don't need to be reprocessed.
-
-Use map operations to:
-- Transform collections with automatic checkpointing
-- Process lists of items in parallel
-- Handle large datasets with resilience
-- Control concurrency behavior
-- Define custom success/failure criteria
-
-Map operations use `context.map()` to process collections efficiently. Each item becomes an independent operation that executes in parallel with other items.
-
-[↑ Back to top](#table-of-contents)
-
-## Key features
-
-- **Parallel processing** - Items process concurrently by default
-- **Independent checkpointing** - Each item's result is saved separately
-- **Partial completion** - Completed items don't reprocess on replay
-- **Concurrency control** - Limit simultaneous processing with `max_concurrency`
-- **Flexible completion** - Define custom success/failure criteria
-- **Result ordering** - Results maintain the same order as inputs
-
-[↑ Back to top](#table-of-contents)
-
-## Getting started
-
-Here's a simple example of processing a collection:
+Use map to apply the same operation to every item in a collection. Use
+[parallel](parallel.md) instead to execute different operations concurrently.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/map/square.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/map/simple-map.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/map/square.py"
+    ```python
+    --8<-- "examples/python/operations/map/simple-map.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/map/square.java"
+    ```java
+    --8<-- "examples/java/operations/map/simple-map.java"
     ```
-
-
-When this function runs:
-1. Each item is processed in parallel
-2. The `square` function is called for each item
-3. Each result is checkpointed independently
-4. The function returns a dict with results `[1, 4, 9, 16, 25]`
-
-If the function is interrupted after processing items 0-2, it resumes at item 3 without reprocessing the first three items.
-
-[↑ Back to top](#table-of-contents)
 
 ## Method signature
 
-### context.map()
+### context.map
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/map/map-method-signature.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/map/map-signature.ts"
+    ```
+
+    **Parameters:**
+
+    - `name` (optional) A name for the map operation. Pass `undefined` to omit.
+    - `items` An array of items to process.
+    - `mapFunc` A `MapFunc` called for each item. See [Map Function](#map-function).
+    - `config` (optional) A `MapConfig<TInput, TOutput>` object.
+
+    **Returns:** `DurablePromise<BatchResult<TOutput>>`. Use `await` to get the result.
+
+    **Throws:** Item exceptions are captured in the `BatchResult`. Call `throwIfError()` to
+    re-throw the first failure.
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/operations/map/map-signature.py"
+    ```
+
+    **Parameters:**
+
+    - `inputs` A sequence of items to process.
+    - `func` A callable called for each item. See [Map Function](#map-function).
+    - `name` (optional) A name for the map operation.
+    - `config` (optional) A `MapConfig` object.
+
+    **Returns:** `BatchResult[T]`.
+
+    **Raises:** Item exceptions are captured in the `BatchResult`. Call `throw_if_error()`
+    to re-raise the first failure.
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/operations/map/map-signature.java"
+    ```
+
+    **Parameters:**
+
+    - `name` (required) A name for the map operation.
+    - `items` A `Collection<I>` of items to process.
+    - `resultType` `Class<O>` or `TypeToken<O>` for deserialization.
+    - `function` A `MapFunction<I, O>` called for each item. See
+        [Map Function](#map-function).
+    - `config` (optional) A `MapConfig` object.
+
+    **Returns:** `MapResult<O>` from `map()`, or `DurableFuture<MapResult<O>>` from
+    `mapAsync()`.
+
+    **Throws:** Item exceptions are captured in `MapResult`. Inspect `failed()` to detect
+    failures. If the SDK cannot reconstruct the original exception, it throws
+    `MapIterationFailedException`.
+
+### Map Function
+
+=== "TypeScript"
+
+    ```typescript
+    type MapFunc<TInput, TOutput> = (
+      context: DurableContext,
+      item: TInput,
+      index: number,
+      array: TInput[],
+    ) => Promise<TOutput>
+    ```
+
+    **Parameters:**
+
+    - `context` The child `DurableContext` for this item's execution.
+    - `item` The current item being processed.
+    - `index` The zero-based index of the item in the input array.
+    - `array` The full input array.
+
+    **Returns:** `Promise<TOutput>`.
+
+=== "Python"
+
+    ```python
+    Callable[[DurableContext, T, int, Sequence[T]], R]
+    ```
+
+    **Parameters:**
+
+    - `ctx` The child `DurableContext` for this item's execution.
+    - `item` The current item being processed.
+    - `index` The zero-based index of the item in the input sequence.
+    - `items` The full input sequence.
+
+    **Returns:** `R`.
+
+=== "Java"
+
+    ```java
+    @FunctionalInterface
+    interface MapFunction<I, O> {
+        O apply(I item, int index, DurableContext context);
+    }
+    ```
+
+    **Parameters:**
+
+    - `item` The current item being processed.
+    - `index` The zero-based index of the item in the input collection.
+    - `context` The child `DurableContext` for this item's execution.
+
+    **Returns:** `O`.
+
+### MapConfig
+
+=== "TypeScript"
+
+    ```typescript
+    interface MapConfig<TItem, TResult> {
+      maxConcurrency?: number;
+      itemNamer?: (item: TItem, index: number) => string;
+      completionConfig?: CompletionConfig;
+      serdes?: Serdes<BatchResult<TResult>>;
+      itemSerdes?: Serdes<TResult>;
+      nesting?: NestingType;
+    }
+    ```
+
+    **Parameters:**
+
+    - `maxConcurrency` (optional) Maximum items running at once. Default: unlimited.
+    - `itemNamer` (optional) A function that returns a custom name for each item, used in
+        logs and tests.
+    - `completionConfig` (optional) When to stop. Default: wait for all items.
+    - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
+    - `itemSerdes` (optional) Custom `Serdes` for individual item results.
+    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. `FLAT`
+        reduces operation overhead by ~30% at the cost of lower observability.
+
+=== "Python"
+
+    ```python
+    @dataclass(frozen=True)
+    class MapConfig:
+        max_concurrency: int | None = None
+        completion_config: CompletionConfig = CompletionConfig()
+        serdes: SerDes | None = None
+        item_serdes: SerDes | None = None
+        summary_generator: SummaryGenerator | None = None
+    ```
+
+    **Parameters:**
+
+    - `max_concurrency` (optional) Maximum items running at once. Default: unlimited.
+    - `completion_config` (optional) When to stop. Default: `CompletionConfig()` (lenient,
+        all items run regardless of failures).
+    - `serdes` (optional) Custom `SerDes` for the `BatchResult`.
+    - `item_serdes` (optional) Custom `SerDes` for individual item results.
+    - `summary_generator` (optional) A callable invoked when the serialized `BatchResult`
+        exceeds 256KB. See [Checkpointing](#checkpointing).
+
+=== "Java"
+
+    ```java
+    MapConfig.builder()
+        .maxConcurrency(Integer)       // optional
+        .completionConfig(CompletionConfig)  // optional
+        .serDes(SerDes)                // optional
+        .build()
+    ```
+
+    **Parameters:**
+
+    - `maxConcurrency` (optional) Maximum items running at once. Default: unlimited.
+    - `completionConfig` (optional) When to stop. Default:
+        `CompletionConfig.allCompleted()`.
+    - `serDes` (optional) Custom `SerDes` for item results and the overall result.
+
+### CompletionConfig
+
+See [Completion strategies](#completion-strategies) for how `CompletionConfig` affects
+execution and the completion status of the result.
+
+=== "TypeScript"
+
+    ```typescript
+    interface CompletionConfig {
+      minSuccessful?: number;
+      toleratedFailureCount?: number;
+      toleratedFailurePercentage?: number;
+    }
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/map/map-method-signature.py"
+    ```python
+    @dataclass(frozen=True)
+    class CompletionConfig:
+        min_successful: int | None = None
+        tolerated_failure_count: int | None = None
+        tolerated_failure_percentage: int | float | None = None
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/map/map-method-signature.java"
+    ```java
+    CompletionConfig.allCompleted()
+    CompletionConfig.allSuccessful()
+    CompletionConfig.firstSuccessful()
+    CompletionConfig.minSuccessful(int count)
+    CompletionConfig.toleratedFailureCount(int count)
+    CompletionConfig.toleratedFailurePercentage(double percentage)
     ```
 
-
-**Parameters:**
-
-- `inputs` - A sequence of items to process (list, tuple, or any sequence type).
-- `func` - A callable that processes each item. See [Map function signature](#map-function-signature) for details.
-- `name` (optional) - A name for the map operation, useful for debugging and testing.
-- `config` (optional) - A `MapConfig` object to configure concurrency and completion criteria.
-
-**Returns:** A `BatchResult[T]` containing the results from processing all items.
-
-**Raises:** Exceptions based on the completion criteria defined in `MapConfig`.
-
-[↑ Back to top](#table-of-contents)
-
-## Map function signature
-
-The map function receives four parameters:
+### Result types
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/map/map-function-signature.ts"
+    Map returns the same `BatchResult<TResult>` type as parallel.
+
+    ```typescript
+    interface BatchResult<TResult> {
+      all: BatchItem<TResult>[];
+      status: BatchItemStatus.SUCCEEDED | BatchItemStatus.FAILED;
+      completionReason: "ALL_COMPLETED" | "MIN_SUCCESSFUL_REACHED" | "FAILURE_TOLERANCE_EXCEEDED";
+      hasFailure: boolean;
+      successCount: number;
+      failureCount: number;
+      startedCount: number;
+      totalCount: number;
+      getResults(): TResult[];
+      getErrors(): ChildContextError[];
+      succeeded(): BatchItem<TResult>[];
+      failed(): BatchItem<TResult>[];
+      started(): BatchItem<TResult>[];
+      throwIfError(): void;
+    }
+    ```
+
+    - **`all`** all `BatchItem` entries, one per item, in input order
+    - **`getResults()`** results of succeeded items, preserving input order
+    - **`getErrors()`** `ChildContextError[]` for failed items
+    - **`succeeded()` / `failed()` / `started()`** `BatchItem[]` filtered by status
+    - **`successCount` / `failureCount` / `startedCount` / `totalCount`** item counts
+    - **`status`** `SUCCEEDED` if no failures, `FAILED` otherwise
+    - **`completionReason`** why the operation completed. See
+        [Completion strategies](#completion-strategies).
+    - **`hasFailure`** `true` if any item failed
+    - **`throwIfError()`** throws the first item error, if any
+
+    ```typescript
+    interface BatchItem<TResult> {
+      index: number;
+      status: BatchItemStatus;
+      result?: TResult;
+      error?: ChildContextError;
+    }
+
+    enum BatchItemStatus {
+      SUCCEEDED = "SUCCEEDED",
+      FAILED    = "FAILED",
+      STARTED   = "STARTED",
+    }
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/map/map-function-signature.py"
+    Map returns the same `BatchResult[R]` type as parallel.
+
+    ```python
+    @dataclass(frozen=True)
+    class BatchResult(Generic[R]):
+        all: list[BatchItem[R]]
+        completion_reason: CompletionReason
+
+        def get_results(self) -> list[R]: ...
+        def get_errors(self) -> list[ErrorObject]: ...
+        def succeeded(self) -> list[BatchItem[R]]: ...
+        def failed(self) -> list[BatchItem[R]]: ...
+        def started(self) -> list[BatchItem[R]]: ...
+        def throw_if_error(self) -> None: ...
+        def to_dict(self) -> dict: ...
+
+        @property
+        def status(self) -> BatchItemStatus: ...
+        @property
+        def has_failure(self) -> bool: ...
+        @property
+        def success_count(self) -> int: ...
+        @property
+        def failure_count(self) -> int: ...
+        @property
+        def started_count(self) -> int: ...
+        @property
+        def total_count(self) -> int: ...
     ```
+
+    - **`all`** all `BatchItem` entries, one per item, in input order
+    - **`get_results()`** results of succeeded items, preserving input order
+    - **`get_errors()`** `list[ErrorObject]` for failed items
+    - **`succeeded()` / `failed()` / `started()`** `BatchItem` lists filtered by status
+    - **`success_count` / `failure_count` / `started_count` / `total_count`** item counts
+    - **`status`** `BatchItemStatus.SUCCEEDED` if no failures, `FAILED` otherwise
+    - **`completion_reason`** why the operation completed. See
+        [Completion strategies](#completion-strategies).
+    - **`has_failure`** `True` if any item failed
+    - **`throw_if_error()`** raises the first item error as a `CallableRuntimeError`
+    - **`to_dict()`** serializes to a plain dict. Serializability depends on `R`.
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/map/map-function-signature.java"
+    Map returns `MapResult<O>`, which differs from `ParallelResult`. It holds per-item
+    results with individual status, result, and error fields.
+
+    ```java
+    record MapResult<T>(
+        List<MapResultItem<T>> items,
+        ConcurrencyCompletionStatus completionReason
+    ) {
+        MapResultItem<T> getItem(int index)
+        T getResult(int index)
+        MapError getError(int index)
+        boolean allSucceeded()
+        int size()
+        List<T> results()        // all results, nulls for failed/skipped items
+        List<T> succeeded()      // results of succeeded items only
+        List<MapError> failed()  // errors of failed items only
+    }
+
+    record MapResultItem<T>(Status status, T result, MapError error) {
+        enum Status { SUCCEEDED, FAILED, SKIPPED }
+    }
+
+    record MapError(String errorType, String errorMessage, List<String> stackTrace) {}
+
+    enum ConcurrencyCompletionStatus {
+        ALL_COMPLETED,
+        MIN_SUCCESSFUL_REACHED,
+        FAILURE_TOLERANCE_EXCEEDED
+    }
     ```
 
+    - **`items`** ordered list of `MapResultItem`, one per input item
+    - **`getItem(index)`** the `MapResultItem` at the given index
+    - **`getResult(index)`** the result at the given index, or `null` if failed or skipped
+    - **`getError(index)`** the `MapError` at the given index, or `null` if succeeded or
+        skipped
+    - **`allSucceeded()`** `true` if every item has status `SUCCEEDED`
+    - **`size()`** total number of items
+    - **`results()`** all results as a list, with `null` for failed or skipped items
+    - **`succeeded()`** results of items with status `SUCCEEDED`
+    - **`failed()`** `MapError` objects for items with status `FAILED`
+    - **`completionReason`** why the operation completed. See
+        [Completion strategies](#completion-strategies).
 
-**Parameters:**
+    Items that did not start before the operation reached its completion criteria have
+    status `SKIPPED` (not `STARTED` as in TypeScript and Python).
 
-- `context` - A `DurableContext` for the item's processing. Use this to call steps, waits, or other operations.
-- `item` - The current item being processed.
-- `index` - The zero-based index of the item in the original collection.
-- `items` - The full collection of items being processed.
+## The map function
 
-**Returns:** The result of processing the item.
-
-### Example
+The map function can use any durable operation such as steps, waits, or nested map and
+parallel operations. Each item runs in its own child context, so items do not share
+state with each other or with the parent context.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/map/validate-email.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/map/map-function.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/map/validate-email.py"
+    ```python
+    --8<-- "examples/python/operations/map/map-function.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/map/validate-email.java"
+    ```java
+    --8<-- "examples/java/operations/map/map-function.java"
     ```
 
+## Naming map operations
 
-[↑ Back to top](#table-of-contents)
+Name your map operations to make them easier to identify in logs and tests.
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/operations/map/named-map.ts"
+    ```
+
+    The name is the first argument. Pass `undefined` to omit it.
+
+    Use `itemNamer` in `MapConfig` to give each item a custom name:
+
+    ```typescript
+    context.map("process-orders", orders, processOrder, {
+      itemNamer: (order, index) => `order-${order.id}`,
+    });
+    ```
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/operations/map/named-map.py"
+    ```
+
+    Pass `name` as a keyword argument. Omit it or pass `None` to leave it unnamed.
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/operations/map/named-map.java"
+    ```
+
+    The name is always required in Java. The SDK derives each item's name from the operation
+    name: `{name}-iteration-{index}`.
 
 ## Configuration
 
@@ -188,366 +457,234 @@ Configure map behavior using `MapConfig`:
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/map/process-item.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/map/map-config.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/map/process-item.py"
+    ```python
+    --8<-- "examples/python/operations/map/map-config.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/map/process-item.java"
+    ```java
+    --8<-- "examples/java/operations/map/map-config.java"
     ```
 
+## Completion strategies
 
-### MapConfig parameters
-
-**max_concurrency** - Maximum number of items to process concurrently. If `None`, all items process in parallel. Use this to control resource usage.
-
-**completion_config** - Defines when the map operation succeeds or fails:
-- `CompletionConfig()` - Default, allows any number of failures
-- `CompletionConfig.all_successful()` - Requires all items to succeed
-- `CompletionConfig(min_successful=N)` - Requires at least N items to succeed
-- `CompletionConfig(tolerated_failure_count=N)` - Fails after N failures
-- `CompletionConfig(tolerated_failure_percentage=X)` - Fails if more than X% fail
-
-**serdes** - Custom serialization for the entire `BatchResult`. If `None`, uses JSON serialization.
-
-**item_serdes** - Custom serialization for individual item results. If `None`, uses JSON serialization.
-
-**summary_generator** - Function to generate compact summaries for large results (>256KB).
-
-[↑ Back to top](#table-of-contents)
-
-## Advanced patterns
-
-### Concurrency control
-
-Limit how many items process simultaneously:
+`CompletionConfig` controls when the map operation completes. When the operation reaches
+the completion criteria, it abandons items that have not completed yet. The abandoned
+items will keep running in the background but cannot checkpoint their results after the
+parent completes. The SDK makes a best-effort attempt to cancel ongoing work in
+abandoned items, but cancellation is not guaranteed.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/map/fetch-data.ts"
-    ```
+    The `BatchResult`'s `completionReason` indicates the stop condition. Items that had not
+    started yet do not appear in `result.all`. Items that had started but not completed
+    appear with status `STARTED`.
+
+    | `completionConfig`             | Early exit `completionReason` | Full completion `completionReason` |
+    | ------------------------------ | ----------------------------- | ---------------------------------- |
+    | `{}` or omitted                | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
+    | `toleratedFailureCount=N`      | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
+    | `toleratedFailurePercentage=N` | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
+    | `minSuccessful=N`              | `MIN_SUCCESSFUL_REACHED`      | `ALL_COMPLETED`                    |
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/map/fetch-data.py"
-    ```
+    The `BatchResult`'s `completion_reason` indicates the stop condition. Items that were
+    never started appear in `result.all` with status `STARTED`.
+
+    | `completion_config`              | Early exit `completion_reason` | Full completion `completion_reason` |
+    | -------------------------------- | ------------------------------ | ----------------------------------- |
+    | `CompletionConfig()` (default)   | `FAILURE_TOLERANCE_EXCEEDED`   | `ALL_COMPLETED`                     |
+    | `first_successful()`             | `MIN_SUCCESSFUL_REACHED`       | `ALL_COMPLETED`                     |
+    | `tolerated_failure_count=N`      | `FAILURE_TOLERANCE_EXCEEDED`   | `ALL_COMPLETED`                     |
+    | `tolerated_failure_percentage=N` | `FAILURE_TOLERANCE_EXCEEDED`   | `ALL_COMPLETED`                     |
+    | `min_successful=N`               | `MIN_SUCCESSFUL_REACHED`       | `ALL_COMPLETED`                     |
+
+    !!! warning
+
+        `CompletionConfig.all_completed()` is deprecated. Use the default `CompletionConfig()`
+        instead.
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/map/fetch-data.java"
-    ```
+    The `MapResult`'s `completionReason` indicates the stop condition. Items that did not
+    start before the operation completed have status `SKIPPED`.
 
-### Custom completion criteria
+    | `completionConfig`              | Early exit `completionReason` | Full completion `completionReason` |
+    | ------------------------------- | ----------------------------- | ---------------------------------- |
+    | `allCompleted()` (default)      | n/a                           | `ALL_COMPLETED`                    |
+    | `allSuccessful()`               | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
+    | `firstSuccessful()`             | `MIN_SUCCESSFUL_REACHED`      | `ALL_COMPLETED`                    |
+    | `minSuccessful(N)`              | `MIN_SUCCESSFUL_REACHED`      | `ALL_COMPLETED`                    |
+    | `toleratedFailureCount(N)`      | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
+    | `toleratedFailurePercentage(p)` | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
 
-Define when the map operation should succeed or fail:
+!!! note
+
+    When using a `minSuccessful` strategy, failures do not trigger early exit. If all items
+    fail before the success threshold is reached, the operation completes with
+    `ALL_COMPLETED`.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/map/custom-completion-criteria.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/map/completion-config.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/map/custom-completion-criteria.py"
+    ```python
+    --8<-- "examples/python/operations/map/completion-config.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/map/custom-completion-criteria.java"
+    ```java
+    --8<-- "examples/java/operations/map/completion-config.java"
     ```
 
-### Using context operations in map functions
+## Error handling
 
-Call steps, waits, or other operations inside map functions:
+When an item throws an error, map captures the error in the result rather than
+propagating it immediately. Other items continue running.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/map/fetch-user-data.ts"
+    `BatchResult.status` is `FAILED` if any item failed. Call `throwIfError()` to propagate
+    the first item error as an exception, or inspect `getErrors()` to handle errors
+    individually.
+
+    ```typescript
+    --8<-- "examples/typescript/operations/map/error-handling.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/map/fetch-user-data.py"
+    `BatchResult.status` is `FAILED` if any item failed. Call `throw_if_error()` to
+    propagate the first item error as an exception, or inspect `get_errors()` to handle
+    errors individually.
+
+    ```python
+    --8<-- "examples/python/operations/map/error-handling.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/map/fetch-user-data.java"
+    Check `result.failed()` to detect item failures. Each `MapError` contains `errorType`,
+    `errorMessage`, and `stackTrace` as plain strings. If the SDK cannot reconstruct the
+    original exception, it throws `MapIterationFailedException`.
+
+    ```java
+    --8<-- "examples/java/operations/map/error-handling.java"
     ```
 
+## Checkpointing
 
-### Filtering and transforming results
-
-Access individual results from the `BatchResult`:
+Each item checkpoints its result on completion. Items that have not completed when the
+map operation reaches its completion criteria remain with status `STARTED` and will
+receive no further checkpoint updates.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/map/check-inventory.ts"
+    The parent map operation also checkpoints the serialized `BatchResult` for
+    observability. On replay, the SDK deserializes the `BatchResult` directly from that
+    checkpoint.
+
+    For results over 256KB, the SDK cannot store the full `BatchResult` in the checkpoint.
+    Instead, the SDK reconstructs the `BatchResult` from the checkpointed results of the
+    individual items. In that case, the checkpoint stores a compact JSON summary, which is
+    for observability only.
+
+    The default summary generator produces:
+
+    ```json
+    {
+      "type": "MapResult",
+      "totalCount": 5,
+      "successCount": 4,
+      "failureCount": 1,
+      "completionReason": "ALL_COMPLETED",
+      "status": "FAILED"
+    }
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/map/check-inventory.py"
+    The parent map operation also checkpoints the serialized `BatchResult` for
+    observability. On replay, the SDK deserializes the `BatchResult` directly from that
+    checkpoint.
+
+    For results over 256KB, the SDK cannot store the full `BatchResult` in the checkpoint,
+    so it re-executes the items to reconstruct it instead. In that case, the checkpoint
+    stores the output of `summary_generator`, which is for observability only.
+
+    The default summary generator produces:
+
+    ```json
+    {
+      "type": "MapResult",
+      "totalCount": 5,
+      "successCount": 4,
+      "failureCount": 1,
+      "completionReason": "ALL_COMPLETED",
+      "status": "FAILED"
+    }
+    ```
+
+    When you pass a custom `MapConfig` without setting `summary_generator`, the SDK
+    checkpoints an empty string for large payloads.
+
+    `SummaryGenerator` is a callable protocol you can pass by setting `summary_generator` on
+    [`MapConfig`](#mapconfig):
+
+    ```python
+    class SummaryGenerator(Protocol[T]):
+        def __call__(self, result: T) -> str: ...
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/map/check-inventory.java"
-    ```
+    For results under 256KB, the SDK checkpoints the serialized `MapResult` payload. On
+    replay, the SDK deserializes the `MapResult` directly from that checkpoint without
+    re-executing items.
 
+    For results over 256KB, the SDK checkpoints with an empty payload and a `replayChildren`
+    flag. On replay, the SDK re-executes the items to reconstruct the `MapResult` from their
+    individual checkpoints.
 
-[↑ Back to top](#table-of-contents)
+## Nesting map operations
 
-## Best practices
-
-**Use descriptive names** - Name your map operations for easier debugging: `context.map(items, process_item, name="process_orders")`.
-
-**Control concurrency for external calls** - When calling external APIs, use `max_concurrency` to avoid rate limits.
-
-**Define completion criteria** - Use `CompletionConfig` to specify when the operation should succeed or fail.
-
-**Keep map functions focused** - Each map function should process one item. Don't mix collection iteration with item processing.
-
-**Use context operations** - Call steps, waits, or other operations inside map functions for complex processing.
-
-**Handle errors gracefully** - Wrap error-prone code in try-except blocks or use completion criteria to tolerate failures.
-
-**Consider collection size** - For very large collections (10,000+ items), consider processing in chunks.
-
-**Monitor memory usage** - Large collections create many checkpoints. Monitor Lambda memory usage.
-
-**Return only necessary data** - Large result objects increase checkpoint size. Return minimal data from map functions.
-
-[↑ Back to top](#table-of-contents)
-
-## Performance tips
-
-**Parallel execution is automatic** - Items execute concurrently by default. Don't try to manually parallelize.
-
-**Use max_concurrency wisely** - Too much concurrency can overwhelm external services or exhaust Lambda resources. Start conservative and increase as needed.
-
-**Optimize map functions** - Keep map functions lightweight. Move heavy computation into steps within the map function.
-
-**Use appropriate completion criteria** - Fail fast with `tolerated_failure_count` to avoid processing remaining items when many fail.
-
-**Monitor checkpoint size** - Large result objects increase checkpoint size and Lambda memory usage. Return only necessary data.
-
-**Consider memory limits** - Processing thousands of items creates many checkpoints. Monitor Lambda memory and adjust concurrency.
-
-**Profile your workload** - Test with representative data to find optimal concurrency settings.
-
-[↑ Back to top](#table-of-contents)
-
-## FAQ
-
-**Q: What's the difference between map and parallel operations?**
-
-A: Map operations process a collection of similar items using the same function. Parallel operations execute different functions concurrently. Use map for collections, parallel for heterogeneous tasks.
-
-**Q: How many items can I process?**
-
-A: There's no hard limit, but consider Lambda's memory and timeout constraints. For very large collections (10,000+ items), consider processing in chunks.
-
-**Q: Do items process in order?**
-
-A: Items execute in parallel, so processing order is non-deterministic. However, results maintain the same order as inputs in the `BatchResult`.
-
-**Q: What happens if one item fails?**
-
-A: By default, the map operation continues processing other items. Use `CompletionConfig` to define failure behavior (e.g., fail after N failures).
-
-**Q: Can I use async functions in map operations?**
-
-A: No, map functions must be synchronous. If you need async processing, use `asyncio.run()` inside your map function.
-
-**Q: How do I access individual results?**
-
-A: The `BatchResult` contains a `results` list with each item's result:
+A map function can call `context.map()` or `context.parallel()` to create nested
+operations. Each nested map creates its own set of child contexts.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/core/map/access-individual-results.ts"
+    ```typescript
+    --8<-- "examples/typescript/operations/map/nested-map.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/core/map/access-individual-results.py"
+    ```python
+    --8<-- "examples/python/operations/map/nested-map.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/core/map/access-individual-results.java"
+    ```java
+    --8<-- "examples/java/operations/map/nested-map.java"
     ```
-
-
-**Q: Can I nest map operations?**
-
-A: Yes, you can call `context.map()` inside a map function to process nested collections.
-
-**Q: What's the difference between serdes and item_serdes?**
-
-A: `item_serdes` serializes individual item results as they complete. `serdes` serializes the entire `BatchResult` at the end. Use both for custom serialization at different levels.
-
-**Q: How do I handle partial failures?**
-
-A: Check the `BatchResult.results` list. Each result has a status indicating success or failure:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/map/handle-partial-failures.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/map/handle-partial-failures.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/map/test-handle-partial-failures.java"
-    ```
-
-
-**Q: Can I use map operations with steps?**
-
-A: Yes, call `context.step()` inside your map function to execute steps for each item.
-
-[↑ Back to top](#table-of-contents)
-
-## Testing
-
-You can test map operations using the testing SDK. The test runner executes your function and lets you inspect individual item results.
-
-### Basic map testing
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/map/test-basic-map.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/map/test-basic-map.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/map/test-basic-map.java"
-    ```
-
-
-### Inspecting individual items
-
-Use `result.get_map()` to inspect the map operation:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/map/test-inspect-items.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/map/test-inspect-items.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/map/test-inspect-items.java"
-    ```
-
-
-### Testing error handling
-
-Test that individual item failures are handled correctly:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/map/test-error-handling.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/map/test-error-handling.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/map/test-error-handling.java"
-    ```
-
-
-### Testing with configuration
-
-Test map operations with custom configuration:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/core/map/test-with-config.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/core/map/test-with-config.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/core/map/test-with-config.java"
-    ```
-
-
-For more testing patterns, see:
-- [Basic tests](../testing-patterns/basic-tests.md) - Simple test examples
-- [Complex workflows](../testing-patterns/complex-workflows.md) - Multi-step workflow testing
-- [Best practices](../best-practices.md) - Testing recommendations
-
-[↑ Back to top](#table-of-contents)
 
 ## See also
 
-- [Parallel operations](parallel.md) - Execute different functions concurrently
-- [Steps](steps.md) - Understanding step operations
-- [Child contexts](child-contexts.md) - Organizing complex workflows
-- [Examples](https://github.com/awslabs/aws-durable-execution-sdk-python/tree/main/examples/src/map) - More map examples
-
-[↑ Back to top](#table-of-contents)
-
-[↑ Back to top](#table-of-contents)
+- [Parallel operations](parallel.md) execute different functions concurrently
+- [Child contexts](child-context.md) understand child context isolation
+- [Steps](steps.md) use steps within map functions
+- [Error handling](../advanced/error-handling.md) in durable functions
