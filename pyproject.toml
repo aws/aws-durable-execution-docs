@@ -8,6 +8,7 @@ docs = [
     "zensical",
     "mdformat",
     "mdformat-mkdocs",
+    "mdformat-gfm",
     "codespell",
 ]
 
