@@ -14,7 +14,7 @@ docs = [
 [tool.mdformat]
 wrap = 88
 number = true
-extensions = ["mkdocs"]
+extensions = ["mkdocs", "tables"]
 
 [tool.codespell]
 skip = "*.lock"
