@@ -38,6 +38,8 @@ context.wait(duration=Duration.from_seconds(60), name='rate-limit-delay')
 
 Wait for external systems to respond (human approval, webhook, async job):
 
+The submitter function passed to `waitForCallback(...)` and the check function passed to `waitForCondition(...)` are durable operation bodies. They are not guaranteed to be atomic with respect to external side effects, so if they start or address external work, use stable identity and idempotent behavior. See [replay-model-rules.md](replay-model-rules.md).
+
 **TypeScript:**
 
 ```typescript
@@ -284,11 +286,13 @@ export const handler = withDurableExecution(async (event, context: DurableContex
   const order = await context.step('create-order', async () =>
     createOrder(event)
   );
+  const paymentRequestId = `payment-${order.id}`;
 
   const payment = await context.waitForCallback(
     'wait-payment',
     async (callbackId) => {
       await paymentProvider.createPayment({
+        requestId: paymentRequestId,
         orderId: order.id,
         amount: order.total,
         webhookUrl: `${webhookUrl}?callback=${callbackId}`
@@ -348,6 +352,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 6. **Keep check functions lightweight** in waitForCondition
 7. **Store callback IDs securely** when sending to external systems
 8. **Validate callback payloads** before processing
+9. **Use stable logical identifiers** for external work started by submitter/check functions
 
 ## Error Handling
 
