@@ -1,851 +1,298 @@
 # Serialization
 
-Learn how the SDK serializes and deserializes data for durable execution checkpoints.
+## Checkpointed data transformation
 
-## Table of Contents
+The SDK serializes durable operation results to checkpoint storage. When your durable
+function replays the SDK uses those stored results rather than re-running the code
+wrapped inside the operation. A SerDes (serializer/deserializer) is the object that
+serializes the operation result, and deserializes it during replay.
 
-- [Terminology](#terminology)
-- [What is serialization?](#what-is-serialization)
-- [Key features](#key-features)
-- [Default serialization behavior](#default-serialization-behavior)
-- [Supported types](#supported-types)
-- [Converting non-serializable types](#converting-non-serializable-types)
-- [Custom serialization](#custom-serialization)
-- [Serialization in configurations](#serialization-in-configurations)
-- [Best practices](#best-practices)
-- [Troubleshooting](#troubleshooting)
-- [FAQ](#faq)
+Each SDK ships a default SerDes that handles the most common types. You only need a
+custom SerDes when the default SerDes cannot handle your data types, or when you need
+special behavior such as encryption, compression or writing to external storage.
 
-[← Back to main index](../index.md)
-
-## Terminology
-
-**Serialization** - Converting Python objects to strings for storage in checkpoints.
-
-**Deserialization** - Converting checkpoint strings back to Python objects.
-
-**SerDes** - Short for Serializer/Deserializer, a custom class that handles both serialization and deserialization.
-
-**Checkpoint** - A saved state of execution that includes serialized operation results.
-
-**Extended types** - Types beyond basic JSON (datetime, Decimal, UUID, bytes) that the SDK serializes automatically.
-
-**Envelope format** - The SDK's internal format that wraps complex types with type tags for accurate deserialization.
-
-[↑ Back to top](#table-of-contents)
-
-## What is serialization?
-
-Serialization converts Python objects into strings that can be stored in checkpoints. When your durable function resumes, deserialization converts those strings back into Python objects. The SDK handles this automatically for most types.
-
-[↑ Back to top](#table-of-contents)
-
-## Key features
-
-- Automatic serialization for common Python types
-- Extended type support (datetime, Decimal, UUID, bytes)
-- Custom serialization for complex objects
-- Type preservation during round-trip serialization
-- Efficient plain JSON for primitives
-
-[↑ Back to top](#table-of-contents)
-
-## Default serialization behavior
-
-The SDK handles most Python types automatically:
+The following example uses no SerDes configuration. The SDK serializes and deserializes
+the step result automatically.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/default-behavior.ts"
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/walkthrough.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/advanced/serialization/default-behavior.py"
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/walkthrough.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/advanced/serialization/default-behavior.java"
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/Walkthrough.java"
     ```
 
+## Lambda handler serialization
 
-The SDK serializes data automatically when:
-- Checkpointing step results
-- Storing callback payloads
-- Passing data to child contexts
-- Returning results from your handler
-
-[↑ Back to top](#table-of-contents)
-
-## Supported types
-
-### Primitive types
-
-These types serialize as plain JSON for performance:
+The Durable Execution SDK SerDes only applies to durable operation results. It does not
+affect the final return value of your Lambda handler, which Lambda serializes
+separately.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/primitive-types.ts"
+    Lambda serializes handler return values with `JSON.stringify`. The same types that work
+    with `defaultSerdes` work as handler return values.
+
+=== "Python"
+
+    Lambda serializes handler return values with `json.dumps`. Types like `datetime` and
+    `Decimal` are safe inside steps because `ExtendedTypeSerDes` handles them, but returning
+    them directly from your handler raises
+    `TypeError: Object of type X is not JSON serializable`. This is a common error when
+    working with Amazon DynamoDB results. Convert those values to JSON-safe types before
+    returning from the handler.
+
+=== "Java"
+
+    Lambda serializes handler return values with Jackson. The same `JacksonSerDes`
+    configuration applies to both step results and handler return values when you use
+    `DurableHandler`.
+
+## Default serialization
+
+Each SDK uses a default SerDes when you do not provide one.
+
+=== "TypeScript"
+
+    The default is `defaultSerdes`, which uses `JSON.stringify` to serialize and
+    `JSON.parse` to deserialize. It handles any value that `JSON.stringify` accepts.
+
+=== "Python"
+
+    The default is `ExtendedTypeSerDes`. It uses plain JSON for primitives (`None`, `str`,
+    `int`, `float`, `bool`, and lists of primitives) and an envelope format for everything
+    else. The envelope format preserves the exact Python type through the round-trip.
+
+    Supported types beyond primitives: `datetime`, `date`, `Decimal`, `UUID`, `bytes`,
+    `bytearray`, `memoryview`, `tuple`, `list`, `dict`, and `BatchResult`.
+
+=== "Java"
+
+    The default is `JacksonSerDes`, which uses Jackson's `ObjectMapper`. It supports Java 8
+    time types, serializes dates as ISO-8601 strings, and ignores unknown properties during
+    deserialization.
+
+    Pass a custom `ObjectMapper` to the `JacksonSerDes` constructor to override the default
+    configuration.
+
+## SerDes interface definition
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/serdes-interface.ts"
+    ```
+
+    **Parameters:**
+
+    - `serialize` An async function that receives the value and a `SerdesContext`, and
+        returns `Promise<string | undefined>`.
+    - `deserialize` An async function that receives the serialized string and a
+        `SerdesContext`, and returns `Promise<T | undefined>`.
+
+    Both methods are async so that implementations can interact with external services such
+    as S3 or KMS.
+
+    **SerdesContext fields:**
+
+    - `entityId` The operation ID for the current step or operation.
+    - `durableExecutionArn` The ARN of the current durable execution.
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/serdes-interface.py"
+    ```
+
+    **Parameters:**
+
+    - `serialize(value, serdes_context)` Converts the value to a string.
+    - `deserialize(data, serdes_context)` Converts the string back to the original type.
+
+    **SerDesContext fields:**
+
+    - `operation_id` The operation ID for the current step or operation.
+    - `durable_execution_arn` The ARN of the current durable execution.
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/SerdesInterface.java"
+    ```
+
+    **Parameters:**
+
+    - `serialize(Object value)` Converts the value to a JSON string. Returns `null` if
+        `value` is `null`.
+    - `deserialize(String data, TypeToken<T> typeToken)` Converts the JSON string back to
+        type `T`. Returns `null` if `data` is `null`.
+
+    Use `TypeToken<T>` to capture generic type information that Java erases at runtime. For
+    example: `new TypeToken<List<String>>() {}`.
+
+## Custom SerDes example
+
+Implement the SerDes interface when the default cannot handle your types, or when you
+need special behavior such as encryption or compression.
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/custom-serdes.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/advanced/serialization/primitive-types.py"
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/custom-serdes.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/advanced/serialization/primitive-types.java"
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/OrderSerDes.java"
     ```
 
-
-**Supported primitive types:**
-- `None`
-- `str`
-- `int`
-- `float`
-- `bool`
-- Lists containing only primitives
-
-[↑ Back to top](#table-of-contents)
-
-### Extended types
-
-The SDK automatically handles these types using envelope format:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/extended-types.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/extended-types.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/extended-types.java"
-    ```
-
-
-**Supported extended types:**
-- `datetime` - ISO format with timezone
-- `date` - ISO date format
-- `Decimal` - Precise decimal numbers
-- `UUID` - Universally unique identifiers
-- `bytes`, `bytearray`, `memoryview` - Binary data (base64 encoded)
-- `tuple` - Immutable sequences
-- `list` - Mutable sequences (including nested)
-- `dict` - Dictionaries (including nested)
-
-[↑ Back to top](#table-of-contents)
-
-### Container types
-
-Containers can hold any supported type, including nested containers:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/container-types.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/container-types.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/container-types.java"
-    ```
-
-
-[↑ Back to top](#table-of-contents)
-
-## Converting non-serializable types
-
-Some Python types aren't serializable by default. Convert them before passing to durable operations.
-
-### Dataclasses
-
-Convert dataclasses to dictionaries:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/dataclasses.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/dataclasses.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/dataclasses.java"
-    ```
-
-
-### Pydantic models
-
-Use Pydantic's built-in serialization:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/convert-to-dicts.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/convert-to-dicts.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/convert-to-dicts.java"
-    ```
-
-
-### Custom objects
-
-Implement `to_dict()` and `from_dict()` methods:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/custom-objects.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/custom-objects.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/custom-objects.java"
-    ```
-
-
-[↑ Back to top](#table-of-contents)
-
-## Custom serialization
-
-Implement custom serialization for specialized needs like encryption or compression.
-
-### Creating a custom SerDes
-
-Extend the `SerDes` base class:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/custom-serdes.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/custom-serdes.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/custom-serdes.java"
-    ```
-
-
-### Using custom SerDes with steps
-
-Pass your custom SerDes in `StepConfig`:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/use-custom-serdes.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/use-custom-serdes.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/use-custom-serdes.java"
-    ```
-
-
-### Encryption example
-
-Encrypt sensitive data in checkpoints:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/encryption.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/encryption.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/encryption.java"
-    ```
-
-
-[↑ Back to top](#table-of-contents)
-
-## Serialization in configurations
-
-Different operations support custom serialization through their configuration objects.
+## Custom SerDes on durable operations
+
+Pass a SerDes instance in the configuration object for the operation you want to
+customize. The SDK uses that SerDes for that operation only. Other operations in the
+same handler continue to use the default.
 
 ### StepConfig
 
-Control serialization for step results:
-
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/step-config.ts"
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/step-config.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/advanced/serialization/step-config.py"
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/step-config.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/advanced/serialization/step-config.java"
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/StepConfigExample.java"
     ```
-
 
 ### CallbackConfig
 
-Control serialization for callback payloads:
+The callback SerDes controls how the SDK deserializes the payload that an external
+system sends when it completes the callback.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/callback-config.ts"
+    In TypeScript, the callback SerDes only needs `deserialize`. The `serialize` method is
+    not used because the external system provides the payload directly.
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/callback-config.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/advanced/serialization/callback-config.py"
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/callback-config.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/advanced/serialization/callback-config.java"
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/CallbackConfigExample.java"
     ```
 
+### MapConfig & ParallelConfig
 
-### MapConfig and ParallelConfig
-
-Control serialization for batch results:
+Map and parallel perations support two SerDes fields that apply at different levels.
 
 === "TypeScript"
 
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/map-parallel-config.ts"
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/map-config.ts"
+    ```
+
+    - `itemSerdes` serializes each item result.
+    - `serdes` serializes the aggregated `BatchResult`.
+    - `ParallelConfig` has the same two fields.
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/map-config.py"
+    ```
+
+    - `item_serdes` serializes each item result.
+    - `serdes` serializes the aggregated `BatchResult`.
+    - When you provide only `serdes`, the SDK uses it for both for backward compatibility.
+        `ParallelConfig` has the same two fields.
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/MapConfigExample.java"
+    ```
+
+    - `serDes` applies to each item result.
+    - Java `ParallelConfig` does not have a `serDes` field.
+
+## Built-in SerDes helpers
+
+=== "TypeScript"
+
+    `createClassSerdes(cls)` creates a `Serdes<T>` that preserves class instances through
+    the round-trip. It deserializes by calling `Object.assign(new cls(), JSON.parse(data))`,
+    so class methods are available on the deserialized value. The constructor must take no
+    required parameters. Private fields and getters are not preserved.
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/builtin-helpers.ts"
     ```
 
 === "Python"
 
-    ``` python
-    --8<-- "examples/python/advanced/serialization/map-parallel-config.py"
+    `PassThroughSerDes` stores the value as-is (the value must already be a string).
+    `JsonSerDes` uses `json.dumps` and `json.loads` without the envelope format that
+    `ExtendedTypeSerDes` adds for complex types.
+
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/builtin-helpers.py"
     ```
 
 === "Java"
 
-    ``` java
-    --8<-- "examples/java/advanced/serialization/map-parallel-config.java"
+    The built-in `JacksonSerDes` handles class instances via Jackson's `ObjectMapper`. You
+    can create your own passthrough SerDes like this:
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/PassThroughSerdesExample.java"
     ```
 
-
-**Note:** When both `serdes` and `item_serdes` are provided:
-- `item_serdes` serializes individual item results in child contexts
-- `serdes` serializes the entire `BatchResult` at the handler level
-
-For backward compatibility, if only `serdes` is provided, it's used for both individual items and the `BatchResult`.
-
-[↑ Back to top](#table-of-contents)
-
-## Best practices
-
-### Use default serialization when possible
-
-The SDK handles most cases efficiently without custom serialization:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/use-default-serialization.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/use-default-serialization.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/use-default-serialization.java"
-    ```
-
-
-### Convert complex objects to dicts
-
-Convert custom objects to dictionaries before passing to durable operations:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/convert-to-dicts.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/convert-to-dicts.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/convert-to-dicts.java"
-    ```
-
-
-### Keep serialized data small
-
-Large checkpoints might slow down execution. Keep data compact:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/keep-data-small.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/keep-data-small.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/keep-data-small.java"
-    ```
-
-
-### Use appropriate types
-
-Choose types that serialize efficiently:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/appropriate-types.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/appropriate-types.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/appropriate-types.java"
-    ```
-
-
-### Test serialization round-trips
-
-Verify your data survives serialization:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/test-round-trips.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/test-round-trips.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/test-round-trips.java"
-    ```
-
-
-### Handle serialization errors gracefully
-
-Catch and handle serialization errors:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/handle-errors-gracefully.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/handle-errors-gracefully.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/handle-errors-gracefully.java"
-    ```
-
-
-[↑ Back to top](#table-of-contents)
-
-## Troubleshooting
-
-### Unsupported type error
-
-**Problem:** `SerDesError: Unsupported type: <class 'MyClass'>`
-
-**Solution:** Convert custom objects to supported types:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/unsupported-type-error.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/unsupported-type-error.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/unsupported-type-error.java"
-    ```
-
-
-### Serialization failed error
-
-**Problem:** `ExecutionError: Serialization failed for id: step-123`
-
-**Cause:** The data contains types that can't be serialized.
-
-**Solution:** Check for circular references or unsupported types:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/serialization-failed-error.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/serialization-failed-error.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/serialization-failed-error.java"
-    ```
-
-
-### Type not preserved after deserialization
-
-**Problem:** `tuple` becomes `list` or `Decimal` becomes `float`
-
-**Cause:** Using a custom SerDes that doesn't preserve types.
-
-**Solution:** Use default serialization which preserves types:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/type-not-preserved.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/type-not-preserved.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/type-not-preserved.java"
-    ```
-
-
-### Large payload errors
-
-**Problem:** Checkpoint size exceeds limits
-
-**Solution:** Reduce data size or use summary generators:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/large-payload-errors.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/large-payload-errors.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/large-payload-errors.java"
-    ```
-
-
-### Datetime timezone issues
-
-**Problem:** Datetime loses timezone information
-
-**Solution:** Always use timezone-aware datetime objects:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/datetime-timezone.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/datetime-timezone.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/datetime-timezone.java"
-    ```
-
-
-[↑ Back to top](#table-of-contents)
-
-## FAQ
-
-### What types can I serialize?
-
-The SDK supports:
-- Primitives: `None`, `str`, `int`, `float`, `bool`
-- Extended: `datetime`, `date`, `Decimal`, `UUID`, `bytes`, `tuple`
-- Containers: `list`, `dict` (including nested)
-
-For other types, convert to dictionaries first.
-
-### Do I need custom serialization?
-
-Most applications don't need custom serialization. Use it for:
-- Encryption of sensitive data
-- Compression of large payloads
-- Special encoding requirements
-- Legacy format compatibility
-
-### How does serialization affect performance?
-
-The SDK optimizes for performance:
-- Primitives use plain JSON (fast)
-- Extended types use envelope format (slightly slower but preserves types)
-- Custom SerDes adds overhead based on your implementation
-
-### Can I serialize Pydantic models?
-
-Yes, convert them to dictionaries:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/faq-pydantic-models.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/faq-pydantic-models.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/faq-pydantic-models.java"
-    ```
-
-
-### What's the difference between serdes and item_serdes?
-
-In `MapConfig` and `ParallelConfig`:
-- `item_serdes`: Serializes individual item results in child contexts
-- `serdes`: Serializes the entire `BatchResult` at handler level
-
-If only `serdes` is provided, it's used for both (backward compatibility).
-
-### How do I handle binary data?
-
-Use `bytes` type - it's automatically base64 encoded:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/faq-binary-data.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/faq-binary-data.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/faq-binary-data.java"
-    ```
-
-
-### Can I use JSON strings directly?
-
-Yes, use `PassThroughSerDes` or `JsonSerDes`:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/faq-json-strings.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/faq-json-strings.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/faq-json-strings.java"
-    ```
-
-
-### What happens if serialization fails?
-
-The SDK raises `ExecutionError` with details. Handle it in your code:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/faq-serialization-fails.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/faq-serialization-fails.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/faq-serialization-fails.java"
-    ```
-
-
-### How do I debug serialization issues?
-
-Test serialization independently:
-
-=== "TypeScript"
-
-    ``` typescript
-    --8<-- "examples/typescript/advanced/serialization/faq-debug-issues.ts"
-    ```
-
-=== "Python"
-
-    ``` python
-    --8<-- "examples/python/advanced/serialization/faq-debug-issues.py"
-    ```
-
-=== "Java"
-
-    ``` java
-    --8<-- "examples/java/advanced/serialization/faq-debug-issues.java"
-    ```
-
-
-### Are there size limits for serialized data?
-
-Yes, checkpoints have size limits (typically 256KB). Keep data compact:
-- Only checkpoint necessary data
-- Use summary generators for large results
-- Store large data externally (S3) and checkpoint references
-
-[↑ Back to top](#table-of-contents)
+## Serialization errors
+
+When serialization or deserialization fails, each SDK raises or throws a specific
+exception type. See
+[Serialization errors](../error-handling/errors.md#serialization-errors) for the
+exception hierarchy and how to handle serialization failures.
 
 ## See also
 
-- [Steps](../core/steps.md) - Using steps with custom serialization
-- [Callbacks](../core/callbacks.md) - Serializing callback payloads
-- [Map Operations](../core/map.md) - Serialization in map operations
-- [Error Handling](error-handling.md) - Handling serialization errors
-- [Best Practices](../best-practices.md) - General best practices
-
-[↑ Back to index](#table-of-contents)
+- [StepConfig](../operations/step.md#stepconfig) Step serialization configuration
+- [CallbackConfig](../operations/callback.md#callbackconfig) Callback serialization
+    configuration
+- [MapConfig](../operations/map.md#mapconfig) Map serialization configuration
+- [Serialization errors](../error-handling/errors.md#serialization-errors) Serialization
+    error types
