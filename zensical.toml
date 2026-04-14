@@ -27,7 +27,7 @@ site_author = "AWS"
 # The site_url is the canonical URL for your site. When building online
 # documentation you should set this.
 # Read more: https://zensical.org/docs/setup/basics/#site_url
-site_url = "https://docs.aws.amazon.com/durable-functions"
+site_url = "https://docs.aws.amazon.com/durable-execution"
 
 repo_url = "https://github.com/aws/aws-durable-execution-docs"
 edit_uri = "edit/main/docs/"
