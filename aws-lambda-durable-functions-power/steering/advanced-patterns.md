@@ -105,28 +105,30 @@ def handler(event: dict, context: DurableContext) -> str:
 ```typescript
 import { StepSemantics } from '@aws/durable-execution-sdk-js';
 
-// AtMostOncePerRetry (DEFAULT) - For idempotent operations
-// Step executes at most once per retry attempt
-// If step fails partway through, it won't re-execute the same attempt
+// AtLeastOncePerRetry (DEFAULT) - For idempotent operations
+// Step executes at least once per retry attempt
+// If checkpointing fails after success, the step may re-execute on replay
 await context.step(
   'update-database',
   async () => {
     // This is idempotent - safe to retry
     return await updateUserRecord(userId, data);
   },
-  { semantics: StepSemantics.AtMostOncePerRetry }
+  { semantics: StepSemantics.AtLeastOncePerRetry }
 );
 
-// AtLeastOncePerRetry - For operations that can execute multiple times
-// Step may execute multiple times per retry attempt
-// Use when idempotency is handled externally
+// AtMostOncePerRetry - For non-idempotent operations
+// Step executes at most once per retry attempt
+// Disable retries as well when duplicate execution is unacceptable
 await context.step(
   'send-notification',
   async () => {
-    // External system handles deduplication
     return await sendEmail(email, message);
   },
-  { semantics: StepSemantics.AtLeastOncePerRetry }
+  {
+    semantics: StepSemantics.AtMostOncePerRetry,
+    retryStrategy: () => ({ shouldRetry: false })
+  }
 );
 ```
 
@@ -134,8 +136,8 @@ await context.step(
 
 | Semantic                | Use When                      | Example Operations                                |
 | ----------------------- | ----------------------------- | ------------------------------------------------- |
-| **AtMostOncePerRetry**  | Operation is idempotent       | Database updates, API calls with idempotency keys |
-| **AtLeastOncePerRetry** | External deduplication exists | Queuing systems, event streams                    |
+| **AtLeastOncePerRetry** | Operation is idempotent       | Database updates, API calls with idempotency keys |
+| **AtMostOncePerRetry**  | Duplicate execution is unacceptable | Payments, one-time notifications, non-idempotent downstream calls |
 
 ## Completion Policies - Interaction and Combination
 
