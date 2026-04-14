@@ -1,7 +1,7 @@
 # AWS Lambda durable functions developer documentation source
 
-This repository contains the source for the AWS Lambda durable functions SDK
-documentation website at https://docs.aws.amazon.com/durable-functions,
+This repository contains the source for the AWS Lambda Durable Execution SDK
+documentation website at https://docs.aws.amazon.com/durable-execution,
 providing comprehensive guides and references for building resilient,
 long-running applications with AWS Lambda durable functions across
 multiple programming languages.
