@@ -34,7 +34,7 @@ Resources:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: myDurableFunction
-      Runtime: nodejs24.x  # or python3.14
+      Runtime: nodejs24.x  # or python3.14 (see Java SAM section below for Java)
       Handler: index.handler
       Role: !GetAtt DurableFunctionRole.Arn
       Code:
@@ -89,7 +89,7 @@ export class DurableFunctionStack extends cdk.Stack {
     super(scope, id, props);
 
     const durableFunction = new lambda.Function(this, 'DurableFunction', {
-      runtime: lambda.Runtime.NODEJS_24_X,  // or PYTHON_3_14
+      runtime: lambda.Runtime.NODEJS_24_X,  // or PYTHON_3_14 (see Java SAM section for Java)
       handler: 'index.handler',
       code: lambda.Code.fromAsset('lambda'),
       durableConfig: {

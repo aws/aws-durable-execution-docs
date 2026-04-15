@@ -60,6 +60,24 @@ results.throw_if_error()
 all_results = results.get_results()
 ```
 
+**Java:**
+
+```java
+var items = List.of("order-1", "order-2", "order-3", "order-4", "order-5");
+var result = ctx.map("process-items", items, OrderResult.class,
+    (item, index, childCtx) -> {
+        return childCtx.step("process-" + index, OrderResult.class,
+            stepCtx -> orderService.process(item));
+    },
+    MapConfig.builder()
+        .maxConcurrency(3)
+        .completionConfig(CompletionConfig.minSuccessful(4))
+        .build());
+
+assertTrue(result.allSucceeded());
+var allResults = result.results();
+```
+
 ## Parallel Operations
 
 Run heterogeneous operations concurrently:
@@ -111,6 +129,22 @@ results = context.parallel(
 )
 
 user, orders, preferences = results.get_results()
+```
+
+**Java (using async child contexts):**
+
+```java
+var futureA = ctx.runInChildContextAsync("fetch-user", User.class,
+    child -> child.step("fetch", User.class, stepCtx -> fetchUser(userId)));
+var futureB = ctx.runInChildContextAsync("fetch-orders", OrderList.class,
+    child -> child.step("fetch", OrderList.class, stepCtx -> fetchOrders(userId)));
+var futureC = ctx.runInChildContextAsync("fetch-prefs", Prefs.class,
+    child -> child.step("fetch", Prefs.class, stepCtx -> fetchPreferences(userId)));
+
+var results = DurableFuture.allOf(futureA, futureB, futureC);
+User user = futureA.get();
+OrderList orders = futureB.get();
+Prefs prefs = futureC.get();
 ```
 
 ## Completion Policies
