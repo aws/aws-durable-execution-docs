@@ -92,10 +92,13 @@ nav = [
   ]},
   { "Testing" = [
     { "Testing" = "testing/index.md" },
-    { "Basic Tests" = "testing/basic-tests.md" },
-    { "Complex Workflows" = "testing/complex-workflows.md" },
-    { "Stores" = "testing/stores.md" },
-    { "Testing Modes" = "testing/testing-modes.md" },
+    { "Runner" = "testing/runner.md" },
+    { "Authoring" = "testing/authoring.md" },
+    { "Assertions" = "testing/assertions.md" },
+    { "API Reference" = "testing/api-reference.md" },
+    { "Workflow Patterns" = "testing/workflow-patterns.md" },
+    { "Cloud Runner" = "testing/cloud-runner.md" },
+    { "SAM CLI" = "testing/sam-cli.md" },
   ]},
   { "Patterns" = [
     { "Patterns" = "patterns/index.md" },
