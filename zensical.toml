@@ -102,7 +102,15 @@ nav = [
   ]},
   { "Patterns" = [
     { "Patterns" = "patterns/index.md" },
-    { "Best Practices" = "patterns/best-practices.md" },
+    { "Best Practices" = [
+      { "Best Practices" = "patterns/best-practices/index.md" },
+      { "Determinism and Replay" = "patterns/best-practices/determinism.md" },
+      { "Idempotency and Retries" = "patterns/best-practices/idempotency.md" },
+      { "Manage State" = "patterns/best-practices/state.md" },
+      { "Step Design" = "patterns/best-practices/step-design.md" },
+      { "Pause and Resume" = "patterns/best-practices/pause-resume.md" },
+      { "Code Organization" = "patterns/best-practices/code-organization.md" },
+    ]},
   ]},
 ]
 
