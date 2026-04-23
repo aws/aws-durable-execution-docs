@@ -5,7 +5,7 @@ A Kiro power for building resilient, long-running multi-step applications and AI
 ## Overview
 
 - **Replay Model Guidance** - Critical rules to avoid non-deterministic bugs
-- **Step Operations** - Atomic operations with retry strategies
+- **Step Operations** - Step patterns with retry strategies
 - **Wait Operations** - Delays, callbacks, and polling patterns
 - **Concurrent Operations** - Map and parallel execution with concurrency control
 - **Error Handling** - Retry strategies, saga pattern, and compensating transactions
@@ -36,7 +36,7 @@ Kiro will load the appropriate steering files and guide you through:
 ### Critical Concepts
 
 - **Replay Model** - How Lambda durable functions execute and replay
-- **Determinism Rules** - What must be inside steps vs outside
+- **Determinism Rules** - What must be inside durable operations vs outside
 - **Qualified ARNs** - Why versions/aliases are required
 - **Checkpoint Strategy** - When and how state is persisted
 
