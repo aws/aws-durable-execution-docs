@@ -1,0 +1,11 @@
+{% extends "base.html" %}
+
+{% block extrahead %}
+  <script src="https://a0.awsstatic.com/s_code/js/3.0/awshome_s_code.js"></script>
+  <link href="https://prod.assets.shortbread.aws.dev/shortbread.css" rel="stylesheet">
+  <script src="https://prod.assets.shortbread.aws.dev/shortbread.js"></script>
+  <script>
+    var shortbread = AWSCShortbread();
+    shortbread.checkForCookieConsent();
+  </script>
+{% endblock %}
