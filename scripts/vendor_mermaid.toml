@@ -1,0 +1,8 @@
+# Pin file for scripts/vendor_mermaid.py.
+#
+# Bump `version`, run `python3 scripts/vendor_mermaid.py`. The script will
+# fail with the new SHA-256 printed; paste that value into `sha256` below,
+# then re-run. See CONTRIBUTING.md ("Vendored dependencies") for details.
+
+version = "11.14.0"
+sha256 = "aa1f0a2b8e3ce63bc187079fc3481f02758bf71498b3d6d2dddcd069b8233f61"

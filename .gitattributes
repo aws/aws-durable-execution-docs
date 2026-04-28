@@ -1,0 +1,3 @@
+# Vendored third-party JavaScript under docs/assets/javascripts/ is treated
+# as binary so PR diffs stay readable. See CONTRIBUTING.md for the convention.
+docs/assets/javascripts/** binary
