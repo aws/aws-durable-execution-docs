@@ -22,6 +22,53 @@ zensical serve
 zensical build --clean
 ```
 
+## Vendored dependencies
+
+The file `docs/assets/javascripts/mermaid.tiny.js` is a pinned copy of the
+`@mermaid-js/tiny` UMD build. We self-host it because the Content Security
+Policy on `docs.aws.amazon.com` blocks Zensical's default CDN load of Mermaid
+from `unpkg.com`.
+
+Mermaid's tiny build supports flowcharts and sequence, state, class, and
+entity-relationship diagrams. It does not support mindmap or architecture
+diagrams, or KaTeX math rendering.
+
+Upgrade procedure:
+
+```bash
+# 1. Show the pinned version and the latest on npm
+python3 scripts/vendor_mermaid.py --latest
+
+# 2. Edit scripts/vendor_mermaid.toml. Bump `version`. Run the script.
+#    It will fail and print the new SHA-256. Paste that value into `sha256`
+#    in the TOML, then run the script again.
+python3 scripts/vendor_mermaid.py
+
+# 3. Preview locally and spot-check pages with diagrams.
+zensical serve
+
+# 4. Commit scripts/vendor_mermaid.toml and docs/assets/javascripts/mermaid.tiny.js
+#    together in the same commit.
+```
+
+CI verifies the committed file matches the pinned SHA-256. If you hand-edit the
+vendored file or forget to update the SHA on upgrade, the build fails.
+
+### Directory convention
+
+JavaScript under `docs/` is split by ownership:
+
+- `docs/assets/javascripts/` holds vendored third-party bundles. Treat these
+  as read-only outputs of the vendoring scripts under `scripts/`. Do not
+  hand-edit them. Upgrade by bumping the version pin in the corresponding
+  script and re-running it. Files in this directory are marked `binary` in
+  `.gitattributes` so PR diffs do not try to render minified code.
+- `docs/javascripts/` holds first-party scripts we author and maintain, such
+  as `mermaid-init.js`, which initializes the vendored Mermaid build.
+
+Both directories are served from the same origin and register through
+`extra_javascript` in `zensical.toml`.
+
 ## Formatting
 
 Run `mdformat` to auto-format Markdown files before committing:
