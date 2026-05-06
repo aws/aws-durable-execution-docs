@@ -29,11 +29,16 @@ CRITICAL SAFETY RULES:
 - Only suggest manual remediation if user explicitly requests it
 
 Steps:
+0. If the user provides a function name + alias (e.g., my-function:prod) instead of a full ARN:
+   - Resolve the alias to a version: aws lambda get-alias --function-name <functionName> --name <alias> --region <region> --query 'FunctionVersion' --output text
+   - List executions for that function: aws lambda list-durable-executions-by-function --function-name <functionName>:<version> --region <region>
+   - Ask the user to identify the execution, or use the most recent one.
+
 1. Fetch the execution history directly:
    Run: aws lambda get-durable-execution-history --durable-execution-arn <durable-execution-arn> --region <region> --include-execution-data
 
 2. If the command succeeds, analyze and provide a user-friendly diagnosis:
-   a. Report the execution status (RUNNING/SUCCEEDED/FAILED/TIMED_OUT)
+   a. Report the execution status (RUNNING/SUCCEEDED/FAILED/STOPPED/TIMED_OUT)
    b. Identify the root cause:
       - Failed operations: Show the EXACT error message verbatim in a code block
       - Stuck in WAIT_FOR_CALLBACK: Extract callback ID, show how long it's been waiting
@@ -44,7 +49,7 @@ Steps:
 
 3. If the command fails:
    - Execution not found: Tell the user the execution ID may be incorrect or the execution may have been purged. Ask them to verify the ARN.
-   - Permissions/network error: Suggest checking IAM permissions (lambda:GetDurableExecutionHistory)
+   - Permissions/network error: check that your caller identity has lambda:GetDurableExecutionHistory on the function ARN.
    - In either case, direct them to the console as a fallback (see step 4)
 
 4. ALWAYS provide a direct link to the Execution Details page in the Lambda console.
