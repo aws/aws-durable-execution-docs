@@ -58,8 +58,19 @@ Steps:
 
 6. If unable to determine the root cause from execution history:
    - Provide the console link (step 4)
-   - Offer to fetch the log group from the function configuration (function name and version are in the ARN):
-     aws lambda get-function-configuration --function-name <functionName>:<functionVersion> --region <region> --query 'LoggingConfig.LogGroup'
+   - Offer to fetch the log group and pull relevant logs:
+     a. Get the log group:
+        aws lambda get-function-configuration --function-name <functionName>:<functionVersion> --region <region> --query 'LoggingConfig.LogGroup'
+     b. Query logs filtered by invocation ID (parsed from the ARN):
+        aws logs filter-log-events --log-group-name <logGroup> --region <region> --filter-pattern '"<invocationId>"'
+     c. If the function uses SDK structured logging (context.logger), query for step-level logs.
+        Use execution start time from step 2 as start-time, and execution end time (or current time if still running) as end-time:
+        QUERY_ID=$(aws logs start-query --log-group-name <logGroup> --region <region> \
+          --start-time <startEpoch> --end-time <endEpoch> \
+          --query-string 'fields @timestamp, @message | filter executionName = "<executionName>" | sort @timestamp asc' \
+          --query 'queryId' --output text)
+        Then poll for results:
+        aws logs get-query-results --query-id $QUERY_ID --region <region>
    - If unable to determine the log group, ask the user to check the function's logs
 
 OUTPUT FORMAT:
