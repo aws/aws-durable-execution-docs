@@ -108,7 +108,7 @@ ready-made retry strategy from configuration.
     - `jitter` A `JitterStrategy` value: `FULL`, `HALF`, or `NONE`.
 
     Java does not have built-in error type filtering. Filter by error type manually inside
-    the `RetryStrategy` lambda. See [Retrying specific errors](#retrying-specific-errors).
+    the `RetryStrategy` lambda. See [Retrying specific errors](#retry-only-specific-errors).
 
 #### JitterStrategy
 

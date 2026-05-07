@@ -686,5 +686,5 @@ operations. Each nested map creates its own set of child contexts.
 
 - [Parallel operations](parallel.md) execute different functions concurrently
 - [Child contexts](child-context.md) understand child context isolation
-- [Steps](steps.md) use steps within map functions
-- [Error handling](../advanced/error-handling.md) in durable functions
+- [Steps](step.md) use steps within map functions
+- [Error handling](../error-handling/errors.md) in durable functions
