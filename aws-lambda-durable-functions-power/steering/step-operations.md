@@ -233,6 +233,11 @@ class User {
     public createdAt: Date
   ) {}
 }
+class User {
+  id: string = '';
+  name: string = '';
+  createdAt: Date = new Date();
+}
 
 const userSerdes = createClassSerdesWithDates(User, ['createdAt']);
 
