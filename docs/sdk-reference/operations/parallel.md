@@ -733,5 +733,5 @@ Each nested parallel creates its own set of child contexts.
 
 - [Map operations](map.md) run the same function concurrently on a collection
 - [Child contexts](child-context.md) understand child context isolation
-- [Steps](steps.md) use steps within parallel branches
-- [Error handling](../advanced/error-handling.md) in durable functions
+- [Steps](step.md) use steps within parallel branches
+- [Error handling](../error-handling/errors.md) in durable functions

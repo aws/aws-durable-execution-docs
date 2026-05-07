@@ -21,7 +21,7 @@ You cannot cancel a wait after it has started.
 ## When to use wait
 
 Use `context.wait()` for a time-based delay. For example, use waits between
-[steps](steps.md) to delay the new next step in multi-step workflows.
+[steps](step.md) to delay the new next step in multi-step workflows.
 
 ### Wait for an event or status change
 
@@ -32,7 +32,7 @@ alternatives:
     - [Wait for Condition](wait-for-condition.md) handles the polling loop, state
         tracking, and backoff for you.
 - **Waiting for an external system response**
-    - [Callbacks](callbacks.md) suspend your durable function until an external system
+    - [Callbacks](callback.md) suspend your durable function until an external system
         sends a response.
 
 ## Wait walkthrough
@@ -260,7 +260,7 @@ You can verify wait operations in your tests by inspecting the operations list:
 
 ## See also
 
-- [Steps](steps.md) - Execute business logic with automatic checkpointing
+- [Steps](step.md) - Execute business logic with automatic checkpointing
 - [Wait for Condition](wait-for-condition.md) - Poll until a condition is met
-- [Callbacks](callbacks.md) - Wait for external system responses
-- [Getting Started](../getting-started.md) - Learn the basics of durable functions
+- [Callbacks](callback.md) - Wait for external system responses
+- [Getting Started](../../getting-started/index.md) - Learn the basics of durable functions

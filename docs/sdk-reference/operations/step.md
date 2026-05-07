@@ -1,4 +1,4 @@
-# Steps
+# Step
 
 ## Checkpointed results
 
@@ -428,6 +428,6 @@ concurrent code path.
 ## See also
 
 - [Retries](../error-handling/retries.md)
-- [Testing](../../testing/basic-tests.md)
+- [Testing](../../testing/index.md)
 - [Wait operations](wait.md)
 - [Child contexts](child-context.md)

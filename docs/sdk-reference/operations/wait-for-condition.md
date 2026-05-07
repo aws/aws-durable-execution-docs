@@ -4,7 +4,7 @@
 
 The Wait for Condition operation polls a check function on a schedule until your code
 signals it to stop. Behind the scenes, the check condition runs as a
-[durable step](steps.md), and each polling attempt is a retry, so the SDK checkpoints
+[durable step](step.md), and each polling attempt is a retry, so the SDK checkpoints
 results automatically and tracks state between attempts. The function suspends between
 attempts and does not consume Lambda execution time.
 
@@ -16,7 +16,7 @@ you need to poll an external system until something changes, like a batch job
 completing, a resource becoming available, or a status reaching a terminal state.
 
 If the external system will send a notification or response, use
-[Callbacks](callbacks.md) instead to suspend the durable function until it receives the
+[Callbacks](callback.md) instead to suspend the durable function until it receives the
 response.
 
 ## Walkthrough
@@ -181,6 +181,6 @@ Lambda cold start time, and current system load.
 ## See also
 
 - [Wait operations](wait.md) - Simple time-based delays
-- [Callbacks](callbacks.md) - Wait for external system responses
-- [Steps](steps.md) - Execute business logic with automatic checkpointing
-- [Getting Started](../getting-started.md) - Learn the basics of durable functions
+- [Callbacks](callback.md) - Wait for external system responses
+- [Steps](step.md) - Execute business logic with automatic checkpointing
+- [Getting Started](../../getting-started/index.md) - Learn the basics of durable functions

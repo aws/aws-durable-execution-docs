@@ -403,5 +403,5 @@ structured logger that works as a drop-in replacement for the SDK's default logg
 ## See also
 
 - [Steps](../operations/step.md)
-- [Child contexts](../operations/child-contexts.md)
-- [Error handling](error-handling.md)
+- [Child contexts](../operations/child-context.md)
+- [Error handling](../error-handling/errors.md)

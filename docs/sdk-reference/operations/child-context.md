@@ -319,6 +319,6 @@ them to verify the child context ran and produced the expected result.
 
 ## See also
 
-- [Steps](steps.md) Run a single function with automatic checkpointing
+- [Steps](step.md) Run a single function with automatic checkpointing
 - [Parallel operations](parallel.md) Execute operations concurrently
 - [Map operations](map.md) Run operation for each item in a collection
