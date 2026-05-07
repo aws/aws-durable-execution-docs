@@ -392,7 +392,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
     }
   );
 
-  if (results.hasFailure()) {
+  if (results.hasFailure) {
     // Log failures but continue
     context.logger.warn('Some items failed', {
       failureCount: results.failureCount,

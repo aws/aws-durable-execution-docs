@@ -201,7 +201,7 @@ console.log(results.totalCount);       // Total items
 console.log(results.startedCount);     // Items started
 console.log(results.successCount);     // Successful items
 console.log(results.failureCount);     // Failed items
-console.log(results.hasFailure());     // Boolean
+console.log(results.hasFailure);     // Boolean
 ```
 
 ### Get Results
@@ -237,7 +237,7 @@ const all = results.all.map(item => ({
 ```typescript
 const results = await context.map('process', items, processFunc);
 
-if (results.hasFailure()) {
+if (results.hasFailure) {
   context.logger.error('Some items failed', {
     failureCount: results.failureCount,
     failures: results.failed.map(f => f.index)

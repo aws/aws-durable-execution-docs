@@ -19,7 +19,7 @@ Test durable functions locally and in the cloud with comprehensive test runners.
 - ✅ Python: Use `result.operations` to iterate and filter operations by type
 - ✅ Python: Instantiate `DurableFunctionTestRunner(handler=my_handler)` directly
 - ✅ Python: Use `runner.run(input={...}, timeout=10)` — note `input=` not `payload`
-- ✅ Python: The value of result.result is serialized. Deserialize using the appropriate SerDes or default json deserializer. 
+- ✅ Python: The value of result.result is serialized. Deserialize using the appropriate SerDes or default json deserializer.
 
 ### DON'T:
 
@@ -383,7 +383,7 @@ it('should fail after max retries', async () => {
   const execution = await runner.run({ payload: {} });
 
   expect(execution.getStatus()).toBe('FAILED');
-  expect(execution.getError()?.message).toContain('Permanent failure');
+  expect(execution.getError()?.errorMessage).toContain('Permanent failure');
 });
 ```
 
