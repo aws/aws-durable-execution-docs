@@ -227,13 +227,6 @@ For complex types, provide custom serialization:
 import { createClassSerdesWithDates } from '@aws/durable-execution-sdk-js';
 
 class User {
-  constructor(
-    public id: string,
-    public name: string,
-    public createdAt: Date
-  ) {}
-}
-class User {
   id: string = '';
   name: string = '';
   createdAt: Date = new Date();
