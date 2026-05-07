@@ -79,6 +79,7 @@ When you mention these keywords, Kiro will automatically load this power:
 - [AWS Lambda durable functions Documentation](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html)
 - [JavaScript SDK Repository](https://github.com/aws/aws-durable-execution-sdk-js)
 - [Python SDK Repository](https://github.com/aws/aws-durable-execution-sdk-python)
+- [Java SDK Repository](https://github.com/aws/aws-durable-execution-sdk-java)
 - [Kiro Powers Documentation](https://kiro.dev/docs/powers/create/)
 
 ## License

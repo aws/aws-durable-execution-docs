@@ -51,6 +51,18 @@ now = datetime.now()                     # Different datetime each time
 context.step(lambda _: save_data({"id": id}), name='save')
 ```
 
+**Java:**
+
+```java
+// These values change on each replay!
+var id = UUID.randomUUID().toString();
+var timestamp = System.currentTimeMillis();
+var random = Math.random();
+var now = Instant.now();
+
+ctx.step("save", Void.class, stepCtx -> { saveData(id, timestamp); return null; });
+```
+
 ### ✅ CORRECT - Non-Deterministic Inside Steps
 
 **TypeScript:**
@@ -75,11 +87,22 @@ now = context.step(lambda _: datetime.now(), name='get-date')
 context.step(lambda _: save_data({"id": id}), name='save')
 ```
 
+**Java:**
+
+```java
+var id = ctx.step("generate-id", String.class, stepCtx -> UUID.randomUUID().toString());
+var timestamp = ctx.step("get-time", Long.class, stepCtx -> System.currentTimeMillis());
+var random = ctx.step("random", Double.class, stepCtx -> Math.random());
+var now = ctx.step("get-date", String.class, stepCtx -> Instant.now().toString());
+
+ctx.step("save", Void.class, stepCtx -> { saveData(id, timestamp); return null; });
+```
+
 ### Must Be In Steps
 
-- `Date.now()`, `new Date()`, `time.time()`, `datetime.now()`
+- `Date.now()`, `new Date()`, `time.time()`, `datetime.now()`, `Instant.now()`, `System.currentTimeMillis()`
 - `Math.random()`, `random.random()`
-- UUID generation (`uuid.v4()`, `uuid.uuid4()`)
+- UUID generation (`uuid.v4()`, `uuid.uuid4()`, `UUID.randomUUID()`)
 - API calls, HTTP requests
 - Database queries
 - File system operations
@@ -115,6 +138,16 @@ def process(step_ctx: StepContext):
 context.step(process())
 ```
 
+**Java:**
+
+```java
+ctx.step("process", String.class, stepCtx -> {
+    ctx.wait(null, Duration.ofSeconds(1));      // ERROR!
+    ctx.step("nested", String.class, s -> "");  // ERROR!
+    return "result";
+});
+```
+
 ### ✅ CORRECT - Use Child Context
 
 **TypeScript:**
@@ -139,6 +172,17 @@ def process_child(child_ctx: DurableContext):
     return step2
 
 context.run_in_child_context(func=process_child, name='process')
+```
+
+**Java:**
+
+```java
+ctx.runInChildContext("process", String.class, childCtx -> {
+    childCtx.wait(null, Duration.ofSeconds(1));
+    var step1 = childCtx.step("validate", String.class, stepCtx -> validate());
+    var step2 = childCtx.step("process", String.class, stepCtx -> process(step1));
+    return step2;
+});
 ```
 
 ## Rule 3: Closure Mutations Are Lost
@@ -168,6 +212,18 @@ def increment(step_ctx: StepContext):
 
 context.step(increment())
 print(counter)  # Always 0 on replay!
+```
+
+**Java:**
+
+```java
+// ❌ WRONG
+var counter = new AtomicInteger(0);
+ctx.step("increment", Void.class, stepCtx -> { counter.incrementAndGet(); return null; });
+// counter is always 0 on replay!
+
+// ✅ CORRECT
+var counter = ctx.step("increment", Integer.class, stepCtx -> 0 + 1);
 ```
 
 ### ✅ CORRECT - Return Values
@@ -235,9 +291,21 @@ context.step(update_database(data))
 context.step(process())
 ```
 
+**Java:**
+
+```java
+// ❌ WRONG
+System.out.println("Starting process");     // Prints multiple times!
+sendEmail(user.getEmail());                 // Sends multiple emails!
+
+// ✅ CORRECT
+ctx.getLogger().info("Starting process");   // Deduplicated automatically
+ctx.step("send-email", Void.class, stepCtx -> { sendEmail(user.getEmail()); return null; });
+```
+
 ### Exception: context.logger
 
-`context.logger` is replay-aware and safe to use anywhere. It automatically deduplicates logs across replays.
+`context.logger` (TypeScript/Python) and `ctx.getLogger()` (Java) are replay-aware and safe to use anywhere. It automatically deduplicates logs across replays.
 
 ## Common Pitfalls
 
