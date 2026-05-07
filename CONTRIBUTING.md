@@ -24,14 +24,21 @@ zensical build --clean
 
 ## Vendored dependencies
 
-The file `docs/assets/javascripts/mermaid.tiny.js` is a pinned copy of the
-`@mermaid-js/tiny` UMD build. We self-host it because the Content Security
-Policy on `docs.aws.amazon.com` blocks Zensical's default CDN load of Mermaid
-from `unpkg.com`.
+The Zensical theme lazy-loads a few third-party assets (Mermaid for diagrams,
+GLightbox for image zoom) from `unpkg.com` by default.
 
-Mermaid's tiny build supports flowcharts and sequence, state, class, and
-entity-relationship diagrams. It does not support mindmap or architecture
-diagrams, or KaTeX math rendering.
+For the Content Security Policy on `docs.aws.amazon.com`, we self-host pinned
+copies under `docs/assets/`. Each vendored asset exposes a `window.*` global
+(`window.mermaid`, `window.GLightbox`) that the theme's lazy-loaders check
+before hitting the CDN, so preloading our local copy short-circuits the
+unpkg fetch.
+
+### Mermaid
+
+`docs/assets/javascripts/mermaid.tiny.js` is a pinned copy of the
+`@mermaid-js/tiny` UMD build. The tiny build supports flowcharts and
+sequence, state, class, and entity-relationship diagrams. It does not
+support mindmap or architecture diagrams, or KaTeX math rendering.
 
 Upgrade procedure:
 
@@ -51,23 +58,63 @@ zensical serve
 #    together in the same commit.
 ```
 
-CI verifies the committed file matches the pinned SHA-256. If you hand-edit the
-vendored file or forget to update the SHA on upgrade, the build fails.
+### GLightbox
+
+`docs/assets/javascripts/glightbox.min.js` and
+`docs/assets/stylesheets/glightbox.min.css` are pinned copies of the
+`glightbox` npm package. Zensical's GLightbox Markdown extension wraps
+images in `<a class="glightbox">` and, when a user opens one, calls a
+lazy-loader that pulls the JS and CSS from unpkg unless
+`window.GLightbox` is already defined. We register the vendored copies
+via `extra_javascript` and `extra_css` in `zensical.toml` so the
+lazy-loader short-circuits and no unpkg request is made.
+
+Upgrade procedure:
+
+```bash
+# 1. Show the pinned version and the latest on npm
+python3 scripts/vendor_glightbox.py --latest
+
+# 2. Edit scripts/vendor_glightbox.toml. Bump `version`. Run the script.
+#    It will fail and print the new SHA-256s for both files. Paste those
+#    values into `sha256_js` and `sha256_css` in the TOML, then re-run.
+python3 scripts/vendor_glightbox.py
+
+# 3. Preview locally and open a page with an image. Click the image: the
+#    lightbox should open and DevTools Network should show no unpkg.com
+#    requests.
+zensical serve
+
+# 4. Commit scripts/vendor_glightbox.toml together with
+#    docs/assets/javascripts/glightbox.min.js and
+#    docs/assets/stylesheets/glightbox.min.css.
+```
+
+CI verifies the committed files match the pinned SHA-256 values for both
+Mermaid and GLightbox. If you hand-edit a vendored file or forget to update
+the SHA on upgrade, the build fails.
 
 ### Directory convention
 
-JavaScript under `docs/` is split by ownership:
+Vendored third-party assets live under `docs/assets/` and are owned by the
+scripts under `scripts/`:
 
-- `docs/assets/javascripts/` holds vendored third-party bundles. Treat these
-  as read-only outputs of the vendoring scripts under `scripts/`. Do not
-  hand-edit them. Upgrade by bumping the version pin in the corresponding
-  script and re-running it. Files in this directory are marked `binary` in
-  `.gitattributes` so PR diffs do not try to render minified code.
-- `docs/javascripts/` holds first-party scripts we author and maintain, such
-  as `mermaid-init.js`, which initializes the vendored Mermaid build.
+- `docs/assets/javascripts/` holds vendored JS (`mermaid.tiny.js`,
+  `glightbox.min.js`).
+- `docs/assets/stylesheets/` holds vendored CSS alongside our own
+  `extra.css`. The vendored `glightbox.min.css` lives here.
 
-Both directories are served from the same origin and register through
-`extra_javascript` in `zensical.toml`.
+Treat all vendored files as read-only outputs of the vendoring scripts.
+Do not hand-edit them. Upgrade by bumping the version pin in the
+corresponding script's TOML and re-running the script. Vendored files are
+marked `binary` in `.gitattributes` so PR diffs do not try to render
+minified code.
+
+First-party scripts we author and maintain live under `docs/javascripts/`,
+for example `mermaid-init.js`, which initializes the vendored Mermaid
+build. Both `docs/assets/javascripts/` and `docs/javascripts/` are served
+from the same origin and register through `extra_javascript` in
+`zensical.toml`.
 
 ## Formatting
 

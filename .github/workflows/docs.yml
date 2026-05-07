@@ -26,10 +26,14 @@ jobs:
           python-version: 3.x
       
       - name: Install dependencies
-        run: pip install zensical
+        # don't bump this without checking if there are new unbundled js/css in the theme
+        run: pip install zensical==0.0.40
       
       - name: Verify vendored Mermaid
         run: python3 scripts/vendor_mermaid.py --check
+
+      - name: Verify vendored GLightbox
+        run: python3 scripts/vendor_glightbox.py --check
       
       - name: Build documentation
         run: zensical build --clean

@@ -1,0 +1,10 @@
+# Pin file for scripts/vendor_glightbox.py.
+#
+# Bump `version`, run `python3 scripts/vendor_glightbox.py`. The script will
+# fail with the new SHA-256s printed; paste those values into `sha256_js` and
+# `sha256_css` below, then re-run. See CONTRIBUTING.md ("Vendored
+# dependencies") for details.
+
+version = "3.3.1"
+sha256_js = "c67c59cdf980793b0216c9de9c6ebf688418838822af1e50b09439e3aa289ff3"
+sha256_css = "6d3f62d4d17969f9c70e9438cf671004725019e868123f2ebc295a006f8d5d2d"
