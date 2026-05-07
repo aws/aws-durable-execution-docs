@@ -125,7 +125,14 @@ nav = [
 #
 # Read more: https://zensical.org/docs/customization/#additional-css
 #
-extra_css = ["stylesheets/extra.css"]
+# glightbox.min.css: self-hosted GLightbox stylesheet. Paired with
+# assets/javascripts/glightbox.min.js below so the theme does not fall back
+# to loading glightbox from unpkg. See CONTRIBUTING.md for the upgrade
+# procedure.
+extra_css = [
+  "stylesheets/extra.css",
+  "assets/stylesheets/glightbox.min.css",
+]
 
 # With the `extra_javascript` option you can add your own JavaScript to your
 # project to customize the behavior according to your needs.
@@ -135,10 +142,14 @@ extra_css = ["stylesheets/extra.css"]
 # Read more: https://zensical.org/docs/customization/#additional-javascript
 #
 # mermaid.tiny.js: self-hosted Mermaid diagram renderer.
+# glightbox.min.js: self-hosted GLightbox image lightbox. Defining
+#   window.GLightbox before the theme subscribes prevents the theme from
+#   fetching glightbox from unpkg.
 # See CONTRIBUTING.md for the upgrade procedure.
 extra_javascript = [
   "assets/javascripts/mermaid.tiny.js",
   "javascripts/mermaid-init.js",
+  "assets/javascripts/glightbox.min.js",
 ]
 
 # ----------------------------------------------------------------------------

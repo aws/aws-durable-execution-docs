@@ -31,6 +31,9 @@ jobs:
       - name: Verify vendored Mermaid
         run: python3 scripts/vendor_mermaid.py --check
       
+      - name: Verify vendored GLightbox
+        run: python3 scripts/vendor_glightbox.py --check
+      
       - name: Build documentation
         run: zensical build --clean
       

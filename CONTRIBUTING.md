@@ -24,10 +24,16 @@ zensical build --clean
 
 ## Vendored dependencies
 
+The Content Security Policy on `docs.aws.amazon.com` blocks Zensical's default
+CDN load of third-party assets from `unpkg.com`, so we self-host the ones the
+theme needs. Each vendored package has a matching `scripts/vendor_<name>.py`
+script and a pin file (`scripts/vendor_<name>.toml`) holding the version and
+expected SHA-256.
+
+### Mermaid
+
 The file `docs/assets/javascripts/mermaid.tiny.js` is a pinned copy of the
-`@mermaid-js/tiny` UMD build. We self-host it because the Content Security
-Policy on `docs.aws.amazon.com` blocks Zensical's default CDN load of Mermaid
-from `unpkg.com`.
+`@mermaid-js/tiny` UMD build.
 
 Mermaid's tiny build supports flowcharts and sequence, state, class, and
 entity-relationship diagrams. It does not support mindmap or architecture
@@ -51,23 +57,54 @@ zensical serve
 #    together in the same commit.
 ```
 
-CI verifies the committed file matches the pinned SHA-256. If you hand-edit the
-vendored file or forget to update the SHA on upgrade, the build fails.
+### GLightbox
+
+The files `docs/assets/javascripts/glightbox.min.js` and
+`docs/assets/stylesheets/glightbox.min.css` are pinned copies of the
+`glightbox` UMD build and its stylesheet. Zensical's theme bundle only
+fetches glightbox from unpkg when `window.GLightbox` is undefined, so
+loading the vendored UMD (via `extra_javascript` in `zensical.toml`) before
+the theme subscribes prevents the third-party fetch. The matching CSS is
+loaded via `extra_css`.
+
+Upgrade procedure:
+
+```bash
+# 1. Show the pinned version and the latest on npm
+python3 scripts/vendor_glightbox.py --latest
+
+# 2. Edit scripts/vendor_glightbox.toml. Bump `version`. Run the script.
+#    It will fail and print the new SHA-256 values. Paste them into
+#    `js_sha256` and `css_sha256` in the TOML, then run the script again.
+python3 scripts/vendor_glightbox.py
+
+# 3. Preview locally and click an image to confirm the lightbox opens.
+zensical serve
+
+# 4. Commit scripts/vendor_glightbox.toml together with the vendored files
+#    under docs/assets/javascripts/ and docs/assets/stylesheets/.
+```
+
+CI verifies each committed vendored file matches its pinned SHA-256. If you
+hand-edit a vendored file or forget to update the SHA on upgrade, the build
+fails.
 
 ### Directory convention
 
-JavaScript under `docs/` is split by ownership:
+Assets under `docs/` are split by ownership:
 
-- `docs/assets/javascripts/` holds vendored third-party bundles. Treat these
-  as read-only outputs of the vendoring scripts under `scripts/`. Do not
-  hand-edit them. Upgrade by bumping the version pin in the corresponding
-  script and re-running it. Files in this directory are marked `binary` in
-  `.gitattributes` so PR diffs do not try to render minified code.
-- `docs/javascripts/` holds first-party scripts we author and maintain, such
-  as `mermaid-init.js`, which initializes the vendored Mermaid build.
+- `docs/assets/javascripts/` and `docs/assets/stylesheets/` hold vendored
+  third-party bundles. Treat these as read-only outputs of the vendoring
+  scripts under `scripts/`. Do not hand-edit them. Upgrade by bumping the
+  version pin in the corresponding script and re-running it. Files in these
+  directories are marked `binary` in `.gitattributes` so PR diffs do not try
+  to render minified code.
+- `docs/javascripts/` and `docs/stylesheets/` hold first-party scripts and
+  styles we author and maintain, such as `mermaid-init.js` (which initializes
+  the vendored Mermaid build) and `extra.css`.
 
-Both directories are served from the same origin and register through
-`extra_javascript` in `zensical.toml`.
+Both sets of directories are served from the same origin and register through
+`extra_javascript` / `extra_css` in `zensical.toml`.
 
 ## Formatting
 

@@ -1,3 +1,4 @@
-# Vendored third-party JavaScript under docs/assets/javascripts/ is treated
-# as binary so PR diffs stay readable. See CONTRIBUTING.md for the convention.
+# Vendored third-party assets under docs/assets/ are treated as binary so
+# PR diffs stay readable. See CONTRIBUTING.md for the convention.
 docs/assets/javascripts/** binary
+docs/assets/stylesheets/** binary
