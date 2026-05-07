@@ -125,7 +125,13 @@ nav = [
 #
 # Read more: https://zensical.org/docs/customization/#additional-css
 #
-extra_css = ["stylesheets/extra.css"]
+extra_css = [
+  "stylesheets/extra.css",
+  # glightbox.min.css: self-hosted GLightbox styles. Paired with the
+  # vendored glightbox.min.js below so the Zensical theme does not load
+  # GLightbox from unpkg. See CONTRIBUTING.md for the upgrade procedure.
+  "assets/stylesheets/glightbox.min.css",
+]
 
 # With the `extra_javascript` option you can add your own JavaScript to your
 # project to customize the behavior according to your needs.
@@ -135,8 +141,12 @@ extra_css = ["stylesheets/extra.css"]
 # Read more: https://zensical.org/docs/customization/#additional-javascript
 #
 # mermaid.tiny.js: self-hosted Mermaid diagram renderer.
+# glightbox.min.js: self-hosted GLightbox image lightbox.
+# Both define window globals (window.mermaid, window.GLightbox) so the
+# Zensical theme's lazy-loaders find them and do not fetch from unpkg.
 # See CONTRIBUTING.md for the upgrade procedure.
 extra_javascript = [
+  "assets/javascripts/glightbox.min.js",
   "assets/javascripts/mermaid.tiny.js",
   "javascripts/mermaid-init.js",
 ]
@@ -347,7 +357,13 @@ logo = "assets/aws-logo-light.svg"
 # are loaded from Google Fonts, giving you a wide range of choices from a set
 # of suitably licensed fonts. There are options for a normal text font and for
 # a monospaced font used in code blocks.
+#
+# We disable Google Fonts entirely for the Content Security Policy on
+# docs.aws.amazon.com. The theme falls back to the system font stack,
+# which renders immediately with no cross-origin request.
 # ----------------------------------------------------------------------------
+font = false
+
 #[project.theme.font]
 #text = "Inter"
 #code = "Jetbrains Mono"
