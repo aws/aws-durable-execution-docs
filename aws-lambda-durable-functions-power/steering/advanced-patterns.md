@@ -105,7 +105,7 @@ def handler(event: dict, context: DurableContext) -> str:
 ```typescript
 import { StepSemantics } from '@aws/durable-execution-sdk-js';
 
-// AtMostOncePerRetry (DEFAULT) - For idempotent operations
+// AtMostOncePerRetry - For idempotent operations
 // Step executes at most once per retry attempt
 // If step fails partway through, it won't re-execute the same attempt
 await context.step(
@@ -117,7 +117,7 @@ await context.step(
   { semantics: StepSemantics.AtMostOncePerRetry }
 );
 
-// AtLeastOncePerRetry - For operations that can execute multiple times
+// AtLeastOncePerRetry (DEFAULT) - For operations that can execute multiple times
 // Step may execute multiple times per retry attempt
 // Use when idempotency is handled externally
 await context.step(
