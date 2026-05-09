@@ -1,4 +1,4 @@
-import { DurableContext, durableExecution } from "aws-durable-execution-sdk-js";
+import { DurableContext, withDurableExecution } from "@aws-durable-execution-sdk-js";
 
 interface OrderEvent {
   orderId: string;
@@ -14,7 +14,7 @@ interface PaymentResult {
   transactionId: string;
 }
 
-export const handler = durableExecution(
+export const handler = withDurableExecution(
   async (event: OrderEvent, context: DurableContext) => {
     const validation = await context.invoke<OrderEvent, ValidationResult>(
       "validate-order",
