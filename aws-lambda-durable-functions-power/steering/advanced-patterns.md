@@ -134,8 +134,8 @@ await context.step(
 
 | Semantic                | Use When                      | Example Operations                                |
 | ----------------------- | ----------------------------- | ------------------------------------------------- |
-| **AtMostOncePerRetry**  | Operation is idempotent       | Database updates, API calls with idempotency keys |
-| **AtLeastOncePerRetry** | External deduplication exists | Queuing systems, event streams                    |
+| **AtLeastOncePerRetry** | Operation is idempotent       | Database updates, API calls with idempotency keys |
+| **AtMostOncePerRetry**  | External deduplication exists | Queuing systems, event streams                    |
 
 ## Completion Policies - Interaction and Combination
 
