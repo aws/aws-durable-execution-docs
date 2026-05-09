@@ -193,10 +193,12 @@ Step executes at least once, may execute multiple times on failure/retry.
 **TypeScript:**
 
 ```typescript
+import { StepSemantics } from '@aws/durable-execution-sdk-js';
+
 const result = await context.step(
   'idempotent-operation',
   async () => idempotentAPI(),
-  { semantics: 'AT_LEAST_ONCE' }
+  { semantics: StepSemantics.AtLeastOncePerRetry }
 );
 ```
 
@@ -207,10 +209,12 @@ Step executes at most once, never retries. Use for non-idempotent operations.
 **TypeScript:**
 
 ```typescript
+import { StepSemantics } from '@aws/durable-execution-sdk-js';
+
 const result = await context.step(
   'charge-payment',
   async () => chargeCard(amount),
-  { semantics: 'AT_MOST_ONCE' }
+  { semantics: StepSemantics.AtMostOncePerRetry }
 );
 ```
 
