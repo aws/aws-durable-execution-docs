@@ -293,6 +293,10 @@ const results = await context.map(
 
 ## Advanced Patterns
 
+### Replay Safety in Branches
+
+Functions passed to `context.parallel(...)` and `context.map(...)` are durable operation bodies. Treat branch and item functions the same way you treat step and wait bodies: they may be re-attempted before progress is fully persisted, so any external side effect they trigger must use stable identity and idempotent behavior. Derive identifiers from durable inputs such as item IDs, indexes, or prior durable state instead of `Date.now()`, randomness, or fresh UUIDs created inside the branch. See [replay-model-rules.md](replay-model-rules.md).
+
 ### Map with Callbacks
 
 **TypeScript:**
@@ -416,3 +420,4 @@ const results = await context.map(
 6. **Monitor concurrency limits** to avoid overwhelming systems
 7. **Use child contexts** for complex per-item workflows
 8. **Implement circuit breakers** for external service calls
+9. **Use stable identity inside branches** when starting or addressing external work

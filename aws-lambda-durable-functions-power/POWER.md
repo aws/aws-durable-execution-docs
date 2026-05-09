@@ -79,7 +79,7 @@ Load the appropriate reference file based on what the user is working on:
 
 - **Getting started**, **basic setup**, **example**, **ESLint**, or **Jest setup** -> see [getting-started.md](steering/getting-started.md)
 - **Understanding replay model**, **determinism**, or **non-deterministic errors** -> see [replay-model-rules.md](steering/replay-model-rules.md)
-- **Creating steps**, **atomic operations**, or **retry logic** -> see [step-operations.md](steering/step-operations.md)
+- **Creating steps**, **step operations**, or **retry logic** -> see [step-operations.md](steering/step-operations.md)
 - **Waiting**, **delays**, **callbacks**, **external systems**, or **polling** -> see [wait-operations.md](steering/wait-operations.md)
 - **Parallel execution**, **map operations**, **batch processing**, or **concurrency** -> see [concurrent-operations.md](steering/concurrent-operations.md)
 - **Error handling**, **retry strategies**, **saga pattern**, or **compensating transactions** -> see [error-handling.md](steering/error-handling.md)
@@ -117,10 +117,11 @@ def handler(event: dict, context: DurableContext) -> dict:
 
 ### Critical Rules
 
-1. **All non-deterministic code MUST be in steps** (Date.now, Math.random, API calls)
-2. **Cannot nest durable operations** - use `runInChildContext` to group operations
-3. **Closure mutations are lost on replay** - return values from steps
-4. **Side effects outside steps repeat** - use `context.logger` (replay-aware)
+1. **All non-deterministic code outside durable operations MUST be moved into durable operations** (`context.step`, `waitForCallback`, `waitForCondition`, `parallel`/`map` branches)
+2. **Durable operation bodies are not guaranteed to be atomic** - prefer stable identity and idempotent behavior for external side effects; for non-idempotent steps, consider at-most-once-per-retry semantics with zero retries
+3. **Cannot nest durable operations** - use `runInChildContext` to group operations
+4. **Closure mutations are lost on replay** - return values from steps
+5. **Side effects outside durable operations repeat** - prefer `context.logger`; custom loggers may duplicate on replay
 
 ### Python API Differences
 
@@ -163,10 +164,11 @@ See here: https://docs.aws.amazon.com/lambda/latest/dg/durable-security.html
 
 When writing or reviewing durable function code, ALWAYS check for these replay model violations:
 
-1. **Non-deterministic code outside steps**: `Date.now()`, `Math.random()`, UUID generation, API calls, database queries must all be inside steps
-2. **Nested durable operations in step functions**: Cannot call `context.step()`, `context.wait()`, or `context.invoke()` inside a step function — use `context.runInChildContext()` instead
-3. **Closure mutations that won't persist**: Variables mutated inside steps are NOT preserved across replays — return values from steps instead
-4. **Side effects outside steps that repeat on replay**: Use `context.logger` for logging (it is replay-aware and deduplicates automatically)
+1. **Non-deterministic code outside durable operations**: `Date.now()`, `Math.random()`, UUID generation, API calls, database queries must all be inside durable operations
+2. **Non-atomic durable operation bodies**: Functions passed to `context.step()`, `waitForCallback()`, `waitForCondition()`, and `parallel()`/`map()` branches may be re-attempted before persistence is fully committed — prefer stable identity and idempotent external effects; for non-idempotent steps, use at-most-once-per-retry semantics with zero retries when duplicate execution is unacceptable
+3. **Nested durable operations in step functions**: Cannot call `context.step()`, `context.wait()`, or `context.invoke()` inside a step function — use `context.runInChildContext()` instead
+4. **Closure mutations that won't persist**: Variables mutated inside steps are NOT preserved across replays — return values from steps instead
+5. **Side effects outside durable operations that repeat on replay**: Prefer `context.logger` because it is replay-aware and deduplicates automatically; custom loggers are allowed but may emit duplicates unless `context.logger` is configured to wrap them
 
 When implementing or modifying tests for durable functions, ALWAYS verify:
 

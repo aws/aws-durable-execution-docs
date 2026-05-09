@@ -1,6 +1,6 @@
 # Step Operations
 
-Steps are atomic operations with automatic retry and state persistence.
+Steps are persisted operations with automatic retry and state persistence. Keep each step focused on one logical unit of work, but assume external side effects are not guaranteed to be atomic.
 
 ## Basic Step Patterns
 
@@ -52,6 +52,42 @@ const result = await context.step('fetch-user', async () => {
 ```
 
 **Best Practice:** Always name steps for easier debugging and testing.
+
+## Replay Safety for External Side Effects
+
+Functions passed to `context.step(...)` may be re-attempted before the durable runtime has fully recorded the result. Non-deterministic computation inside the step body is fine. For external side effects, prefer stable identity and idempotent behavior. If that is not possible and duplicate execution is unacceptable, use `StepSemantics.AtMostOncePerRetry` (TypeScript) or `StepSemantics.AT_MOST_ONCE_PER_RETRY` (Python) with retries disabled. See [replay-model-rules.md](replay-model-rules.md).
+
+**TypeScript:**
+
+```typescript
+const exportJobId = `export-${orderId}`;
+
+await context.step('start-export', async () => {
+  await exportClient.start({
+    jobId: exportJobId,
+    orderId,
+  });
+});
+```
+
+**Python:**
+
+```python
+export_job_id = f'export-{order_id}'
+
+def start_export(_):
+    export_client.start({
+        'job_id': export_job_id,
+        'order_id': order_id
+    })
+
+context.step(
+    start_export,
+    name='start-export'
+)
+```
+
+If you need a fresh identifier, generate it once from durable state and reuse it rather than minting a new one inside the step body with wall-clock time, randomness, or a fresh UUID.
 
 ## Retry Configuration
 
@@ -178,42 +214,64 @@ retry_config = RetryStrategyConfig(
 
 ## Step Semantics
 
-### AT_LEAST_ONCE (Default)
+### AtLeastOncePerRetry (Default)
 
-Step executes at least once, may execute multiple times on failure/retry.
+Step executes at least once per retry attempt and is the default. If a step succeeds but checkpointing fails, it may re-execute on replay. This does not make external side effects atomic.
 
 **TypeScript:**
 
 ```typescript
+import { StepSemantics } from '@aws/durable-execution-sdk-js';
+
 const result = await context.step(
   'idempotent-operation',
   async () => idempotentAPI(),
-  { semantics: 'AT_LEAST_ONCE' }
-);
-```
-
-### AT_MOST_ONCE
-
-Step executes at most once, never retries. Use for non-idempotent operations.
-
-**TypeScript:**
-
-```typescript
-const result = await context.step(
-  'charge-payment',
-  async () => chargeCard(amount),
-  { semantics: 'AT_MOST_ONCE' }
+  { semantics: StepSemantics.AtLeastOncePerRetry }
 );
 ```
 
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python.config import StepSemantics
+from aws_durable_execution_sdk_python.config import StepConfig, StepSemantics
+
+result = context.step(
+    idempotent_operation(),
+    config=StepConfig(step_semantics=StepSemantics.AT_LEAST_ONCE_PER_RETRY)
+)
+```
+
+### AtMostOncePerRetry
+
+Step executes at most once per retry attempt. Pair it with a retry strategy that disables retries to get effectively zero-or-once behavior: the step may not complete successfully, but it will not be re-executed by retries.
+
+**TypeScript:**
+
+```typescript
+import { StepSemantics } from '@aws/durable-execution-sdk-js';
+
+const result = await context.step(
+  'charge-payment',
+  async () => chargeCard(amount),
+  {
+    semantics: StepSemantics.AtMostOncePerRetry,
+    retryStrategy: () => ({ shouldRetry: false })
+  }
+);
+```
+
+**Python:**
+
+```python
+from aws_durable_execution_sdk_python.config import StepConfig, StepSemantics
+from aws_durable_execution_sdk_python.retries import RetryDecision
 
 result = context.step(
     charge_card(amount),
-    config=StepConfig(step_semantics=StepSemantics.AT_MOST_ONCE_PER_RETRY)
+    config=StepConfig(
+        step_semantics=StepSemantics.AT_MOST_ONCE_PER_RETRY,
+        retry_strategy=lambda error, attempt: RetryDecision(should_retry=False)
+    )
 )
 ```
 
@@ -264,7 +322,7 @@ user = context.step(
 
 ### Use Steps For:
 
-- Single atomic operations
+- Single logical operations
 - API calls
 - Database queries
 - Data transformations
@@ -337,9 +395,11 @@ except Exception as error:
 ## Best Practices
 
 1. **Always name steps** for debugging and testing
-2. **Keep steps atomic** - one logical operation per step
-3. **Make steps idempotent** when possible
+2. **Keep steps focused** - one logical operation per step
+3. **Prefer idempotent step design** when possible
 4. **Use appropriate retry strategies** based on operation type
 5. **Handle errors explicitly** - don't let them propagate unexpectedly
 6. **Use custom serialization** for complex types
-7. **Choose correct semantics** (AT_LEAST_ONCE vs AT_MOST_ONCE)
+7. **Choose correct semantics** (`AtLeastOncePerRetry` vs `AtMostOncePerRetry`)
+8. **Use stable identity for external work** - derive identifiers from durable inputs/state, not `Date.now()`, randomness, or fresh UUIDs created inside the step body
+9. **Use `AtMostOncePerRetry` with zero retries for non-idempotent steps** when duplicate execution is unacceptable and you can accept zero-or-once behavior
