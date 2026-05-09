@@ -213,10 +213,10 @@ console.log(results.hasFailure);     // Boolean
 const allResults = results.getResults();
 
 // Get successful results only
-const successful = results.succeeded.map(item => item.result);
+const successful = results.succeeded().map(item => item.result);
 
 // Get failed items
-const failed = results.failed.map(item => ({
+const failed = results.failed().map(item => ({
   index: item.index,
   error: item.error
 }));
@@ -240,11 +240,11 @@ const results = await context.map('process', items, processFunc);
 if (results.hasFailure) {
   context.logger.error('Some items failed', {
     failureCount: results.failureCount,
-    failures: results.failed.map(f => f.index)
+    failures: results.failed().map(f => f.index)
   });
   
   // Retry failed items
-  const failedItems = results.failed.map(f => items[f.index]);
+  const failedItems = results.failed().map(f => items[f.index]);
   await context.map('retry-failed', failedItems, processFunc);
 }
 ```
