@@ -247,9 +247,10 @@ import {
 } from '@aws/durable-execution-sdk-js';
 
 class User {
-  id: string = '';
   name: string = '';
+  email: string = '';
   createdAt: Date = new Date();
+  updatedAt: Date = new Date();
 }
 
 const result = await context.step(
