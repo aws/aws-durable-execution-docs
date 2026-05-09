@@ -1,10 +1,10 @@
 import {
   DurableContext,
   InvokeConfig,
-  durableExecution,
-} from "aws-durable-execution-sdk-js";
+  withDurableExecution,
+} from "@aws-durable-execution-sdk-js";
 
-export const handler = durableExecution(
+export const handler = withDurableExecution(
   async (event: { orderId: string }, context: DurableContext) => {
     const config: InvokeConfig<{ orderId: string }, { status: string }> = {
       tenantId: event.orderId,
