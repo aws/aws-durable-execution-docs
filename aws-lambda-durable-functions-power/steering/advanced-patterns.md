@@ -247,12 +247,9 @@ import {
 } from '@aws/durable-execution-sdk-js';
 
 class User {
-  constructor(
-    public name: string,
-    public email: string,
-    public createdAt: Date,
-    public updatedAt: Date
-  ) {}
+  id: string = '';
+  name: string = '';
+  createdAt: Date = new Date();
 }
 
 const result = await context.step(
@@ -275,19 +272,19 @@ console.log(result.createdAt instanceof Date); // true
 import { createClassSerdes } from '@aws/durable-execution-sdk-js';
 
 class Order {
-  constructor(
-    public id: string,
-    public items: OrderItem[],
-    public customer: Customer
-  ) {}
+  id: string = '';
+  items: OrderItem[] = [];
+  customer: Customer = new Customer();
 }
 
 class OrderItem {
-  constructor(public sku: string, public quantity: number) {}
+  sku: string = '';
+  quantity: number = 0;
 }
 
 class Customer {
-  constructor(public id: string, public name: string) {}
+  id: string = '';
+  name: string = '';
 }
 
 // Create serdes for each class
