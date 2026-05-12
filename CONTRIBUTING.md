@@ -9,18 +9,31 @@ python -m venv ~/.venvs/zensical
 source ~/.venvs/zensical/bin/activate
 pip install zensical
 ```
-### Preview site locally
-Once installed, activate the venv and run Zensical from the repository root:
+### Running Zensical
+
+Once installed, either activate the venv or run the binary directly:
 
 ```bash
+# Option 1: Activate the venv
 source ~/.venvs/zensical/bin/activate
-
-# Live preview with hot-reload
 zensical serve
 
-# Production build
-zensical build --clean
+# Option 2: Run directly without activating
+~/.venvs/zensical/bin/zensical serve
 ```
+
+Common commands:
+
+- `zensical serve` — live preview with hot-reload
+- `zensical build --clean` — production build
+- Review build output for broken link warnings
+
+### Adding New Pages
+
+1. Create the markdown file in `docs/`
+2. Add the page to the nav section in `zensical.toml`
+3. Create corresponding code examples in all three languages under `examples/`
+4. Test locally with `zensical serve`
 
 ## Vendored dependencies
 

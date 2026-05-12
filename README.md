@@ -1,8 +1,7 @@
-# AWS Lambda durable functions developer documentation source
+# AWS Lambda durable execution developer documentation source
 
 This repository contains the source for the AWS Lambda Durable Execution SDK
-documentation website at https://docs.aws.amazon.com/durable-execution,
-providing comprehensive guides and references for building resilient,
+documentation website at https://docs.aws.amazon.com/durable-execution, providing comprehensive guides and references for building resilient,
 long-running applications with AWS Lambda durable functions across
 multiple programming languages.
 
@@ -40,10 +39,9 @@ pip install zensical
 zensical serve
 ```
 
-For the full authoring workflow — adding code samples, formatting conventions,
-commit messages, and pull request process — see
-[CONTRIBUTING.md](CONTRIBUTING.md). For Markdown formatting syntax, please see
-the [Authoring Guide](authoring-guide.md).
+For the full authoring workflow, please see [CONTRIBUTING.md](CONTRIBUTING.md).
+
+For writing style and Markdown formatting syntax, please see the [Authoring Guide](authoring-guide.md).
 
 ## Kiro Power
 
@@ -64,6 +62,7 @@ for details.
 - [AWS Lambda durable functions Documentation](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html)
 - [JavaScript SDK Repository](https://github.com/aws/aws-durable-execution-sdk-js)
 - [Python SDK Repository](https://github.com/aws/aws-durable-execution-sdk-python)
+- [Java SDK Repository](https://github.com/aws/aws-durable-execution-sdk-java)
 
 ## Feedback & Support
 
