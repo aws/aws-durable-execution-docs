@@ -2,7 +2,7 @@ import {
   DurableContext,
   InvokeError,
   withDurableExecution,
-} from "@aws-durable-execution-sdk-js";
+} from "@aws/durable-execution-sdk-js";
 
 export const handler = withDurableExecution(
   async (event: { orderId: string }, context: DurableContext) => {
