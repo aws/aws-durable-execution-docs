@@ -155,13 +155,21 @@ result = context.step(
 **TypeScript:**
 
 ```typescript
+class NetworkError extends Error {
+  name = 'NetworkError';
+}
+
+class TimeoutError extends Error {
+  name = 'TimeoutError';
+}
+
 const result = await context.step(
   'selective-retry',
   async () => operation(),
   {
     retryStrategy: createRetryStrategy({
       maxAttempts: 3,
-      retryableErrorTypes: ['NetworkError', 'TimeoutError']
+      retryableErrorTypes: [NetworkError, TimeoutError]
     })
   }
 );
