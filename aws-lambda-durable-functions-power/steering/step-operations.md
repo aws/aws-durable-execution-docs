@@ -236,7 +236,13 @@ const userSerdes = createClassSerdesWithDates(User, ['createdAt']);
 
 const user = await context.step(
   'fetch-user',
-  async () => new User('123', 'Alice', new Date()),
+  async () => {
+    const user = new User();
+    user.id = '123';
+    user.name = 'Alice';
+    user.createdAt = new Date();
+    return user;
+  },
   { serdes: userSerdes }
 );
 ```
