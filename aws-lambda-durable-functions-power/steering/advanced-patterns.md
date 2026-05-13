@@ -134,8 +134,8 @@ await context.step(
 
 | Semantic                | Use When                      | Example Operations                                |
 | ----------------------- | ----------------------------- | ------------------------------------------------- |
-| **AtMostOncePerRetry**  | Operation is idempotent       | Database updates, API calls with idempotency keys |
-| **AtLeastOncePerRetry** | External deduplication exists | Queuing systems, event streams                    |
+| **AtLeastOncePerRetry** (default) | Operation is idempotent, or external dedup exists | Database upserts, idempotency-keyed API calls, queuing systems |
+| **AtMostOncePerRetry**            | Operation is non-idempotent, duplicates must be avoided | Charge payment, send unique notification, non-idempotent external writes |
 
 ## Completion Policies - Interaction and Combination
 
