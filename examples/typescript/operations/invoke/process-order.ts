@@ -1,4 +1,4 @@
-import { DurableContext, withDurableExecution } from "@aws-durable-execution-sdk-js";
+import { DurableContext, withDurableExecution } from "@aws/durable-execution-sdk-js";
 
 interface OrderEvent {
   orderId: string;
