@@ -121,7 +121,7 @@ const result = await context.step(
   {
     retryStrategy: createRetryStrategy({
       maxAttempts: 3,
-      retryableErrorTypes: [ValidationError, NetworkError],
+      retryableErrorTypes: [NetworkError, ValidationError],
       // ValidationError won't be retried
     })
   }
