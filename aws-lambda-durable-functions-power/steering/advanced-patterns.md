@@ -255,7 +255,14 @@ class User {
 
 const result = await context.step(
   'create-user',
-  async () => new User('Alice', 'alice@example.com', new Date(), new Date()),
+  async () => {
+    const user = new User();
+    user.name = 'Alice';
+    user.email = 'alice@example.com';
+    user.createdAt = new Date();
+    user.updatedAt = new Date();
+    return user;
+  },
   {
     serdes: createClassSerdesWithDates(User, ['createdAt', 'updatedAt'])
   }
@@ -296,12 +303,23 @@ const customerSerdes = createClassSerdes(Customer);
 const result = await context.step(
   'process-order',
   async () => {
-    const customer = new Customer('CUST-123', 'Alice');
-    const items = [
-      new OrderItem('SKU-001', 2),
-      new OrderItem('SKU-002', 1)
-    ];
-    return new Order('ORD-456', items, customer);
+    const customer = new Customer();
+    customer.id = 'CUST-123';
+    customer.name = 'Alice';
+
+    const item1 = new OrderItem();
+    item1.sku = 'SKU-001';
+    item1.quantity = 2;
+
+    const item2 = new OrderItem();
+    item2.sku = 'SKU-002';
+    item2.quantity = 1;
+
+    const order = new Order();
+    order.id = 'ORD-456';
+    order.items = [item1, item2];
+    order.customer = customer;
+    return order;
   },
   { serdes: orderSerdes }
 );
