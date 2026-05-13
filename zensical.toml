@@ -113,6 +113,7 @@ nav = [
       { "Step Design" = "patterns/best-practices/step-design.md" },
       { "Pause and Resume" = "patterns/best-practices/pause-resume.md" },
       { "Code Organization" = "patterns/best-practices/code-organization.md" },
+      { "Saga Pattern" = "patterns/best-practices/saga-pattern.md" }
     ]},
   ]},
 ]
