@@ -39,7 +39,32 @@ Steps:
 
 2. If the command succeeds, analyze and provide a user-friendly diagnosis:
    a. Report the execution status (RUNNING/SUCCEEDED/FAILED/STOPPED/TIMED_OUT)
-   b. Identify the root cause:
+   b. Identify the root cause by looking for these key events in the history:
+
+      **Execution-level failures:**
+      - `ExecutionFailed` — entire execution crashed; extract the error and cause fields
+      - `ExecutionTimedOut` — the execution exceeded its configured timeout
+      - `ExecutionStopped` — execution was manually stopped via StopDurableExecution
+
+      **Context and step failures:**
+      - `ContextFailed` — a child context threw an unhandled error; check the parent context for what triggered it
+      - `StepFailed` — an individual step failed; includes RetryDetails (CurrentAttempt, NextAttemptDelaySeconds) showing retry state
+
+      **Callback issues:**
+      - `CallbackStarted` with a Timeout field — confirms a timeout was registered; correlate with any subsequent `CallbackTimedOut`
+      - `CallbackTimedOut` — a timeout fired but may not have been caught by the function code
+      - `CallbackFailed` — the callback was resolved with an error
+
+      **Chained invocation failures:**
+      - `ChainedInvokeFailed` — a chained (child) durable execution failed
+      - `ChainedInvokeTimedOut` — a chained execution exceeded its timeout
+      - `ChainedInvokeStopped` — a chained execution was stopped
+
+      **Other signals:**
+      - `WaitCancelled` — a scheduled wait was cancelled before completing
+      - `InvocationCompleted` with an Error field — the Lambda invocation itself errored (e.g., runtime crash)
+
+      **Diagnosis patterns:**
       - Failed operations: Show the EXACT error message verbatim in a code block
       - Stuck in WAIT_FOR_CALLBACK: Extract callback ID, show how long it's been waiting
       - Timeout: Show which operation was running when timeout occurred
