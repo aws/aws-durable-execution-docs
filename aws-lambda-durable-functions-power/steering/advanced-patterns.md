@@ -105,28 +105,33 @@ def handler(event: dict, context: DurableContext) -> str:
 ```typescript
 import { StepSemantics } from '@aws/durable-execution-sdk-js';
 
-// AtMostOncePerRetry - For non-idempotent operations
-// Step executes at most once per retry attempt
-// If step fails partway through, it won't re-execute the same attempt
+// AtLeastOncePerRetry (DEFAULT) - For operations that can execute multiple times
+// Step may execute multiple times per retry attempt
+// Use when idempotency is handled externally
 await context.step(
   'update-database',
   async () => {
     // This is idempotent - safe to retry
     return await updateUserRecord(userId, data);
   },
-  { semantics: StepSemantics.AtMostOncePerRetry }
+  { semantics: StepSemantics.AtLeastOncePerRetry }
 );
 
-// AtLeastOncePerRetry (DEFAULT) - For operations that can execute multiple times
-// Step may execute multiple times per retry attempt
-// Use when idempotency is handled externally
+// AtMostOncePerRetry - For non-idempotent operations
+// Step executes at most once per retry attempt
+// If step fails partway through, it won't re-execute the same attempt
 await context.step(
-  'send-notification',
+  'charge-payment',
   async () => {
-    // External system handles deduplication
-    return await sendEmail(email, message);
+    // Non-idempotent - duplicates would double-charge the customer
+    return await chargePayment(customerId, amount);
   },
-  { semantics: StepSemantics.AtLeastOncePerRetry }
+  {
+    semantics: StepSemantics.AtMostOncePerRetry,
+    // Pair with shouldRetry: false to guarantee at-most-once overall,
+    // since the default retry strategy still allows multiple retry attempts.
+    retryStrategy: () => ({ shouldRetry: false }),
+  }
 );
 ```
 
