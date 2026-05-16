@@ -186,9 +186,9 @@ retry_config = RetryStrategyConfig(
 
 ## Step Semantics
 
-### AT_LEAST_ONCE (Default)
+### AtLeastOncePerRetry (default)
 
-Step executes at least once, may execute multiple times on failure/retry.
+Step executes at least once on each retry attempt. If the step succeeds but the checkpoint fails (e.g. due to a sandbox crash), the step will re-execute on replay. Use for idempotent operations that can tolerate duplicate execution.
 
 **TypeScript:**
 
@@ -202,9 +202,9 @@ const result = await context.step(
 );
 ```
 
-### AT_MOST_ONCE
+### AtMostOncePerRetry
 
-Step executes at most once, never retries. Use for non-idempotent operations.
+Step executes at most once per retry attempt. If a crash happens between the pre-step checkpoint and step completion, the step is skipped on replay rather than re-executed. The step can still run across multiple retry attempts. To guarantee at-most-once overall, pair with `retryStrategy: () => ({ shouldRetry: false })`.
 
 **TypeScript:**
 
@@ -360,4 +360,4 @@ except Exception as error:
 4. **Use appropriate retry strategies** based on operation type
 5. **Handle errors explicitly** - don't let them propagate unexpectedly
 6. **Use custom serialization** for complex types
-7. **Choose correct semantics** (AT_LEAST_ONCE vs AT_MOST_ONCE)
+7. **Choose correct semantics** (`AtLeastOncePerRetry` vs `AtMostOncePerRetry`)
