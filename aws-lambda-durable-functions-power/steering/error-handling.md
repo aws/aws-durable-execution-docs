@@ -396,7 +396,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
     // Log failures but continue
     context.logger.warn('Some items failed', {
       failureCount: results.failureCount,
-      failures: results.failed.map(f => ({
+      failures: results.failed().map(f => ({
         index: f.index,
         error: f.error?.message
       }))
@@ -404,7 +404,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 
     // Store failed items for later retry
     await context.step('store-failures', async () => {
-      const failedItems = results.failed.map(f => event.items[f.index]);
+      const failedItems = results.failed().map(f => event.items[f.index]);
       return await storeFailedItems(failedItems);
     });
   }
