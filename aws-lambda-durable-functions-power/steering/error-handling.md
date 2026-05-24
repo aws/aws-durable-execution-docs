@@ -238,21 +238,26 @@ Mark errors as unrecoverable to stop execution immediately:
 
 **TypeScript:**
 
-```typescript
-import { UnrecoverableInvocationError } from '@aws/durable-execution-sdk-js';
+The TypeScript SDK does not currently export a public unrecoverable invocation error type. To stop retrying a step, throw a domain error and configure the step with a retry strategy that does not retry:
 
+```typescript
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
-  const user = await context.step('fetch-user', async () => {
-    const user = await fetchUser(event.userId);
-    
-    if (!user) {
-      // Stop execution immediately - no retry
-      throw new UnrecoverableInvocationError('User not found');
-    }
-    
-    return user;
-  });
-  
+  const user = await context.step(
+    'fetch-user',
+    async () => {
+      const user = await fetchUser(event.userId);
+
+      if (!user) {
+        throw new Error('User not found');
+      }
+
+      return user;
+    },
+    {
+      retryStrategy: () => ({ shouldRetry: false }),
+    },
+  );
+
   // Continue processing...
 });
 ```
