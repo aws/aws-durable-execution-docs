@@ -182,7 +182,7 @@ Let's trace through a simple workflow:
 **Second invocation (t=30s):**
 
 1. The durable functions service invokes your function again
-2. The function runs from the ginning
+2. The function runs from the beginning
 3. The fetch step returns its checkpointed result instantly, it does not re-execute the
     API call
 4. The wait has already elapsed, so execution continues
