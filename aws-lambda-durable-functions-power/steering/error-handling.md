@@ -234,23 +234,29 @@ def handler(event: dict, context: DurableContext) -> dict:
 
 ## Unrecoverable Errors
 
-Mark errors as unrecoverable to stop execution immediately:
+Configure non-retryable failures to stop execution immediately:
 
 **TypeScript:**
 
+The TypeScript SDK does not currently expose a public unrecoverable error type.
+Use a no-retry strategy when a step should fail immediately.
+
 ```typescript
-import { UnrecoverableInvocationError } from '@aws/durable-execution-sdk-js';
+import { retryPresets } from '@aws/durable-execution-sdk-js';
 
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
   const user = await context.step('fetch-user', async () => {
     const user = await fetchUser(event.userId);
     
     if (!user) {
-      // Stop execution immediately - no retry
-      throw new UnrecoverableInvocationError('User not found');
+      // This error fails the step immediately because retryPresets.noRetry
+      // disables retries for this step.
+      throw new Error('User not found');
     }
     
     return user;
+  }, {
+    retryStrategy: retryPresets.noRetry,
   });
   
   // Continue processing...
@@ -422,7 +428,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 2. **Classify errors correctly** - distinguish retryable from non-retryable
 3. **Implement compensating transactions** for distributed workflows
 4. **Make errors deterministic** - same input produces same error
-5. **Use unrecoverable errors** to stop execution early when appropriate
+5. **Disable retries for non-retryable errors** to stop execution early when appropriate
 6. **Log errors with context** using `context.logger`
 7. **Handle partial failures** gracefully in batch operations
 8. **Implement circuit breakers** for external service calls
