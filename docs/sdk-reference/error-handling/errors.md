@@ -63,7 +63,7 @@ error and the operation details.
       DOE --> InvokeError
       DOE --> ChildContextError
       DOE --> WaitForConditionError
-      SIE[StepInterruptedError]
+      SIE["StepInterruptedError (retryStrategy callback only)"]
     ```
 
     ```typescript
@@ -74,9 +74,11 @@ error and the operation details.
     subclass corresponds to a specific operation type. The `cause` property holds the
     original error your code threw.
 
-    `StepInterruptedError` is not a `DurableOperationError`. The SDK throws it when an
-    at-most-once step started but Lambda was interrupted before the SDK checkpointed the
-    result. See [Step interrupted](#step-interrupted) below.
+    The TypeScript SDK passes `StepInterruptedError` to your
+    `retryStrategy(error, attempt)` callback when Lambda interrupts an at-most-once step
+    before the SDK checkpoints the result. From `context.step(...)` the SDK throws a
+    `StepError` whose `cause.name` equals `"StepInterruptedError"`. See
+    [Step interrupted](#step-interrupted) below.
 
 === "Python"
 

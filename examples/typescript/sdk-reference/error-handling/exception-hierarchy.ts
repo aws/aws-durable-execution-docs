@@ -11,16 +11,18 @@ import {
 } from "@aws/durable-execution-sdk-js";
 
 // DurableOperationError
-//   StepError              — step failed after retries exhausted
-//   CallbackError          — callback operation failed
-//   CallbackTimeoutError   — callback timed out
-//   CallbackSubmitterError — callback submitter failed
-//   InvokeError            — invoke operation failed
-//   ChildContextError      — child context failed
-//   WaitForConditionError  — wait-for-condition failed
+//   StepError:              step failed after retries exhausted
+//   CallbackError:          callback operation failed
+//   CallbackTimeoutError:   callback timed out
+//   CallbackSubmitterError: callback submitter failed
+//   InvokeError:            invoke operation failed
+//   ChildContextError:      child context failed
+//   WaitForConditionError:  wait-for-condition failed
 //
-// StepInterruptedError     — at-most-once step interrupted before checkpoint
-//   (not a DurableOperationError; thrown directly)
+// StepInterruptedError: internal sentinel. The SDK passes it to your
+//   retryStrategy(error, attempt) callback when Lambda interrupts an
+//   at-most-once step. From context.step(...) the SDK throws a StepError
+//   whose cause.name === "StepInterruptedError".
 
 export {
   DurableOperationError,

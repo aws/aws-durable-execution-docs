@@ -1,7 +1,7 @@
 import {
   withDurableExecution,
   StepSemantics,
-  StepInterruptedError,
+  StepError,
 } from "@aws/durable-execution-sdk-js";
 
 export const handler = withDurableExecution(async (event, context) => {
@@ -15,11 +15,14 @@ export const handler = withDurableExecution(async (event, context) => {
     );
     return { status: "charged", result };
   } catch (err) {
-    if (err instanceof StepInterruptedError) {
-      // The step started but Lambda was interrupted before the result was
-      // checkpointed. The SDK will not re-run the step on the next invocation.
-      // Inspect your payment system to determine whether the charge succeeded.
-      context.logger.warn("Payment step interrupted — check payment system");
+    if (
+      err instanceof StepError &&
+      err.cause?.name === "StepInterruptedError"
+    ) {
+      // Lambda interrupted the step before the SDK checkpointed the result.
+      // The SDK will not re-run the step on the next invocation. Check your
+      // payment system to determine whether the charge succeeded.
+      context.logger.warn("Payment step interrupted; check payment system");
       return { status: "unknown" };
     }
     throw err;

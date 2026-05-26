@@ -55,8 +55,10 @@ The step will checkpoint the last error after exhausting all retry attempts.
 
     **Returns:** `DurablePromise<T>`. Use `await` to get the result.
 
-    **Throws:** `DurableOperationError` wrapping the original error after retries are
-    exhausted. `StepInterruptedError` if an at-most-once step was interrupted.
+    **Throws:** `StepError` (a `DurableOperationError` subclass) wrapping the original
+    error after retries are exhausted. For an at-most-once step that Lambda interrupted
+    before the SDK checkpointed the result, the SDK throws a `StepError` whose
+    `cause.name` equals `"StepInterruptedError"`.
 
 === "Python"
 
@@ -208,10 +210,11 @@ The step will checkpoint the last error after exhausting all retry attempts.
     ```
 
     - `AtLeastOncePerRetry` (default) Re-executes the step if the function replays before
-        the result is checkpointed. Safe for idempotent operations.
+        the SDK checkpoints the result. Safe for idempotent operations.
     - `AtMostOncePerRetry` Executes the step at most once per retry attempt. If the function
-        replays before the result is checkpointed, the SDK skips the step and raises
-        `StepInterruptedError`. Use for operations with side effects.
+        replays before the SDK checkpoints the result, the SDK skips the step and throws a
+        `StepError` whose `cause.name` equals `"StepInterruptedError"`. Use for operations
+        with side effects.
 
 === "Python"
 
@@ -342,7 +345,7 @@ debugging easier.
 
 === "Java"
 
-    The name is always the first argument. Pass `null` for no name. 
+    The name is always the first argument. Pass `null` for no name.
 
 ## Configuration
 
