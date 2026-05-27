@@ -28,7 +28,7 @@ it("completes a callback from the test", async () => {
 
   const callback = runner.getOperation("approval");
   await callback.waitForData(WaitingOperationStatus.SUBMITTED);
-  await callback.sendCallbackSuccess(JSON.stringify("approved"));
+  await callback.sendCallbackSuccess("approved");
 
   const result = await runPromise;
 
