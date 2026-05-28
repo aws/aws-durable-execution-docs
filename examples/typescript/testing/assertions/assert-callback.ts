@@ -28,10 +28,12 @@ it("completes a callback from the test", async () => {
 
   const callback = runner.getOperation("approval");
   await callback.waitForData(WaitingOperationStatus.SUBMITTED);
-  await callback.sendCallbackSuccess("approved");
+  await callback.sendCallbackSuccess(JSON.stringify({ approved: true }));
 
   const result = await runPromise;
 
   expect(result.getStatus()).toBe(ExecutionStatus.SUCCEEDED);
-  expect(result.getResult()).toBe("approved");
+  
+  const { approved } = JSON.parse(result.getResult());
+  expect(approved).toBe(true);
 });
