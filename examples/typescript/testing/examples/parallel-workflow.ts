@@ -8,7 +8,7 @@ const handler = withDurableExecution(async (event: unknown, context: DurableCont
     async (ctx) => await ctx.step("fetch-b", () => "data-b"),
     async (ctx) => await ctx.step("fetch-c", () => "data-c"),
   ]);
-  return results.getSucceeded();
+  return results.getResults();
 });
 
 let runner: LocalDurableTestRunner;
