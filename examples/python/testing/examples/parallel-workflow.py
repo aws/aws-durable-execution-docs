@@ -29,7 +29,7 @@ def handler(event, context: DurableContext) -> list:
         ],
         name="fetch-all",
     )
-    return results.get_succeeded()
+    return results.get_results()
 
 
 def test_executes_branches_in_parallel():
