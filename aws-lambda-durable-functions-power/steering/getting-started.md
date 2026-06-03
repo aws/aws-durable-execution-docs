@@ -2,11 +2,81 @@
 
 Quick start guide for building your first durable function.
 
-## Check user and project preferences
+## Onboarding
 
-Ask which IaC framework to use for new projects.
-Ask which programming language to use if unclear, clarify between JavaScript and TypeScript if necessary.
-Ask to create a git repo for projects if one doesn't exist already.
+### Step 1: Validate Prerequisites
+
+Before using AWS Lambda durable functions, verify:
+
+1. **AWS CLI** is installed (2.33.22 or higher) and configured:
+
+   ```bash
+   aws --version
+   aws sts get-caller-identity
+   ```
+
+2. **Runtime environment** is ready:
+   - For TypeScript/JavaScript: Node.js 22+ (`node --version`)
+   - For Python: Python 3.11+ (`python --version`. Note that only Lambda runtime environments 3.13+ come with the Durable Execution SDK pre-installed. 3.11 is the minimum supported Python version by the Durable Execution SDK itself — use OCI to bring your own container image with an older Python runtime + Durable Execution SDK.)
+
+3. **Deployment capability** exists (one of):
+   - AWS SAM CLI (`sam --version`) 1.153.1 or higher
+   - AWS CDK (`cdk --version`) v2.237.1 or higher
+   - Direct Lambda deployment access
+
+### Step 2: Select language and IaC framework
+
+### Language Selection
+
+Default: TypeScript
+
+Override syntax:
+
+- "use Python" → Generate Python code
+- "use JavaScript" → Generate JavaScript code
+
+When not specified, ALWAYS use TypeScript
+
+### IaC framework selection
+
+Default: CDK
+
+Override syntax:
+
+- "use CloudFormation" → Generate YAML templates
+- "use SAM" → Generate YAML templates
+
+When not specified, ALWAYS use CDK
+
+### Error Scenarios
+
+#### Unsupported Language
+
+- List detected language
+- State: "Durable Execution SDK is not yet available for [framework]"
+- Suggest supported languages as alternatives
+
+#### Unsupported IaC Framework
+
+- List detected framework
+- State: "[framework] might not support Lambda durable functions yet"
+- Suggest supported frameworks as alternatives
+
+### Step 3: Install SDK
+
+**For TypeScript/JavaScript:**
+
+```bash
+npm install @aws/durable-execution-sdk-js
+npm install --save-dev @aws/durable-execution-sdk-js-testing
+```
+
+**For Python:**
+
+```bash
+pip install aws-durable-execution-sdk-python
+pip install aws-durable-execution-sdk-python-testing
+```
 
 ## Basic Handler
 
@@ -243,7 +313,6 @@ my-durable-function/
 │   └── utils/
 │       └── retry_strategies.py
 ├── tests/
-│   └── test_handler.py         # Tests with DurableFunctionTestRunner
 │   └── test_handler.py         # Tests with DurableFunctionTestRunner
 ├── infrastructure/
 │   └── template.yaml           # SAM/CloudFormation

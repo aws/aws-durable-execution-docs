@@ -29,7 +29,7 @@ Advanced error handling patterns for durable functions, including timeout handli
 4. Execute fallback operation in a separate step
 
 **Important limitation:** 
-In TypeScript, native setTimeout (and patterns like Promise.race using it) will fail during execution replays. To create a reliable timeout that persists across execution (expands over multi invocations), always use the timeout parameter provided by waitForCallback or waitForCondition
+In TypeScript, native setTimeout (and patterns like Promise.race using it) will fail during execution replays. To create a reliable timeout that persists across execution (expands over multi invocations), always use the timeout parameter provided by waitForCallback
 
 ## Conditional Retry Based on Error Type
 

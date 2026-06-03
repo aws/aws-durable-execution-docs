@@ -196,7 +196,7 @@ results = context.map(
 ```typescript
 const results = await context.map('process', items, processFunc);
 
-console.log(results.status);           // 'COMPLETED' | 'FAILED'
+console.log(results.status);           // 'SUCCEEDED' | 'FAILED'
 console.log(results.totalCount);       // Total items
 console.log(results.startedCount);     // Items started
 console.log(results.successCount);     // Successful items

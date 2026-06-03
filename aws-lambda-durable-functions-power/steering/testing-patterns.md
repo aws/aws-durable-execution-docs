@@ -88,7 +88,7 @@ def test_workflow():
     runner = DurableFunctionTestRunner(handler=handler)
     
     with runner:
-        result = runner.run(input={'user_id': '123'}, timeout=10)
+        result = runner.run(input='{"user_id": "123"}', timeout=10)
 
     assert result.status is InvocationStatus.SUCCEEDED
 ```
@@ -272,11 +272,9 @@ it('should handle callback failure', async () => {
 
   const executionPromise = runner.run({ payload: {} });
 
-  await new Promise(resolve => setTimeout(resolve, 100));
-
   const callbackOp = runner.getOperation('wait-for-approval');
-  
-  // Send callback failure
+  await callbackOp.waitForData(WaitingOperationStatus.STARTED);
+
   await callbackOp.sendCallbackFailure(
     'ApprovalDenied',
     'Request was rejected'
@@ -320,10 +318,9 @@ it('should handle callback heartbeats', async () => {
 
   const executionPromise = runner.run({ payload: {} });
 
-  await new Promise(resolve => setTimeout(resolve, 100));
-
   const callbackOp = runner.getOperation('long-running-process');
-  
+  await callbackOp.waitForData(WaitingOperationStatus.STARTED);
+
   // Send heartbeats
   await callbackOp.sendCallbackHeartbeat();
   await runner.skipTime({ minutes: 2 });

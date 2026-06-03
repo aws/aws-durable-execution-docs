@@ -227,7 +227,7 @@ const results = await context.map(
 
 // Only one item processed (assuming first succeeds)
 if (results.successCount > 0) {
-  const match = results.getSucceeded()[0];
+  const match = results.succeeded()[0];
   context.logger.info('Found match', { match });
 }
 ```

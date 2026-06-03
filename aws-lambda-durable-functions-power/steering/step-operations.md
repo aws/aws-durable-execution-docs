@@ -134,7 +134,7 @@ from aws_durable_execution_sdk_python.retries import RetryDecision
 
 def custom_retry(error: Exception, attempt: int) -> RetryDecision:
     if isinstance(error, ValidationError):
-        return RetryDecision(should_retry=False)
+        return RetryDecision.no_retry()
     
     if attempt < 3:
         return RetryDecision(
@@ -142,7 +142,7 @@ def custom_retry(error: Exception, attempt: int) -> RetryDecision:
             delay=Duration.from_seconds(2 ** attempt)
         )
     
-    return RetryDecision(should_retry=False)
+    return RetryDecision.no_retry()
 
 result = context.step(
     risky_operation(),
@@ -214,18 +214,24 @@ import { StepSemantics } from '@aws/durable-execution-sdk-js';
 const result = await context.step(
   'charge-payment',
   async () => chargeCard(amount),
-  { semantics: StepSemantics.AtMostOncePerRetry }
+  {
+    semantics: StepSemantics.AtMostOncePerRetry,
+    retryStrategy: () => ({ shouldRetry: false })
+  }
 );
 ```
 
 **Python:**
 
 ```python
-from aws_durable_execution_sdk_python.config import StepSemantics
+from aws_durable_execution_sdk_python.config import StepSemantics, StepConfig
 
 result = context.step(
     charge_card(amount),
-    config=StepConfig(step_semantics=StepSemantics.AT_MOST_ONCE_PER_RETRY)
+    config=StepConfig(
+        step_semantics=StepSemantics.AT_MOST_ONCE_PER_RETRY,
+        retry_strategy=lambda error, attempt: RetryDecision.no_retry()
+    )
 )
 ```
 

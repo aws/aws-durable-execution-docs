@@ -89,7 +89,7 @@ const result = await context.step(
 ```python
 def custom_retry(error: Exception, attempt: int) -> RetryDecision:
     if hasattr(error, 'status_code') and 400 <= error.status_code < 500:
-        return RetryDecision(should_retry=False)
+        return RetryDecision.no_retry()
     
     if attempt < 5:
         return RetryDecision(
@@ -97,7 +97,7 @@ def custom_retry(error: Exception, attempt: int) -> RetryDecision:
             delay=Duration.from_seconds(2 ** attempt)
         )
     
-    return RetryDecision(should_retry=False)
+    return RetryDecision.no_retry()
 ```
 
 ## Error Classification
@@ -221,43 +221,38 @@ def handler(event: dict, context: DurableContext) -> dict:
         return {'success': True, 'order_id': shipment['order_id']}
 
     except Exception as error:
-        context.logger.error('Order failed, executing compensations', error)
+        context.logger.error(f'Order failed, executing compensations: {error}')
         
         for name, comp_step, resource_id in reversed(compensations):
             try:
                 context.step(comp_step(resource_id))
             except Exception as comp_error:
-                context.logger.error(f'Compensation {name} failed', comp_error)
+                context.logger.error(f'Compensation {name} failed: {comp_error}')
         
         raise error
 ```
 
 ## Unrecoverable Errors
 
-Configure non-retryable failures to stop execution immediately:
+Mark errors as unrecoverable to stop execution immediately:
 
 **TypeScript:**
 
-The TypeScript SDK does not currently expose a public unrecoverable error type.
-Use a no-retry strategy when a step should fail immediately.
-
 ```typescript
-import { retryPresets } from '@aws/durable-execution-sdk-js';
-
 export const handler = withDurableExecution(async (event, context: DurableContext) => {
-  const user = await context.step('fetch-user', async () => {
-    const user = await fetchUser(event.userId);
-    
-    if (!user) {
-      // This error fails the step immediately because retryPresets.noRetry
-      // disables retries for this step.
-      throw new Error('User not found');
-    }
-    
-    return user;
-  }, {
-    retryStrategy: retryPresets.noRetry,
-  });
+  const user = await context.step(
+    'fetch-user',
+    async () => {
+      const user = await fetchUser(event.userId);
+      
+      if (!user) {
+        throw new Error('User not found');
+      }
+      
+      return user;
+    },
+    { retryStrategy: () => ({ shouldRetry: false }) }
+  );
   
   // Continue processing...
 });
@@ -428,7 +423,7 @@ export const handler = withDurableExecution(async (event, context: DurableContex
 2. **Classify errors correctly** - distinguish retryable from non-retryable
 3. **Implement compensating transactions** for distributed workflows
 4. **Make errors deterministic** - same input produces same error
-5. **Disable retries for non-retryable errors** to stop execution early when appropriate
+5. **Use unrecoverable errors** to stop execution early when appropriate
 6. **Log errors with context** using `context.logger`
 7. **Handle partial failures** gracefully in batch operations
 8. **Implement circuit breakers** for external service calls
