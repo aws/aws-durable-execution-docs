@@ -36,6 +36,7 @@ Steps:
 
 1. Fetch the execution history directly:
    Run: aws lambda get-durable-execution-history --durable-execution-arn <durable-execution-arn> --region <region> --include-execution-data
+   Note: execution data may contain sensitive information (PII, credentials, business data). Do not display raw step results to users without reviewing content first.
 
 2. If the command succeeds, analyze and provide a user-friendly diagnosis:
    a. Report the execution status (RUNNING/SUCCEEDED/FAILED/STOPPED/TIMED_OUT)

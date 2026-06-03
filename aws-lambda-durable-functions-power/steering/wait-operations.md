@@ -56,7 +56,7 @@ const result = await context.waitForCallback(
 // External system calls back with:
 // aws lambda send-durable-execution-callback-success \
 //   --callback-id <callbackId> \
-//   --payload '{"approved": true}'
+//   --result '{"approved": true}'
 ```
 
 **Python:**
@@ -86,7 +86,7 @@ result = context.wait_for_callback(
 ```bash
 aws lambda send-durable-execution-callback-success \
   --callback-id <callbackId> \
-  --payload '{"status": "approved", "comments": "Looks good"}'
+  --result '{"status": "approved", "comments": "Looks good"}'
 ```
 
 **SDK (TypeScript):**
@@ -97,7 +97,7 @@ import { LambdaClient, SendDurableExecutionCallbackSuccessCommand } from '@aws-s
 const client = new LambdaClient({});
 await client.send(new SendDurableExecutionCallbackSuccessCommand({
   CallbackId: callbackId,
-  Payload: JSON.stringify({ status: 'approved' })
+  Result: JSON.stringify({ status: 'approved' })
 }));
 ```
 
@@ -170,13 +170,12 @@ const finalState = await context.waitForCondition(
   {
     initialState: { jobId: 'job-123', status: 'pending' },
     waitStrategy: createWaitStrategy({
-      maxAttempts: 60,
-      initialDelaySeconds: 5,
-      maxDelaySeconds: 30,
-      backoffRate: 1.5,
-      shouldContinuePolling: (result) => result.status !== "completed"
+      maxAttempts: 60,
+      initialDelay: { seconds: 5 },
+      maxDelay: { seconds: 30 },
+      backoffRate: 1.5,
+      shouldContinuePolling: (result) => result.status !== "completed"
     }),
-    timeout: { hours: 1 }
   }
 );
 ```
@@ -324,13 +323,12 @@ export const handler = withDurableExecution(async (event, context: DurableContex
     {
       initialState: { jobId, status: 'running' },
       waitStrategy: createWaitStrategy({
-        maxAttempts: 60,
-        initialDelaySeconds: 5,
-        maxDelaySeconds: 30,
-        backoffRate: 1.5,
-        shouldContinuePolling: (result) => result.status === "running"
+        maxAttempts: 60,
+        initialDelay: { seconds: 5 },
+        maxDelay: { seconds: 30 },
+        backoffRate: 1.5,
+        shouldContinuePolling: (result) => result.status === "running"
       }),
-      timeout: { hours: 2 }
     }
   );
 
@@ -390,7 +388,7 @@ try:
     )
 except CallbackError as error:
     if error.error_type == 'Timeout':
-        context.logger.warn('Approval timed out')
+        context.logger.warning('Approval timed out')
     else:
-        context.logger.error('Callback failed', error)
+        context.logger.error(f'Callback failed: {error}')
 ```

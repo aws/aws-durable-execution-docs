@@ -15,63 +15,18 @@ author: "AWS"
 
 Build resilient multi-step applications and AI workflows that can execute for up to 1 year while maintaining reliable progress despite interruptions.
 
-## Onboarding
+**Works best with** the [AWS MCP server](https://docs.aws.amazon.com/aws-mcp/) but is not required. All AWS interactions in this skill use standard AWS CLI commands that work in any environment with configured AWS credentials.
 
-### Step 1: Validate Prerequisites
+## Critical Rules
 
-Before using AWS Lambda durable functions, verify:
+Read these before writing any code. Each one is a constraint that will silently break a function if violated.
 
-1. **AWS CLI** is installed (2.33.22 or higher) and configured:
-
-   ```bash
-   aws --version
-   aws sts get-caller-identity
-   ```
-
-2. **Runtime environment** is ready:
-   - For TypeScript/JavaScript: Node.js 22+ (`node --version`)
-   - For Python: Python 3.11+ (`python --version`. Note that currently only Lambda runtime environments 3.13+ come with the Durable Execution SDK pre-installed. 3.11 is the min supported Python version by the Durable SDK itself, however, you could use OCI to bring your own container image with your own Python runtime + Durable SDK.)
-
-3. **Deployment capability** exists (one of):
-   - AWS SAM CLI (`sam --version`) 1.153.1 or higher
-   - AWS CDK (`cdk --version`) v2.237.1 or higher
-   - Direct Lambda deployment access
-
-## Step 2: Check user and project preferences
-
-Ask which IaC framework to use for new projects.
-Ask which programming language to use if unclear, clarify between JavaScript and TypeScript if necessary.
-Ask to create a git repo for projects if one doesn't exist already.
-
-### Error Scenarios
-
-#### Unsupported Language
-
-- List detected language
-- State: "Durable Execution SDK is not yet available for [framework]"
-- Suggest supported languages as alternatives
-
-#### Unsupported IaC Framework
-
-- List detected framework
-- State: "[framework] might not support Lambda durable functions yet"
-- Suggest supported frameworks as alternatives
-
-### Step 3: Install SDK
-
-**For TypeScript/JavaScript:**
-
-```bash
-npm install @aws/durable-execution-sdk-js
-npm install --save-dev @aws/durable-execution-sdk-js-testing
-```
-
-**For Python:**
-
-```bash
-pip install aws-durable-execution-sdk-python
-pip install aws-durable-execution-sdk-python-testing
-```
+1. **Durable execution must be enabled at function creation time — it cannot be retrofitted.** A new Lambda function must be created with durable execution turned on. Migrate the logic into the new function; do not attempt to install the SDK and wrap the handler of the existing function and expect it to work.
+2. **Durable functions must be invoked with a qualified ARN** — a specific version, an alias, or the literal `$LATEST` suffix. An unqualified function name will fail. See the *Invocation Requirements* section below for examples.
+3. **Durable operations cannot be nested.** You cannot call `context.step()`, `context.wait()`, or `context.invoke()` from inside another step's callback. Use `context.runInChildContext()` to group operations instead.
+4. **All non-deterministic code must run inside steps.** `Date.now()`, `Math.random()`, UUID generation, API calls, and database queries outside a step will produce different values on replay and corrupt execution state.
+5. **Closure mutations are lost on replay** - return values from steps
+6. **Side effects outside steps repeat** - use `context.logger` (replay-aware)
 
 ## When to Load Reference Files
 
@@ -114,13 +69,6 @@ def handler(event: dict, context: DurableContext) -> dict:
     result = context.step(lambda _: process_data(event), name='process')
     return result
 ```
-
-### Critical Rules
-
-1. **All non-deterministic code MUST be in steps** (Date.now, Math.random, API calls)
-2. **Cannot nest durable operations** - use `runInChildContext` to group operations
-3. **Closure mutations are lost on replay** - return values from steps
-4. **Side effects outside steps repeat** - use `context.logger` (replay-aware)
 
 ### Python API Differences
 

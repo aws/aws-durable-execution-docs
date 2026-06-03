@@ -302,7 +302,7 @@ DurableFunction:
       RetentionPeriodInDays: 1       # Short retention
     Environment:
       Variables:
-        LOG_LEVEL: DEBUG
+        LOG_LEVEL: DEBUG             # Use INFO or higher in non-dev — DEBUG may expose step results and execution state
         ENVIRONMENT: development
 ```
 
