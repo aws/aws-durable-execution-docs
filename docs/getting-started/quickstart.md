@@ -87,7 +87,7 @@ Note the role ARN returned. You'll need it in the next step.
 
 === "Java"
 
-    Save as `LambdaFunction.java`
+    Save as `QuickstartFunction.java`
 
     ```java
     --8<-- "examples/java/getting-started/quickstart.java"
@@ -148,10 +148,12 @@ execution role you just created.
     <dependency>
         <groupId>software.amazon.lambda.durable</groupId>
         <artifactId>aws-durable-execution-sdk-java</artifactId>
+        <version>1.1.0</version>
     </dependency>
     <dependency>
         <groupId>com.amazonaws</groupId>
         <artifactId>aws-lambda-java-core</artifactId>
+        <version>1.4.0</version>
     </dependency>
     ```
 
@@ -184,7 +186,7 @@ execution role you just created.
       --runtime java21 \
       --role arn:aws:iam::123456789012:role/durable-function-role \
       --handler QuickstartFunction::handleRequest \
-      --zip-file fileb://target/my-durable-function-1.0.jar \
+      --zip-file fileb://target/*.jar \
       --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
     ```
 
