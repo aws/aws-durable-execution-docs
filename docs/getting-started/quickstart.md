@@ -1,7 +1,7 @@
 # Quickstart
 
 Create and deploy your first durable function using the AWS CLI. This guide covers
-TypeScript and Python.
+TypeScript, Python, and Java.
 
 !!! note "Adding all your dependencies to the deployment package"
 
@@ -23,6 +23,10 @@ TypeScript and Python.
 === "Python"
 
     - Python 3.13+
+
+=== "Java"
+
+    - Java 17+ and Maven 3.8+
 
 ## Create the execution role
 
@@ -65,11 +69,6 @@ Note the role ARN returned. You'll need it in the next step.
 
 ## Write the durable function
 
-!!! note "Using Java?"
-
-    Java durable functions currently only deploy in container images. See
-    [Quickstart for Container Image](quickstart-container-image.md).
-
 === "TypeScript"
 
     Save as `index.mjs`
@@ -84,6 +83,14 @@ Note the role ARN returned. You'll need it in the next step.
 
     ```python
     --8<-- "examples/python/getting-started/quickstart.py"
+    ```
+
+=== "Java"
+
+    Save as `LambdaFunction.java`
+
+    ```java
+    --8<-- "examples/java/getting-started/quickstart.java"
     ```
 
 The wait here is for 10 seconds just for an easy quick example, but it could as easily
@@ -130,6 +137,54 @@ execution role you just created.
       --role arn:aws:iam::123456789012:role/durable-function-role \
       --handler lambda_function.lambda_handler \
       --zip-file fileb://function.zip \
+      --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
+    ```
+
+=== "Java"
+
+    Set up a Maven project with the following `pom.xml` dependencies:
+
+    ```xml
+    <dependency>
+        <groupId>software.amazon.lambda.durable</groupId>
+        <artifactId>aws-durable-execution-sdk-java</artifactId>
+    </dependency>
+    <dependency>
+        <groupId>com.amazonaws</groupId>
+        <artifactId>aws-lambda-java-core</artifactId>
+    </dependency>
+    ```
+
+    Add the `maven-shade-plugin` to produce a fat jar with all dependencies bundled:
+
+    ```xml
+    <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.6.2</version>
+        <configuration>
+            <createDependencyReducedPom>false</createDependencyReducedPom>
+        </configuration>
+        <executions>
+            <execution>
+                <phase>package</phase>
+                <goals><goal>shade</goal></goals>
+            </execution>
+        </executions>
+    </plugin>
+    ```
+
+    Build the fat jar and deploy:
+
+    ```console
+    mvn clean package -DskipTests
+
+    aws lambda create-function \
+      --function-name my-durable-function \
+      --runtime java21 \
+      --role arn:aws:iam::123456789012:role/durable-function-role \
+      --handler QuickstartFunction::handleRequest \
+      --zip-file fileb://target/my-durable-function-1.0.jar \
       --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
     ```
 
