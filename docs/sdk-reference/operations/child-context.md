@@ -322,3 +322,9 @@ them to verify the child context ran and produced the expected result.
 - [Steps](step.md) Run a single function with automatic checkpointing
 - [Parallel operations](parallel.md) Execute operations concurrently
 - [Map operations](map.md) Run operation for each item in a collection
+
+!!! info "Checkpoint consumption"
+
+    Durable operations consume checkpoints. To understand how this operation affects
+    your checkpoint usage, see
+    [Checkpoint consumption](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-sdk.html#durable-operations-checkpoint-consumption).
