@@ -18,7 +18,7 @@ const approvalSerdes: Omit<Serdes<ApprovalResult>, "serialize"> = {
 
 export const handler = withDurableExecution(
   async (event: unknown, context: DurableContext) => {
-    const [approval, callbackId] = context.createCallback("await-approval", {
+    const [approval, callbackId] = await context.createCallback("await-approval", {
       serdes: approvalSerdes,
     });
 
