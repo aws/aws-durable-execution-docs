@@ -11,8 +11,8 @@ step body.
 Retries do not consume Lambda execution time while waiting for the next retry.
 
 When a step exhausts all retry attempts, the SDK checkpoints the final error and throws
-it to your handler. If you configure no retry strategy on a step, any exception
-propagates immediately without retrying.
+it to your handler. If you configure no retry strategy on a step, the SDK applies a default strategy
+with up to 5 retries (6 total attempts). See [Retry presets](#retry-presets).
 
 ## Configure a retry strategy
 
