@@ -522,3 +522,9 @@ sam remote callback fail <callback-id> \
     waiting for the callback
 - [Wait](wait.md) Time-based durable waits.
 - [Error handling](../error-handling/retries.md)
+
+!!! info "Checkpoint consumption"
+
+    Durable operations consume checkpoints. To understand how this operation affects
+    your checkpoint usage, see
+    [Checkpoint consumption](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-sdk.html#durable-operations-checkpoint-consumption).

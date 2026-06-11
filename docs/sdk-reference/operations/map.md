@@ -688,3 +688,9 @@ operations. Each nested map creates its own set of child contexts.
 - [Child contexts](child-context.md) understand child context isolation
 - [Steps](step.md) use steps within map functions
 - [Error handling](../error-handling/errors.md) in durable functions
+
+!!! info "Checkpoint consumption"
+
+    Durable operations consume checkpoints. To understand how this operation affects
+    your checkpoint usage, see
+    [Checkpoint consumption](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-sdk.html#durable-operations-checkpoint-consumption).

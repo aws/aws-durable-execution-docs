@@ -184,3 +184,9 @@ Lambda cold start time, and current system load.
 - [Callbacks](callback.md) - Wait for external system responses
 - [Steps](step.md) - Execute business logic with automatic checkpointing
 - [Getting Started](../../getting-started/index.md) - Learn the basics of durable functions
+
+!!! info "Checkpoint consumption"
+
+    Durable operations consume checkpoints. To understand how this operation affects
+    your checkpoint usage, see
+    [Checkpoint consumption](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-sdk.html#durable-operations-checkpoint-consumption).

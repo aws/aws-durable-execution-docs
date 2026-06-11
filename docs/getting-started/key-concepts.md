@@ -98,6 +98,9 @@ Once the SDK persists a checkpoint, that operation's result is safe. If your fun
 interrupted at any point, the SDK can replay up to the last persisted checkpoint on the
 next invocation.
 
+For details on how durable operations consume checkpoints, see
+[Checkpoint consumption](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-sdk.html#durable-operations-checkpoint-consumption).
+
 ## Replay
 
 Lambda keeps a running log of all durable operations as your function executes. When

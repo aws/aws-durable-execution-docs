@@ -264,3 +264,9 @@ You can verify wait operations in your tests by inspecting the operations list:
 - [Wait for Condition](wait-for-condition.md) - Poll until a condition is met
 - [Callbacks](callback.md) - Wait for external system responses
 - [Getting Started](../../getting-started/index.md) - Learn the basics of durable functions
+
+!!! info "Checkpoint consumption"
+
+    Durable operations consume checkpoints. To understand how this operation affects
+    your checkpoint usage, see
+    [Checkpoint consumption](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-sdk.html#durable-operations-checkpoint-consumption).

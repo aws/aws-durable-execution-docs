@@ -434,3 +434,9 @@ concurrent code path.
 - [Testing](../../testing/index.md)
 - [Wait operations](wait.md)
 - [Child contexts](child-context.md)
+
+!!! info "Checkpoint consumption"
+
+    Durable operations consume checkpoints. To understand how this operation affects
+    your checkpoint usage, see
+    [Checkpoint consumption](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-sdk.html#durable-operations-checkpoint-consumption).
