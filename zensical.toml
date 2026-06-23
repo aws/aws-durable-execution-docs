@@ -81,6 +81,7 @@ nav = [
     ]},
     { "Observability" = [
       { "Logging" = "sdk-reference/observability/logging.md" },
+      { "Plugins" = "sdk-reference/plugins/plugins.md" },
     ]},
     { "Configuration" = [
       { "Configuration" = "sdk-reference/configuration/index.md" },
