@@ -13,14 +13,20 @@ public class RetryPresetsExample extends DurableHandler<Map<String, Object>, Map
                 stepCtx -> callApi(),
                 StepConfig.builder().retryStrategy(RetryStrategies.Presets.DEFAULT).build());
 
+        // Linear: 6 attempts, delays of 1s, 2s, 3s, 4s, 5s
+        String audit = context.step("audit-log", String.class,
+                stepCtx -> writeAuditLog(),
+                StepConfig.builder().retryStrategy(RetryStrategies.Presets.LINEAR).build());
+
         // No retry: fail immediately on first error
         String critical = context.step("charge-payment", String.class,
                 stepCtx -> chargePayment(),
                 StepConfig.builder().retryStrategy(RetryStrategies.Presets.NO_RETRY).build());
 
-        return Map.of("result", result, "critical", critical);
+        return Map.of("result", result, "audit", audit, "critical", critical);
     }
 
     private String callApi() { return "ok"; }
+    private String writeAuditLog() { return "logged"; }
     private String chargePayment() { return "charged"; }
 }
