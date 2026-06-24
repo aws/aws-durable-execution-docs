@@ -58,10 +58,12 @@ error and the operation details.
       DOE[DurableOperationError]
       DOE --> StepError
       DOE --> CallbackError
-      DOE --> CallbackTimeoutError
-      DOE --> CallbackSubmitterError
+      CallbackError --> CallbackExternalError
+      CallbackError --> CallbackTimeoutError
+      CallbackError --> CallbackSubmitterError
       DOE --> InvokeError
       DOE --> ChildContextError
+      DOE --> PromiseCombinatorError
       DOE --> WaitForConditionError
       SIE["StepInterruptedError (retryStrategy callback only)"]
     ```
@@ -73,6 +75,18 @@ error and the operation details.
     `DurableOperationError` is the base class for all operation-level failures. Each
     subclass corresponds to a specific operation type. The `cause` property holds the
     original error your code threw.
+
+    `CallbackError` is the parent class for callback failures. `CallbackExternalError`
+    reports a failure the external entity sent through
+    `SendDurableExecutionCallbackFailure`. `CallbackTimeoutError` signals a callback
+    that exceeded its timeout. `CallbackSubmitterError` wraps a failure raised inside
+    the submitter function. The SDK throws `CallbackError` directly only for internal
+    callback failures that do not match a more specific subclass. Catch `CallbackError`
+    to handle every callback failure with a single branch.
+
+    `PromiseCombinatorError` wraps failures from the durable promise combinators
+    `context.promise.all`, `context.promise.allSettled`, `context.promise.any`, and
+    `context.promise.race`.
 
     The TypeScript SDK passes `StepInterruptedError` to your
     `retryStrategy(error, attempt)` callback when Lambda interrupts an at-most-once step
