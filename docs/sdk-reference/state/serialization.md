@@ -281,6 +281,231 @@ Map and parallel perations support two SerDes fields that apply at different lev
     --8<-- "examples/java/sdk-reference/serialization/PassThroughSerdesExample.java"
     ```
 
+## FileSystem serdes
+
+The FileSystem serdes stores data on the filesystem and keeps a file pointer in
+the checkpoint. This can be useful when you do not want to store your data in the
+checkpoint itself, for example when your payload exceeds the durable execution
+checkpoint size limit. The persisted value lives on the filesystem and the SDK
+reads it on replay.
+
+The FileSystem serdes requires a filesystem that persists across invocations and
+that every Lambda execution environment can read. In AWS Lambda, this means:
+
+- [Amazon Elastic File System (Amazon EFS)](https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem-efs.html).
+    Serverless file system that scales automatically with your workloads.
+- [Amazon S3 Files](https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem-s3files.html).
+    Serverless file system for mounting an Amazon S3 bucket. Amazon S3 Files
+    provides access to Amazon S3 objects as files using standard file system
+    operations such as read and write on the local mount path.
+
+!!! warning "Do not use Lambda's `/tmp` directory"
+
+    Lambda's `/tmp` filesystem is local to a single execution environment. A
+    different execution environment may run the next invocation, so the SDK cannot
+    find files written to `/tmp` on replay and deserialization fails. Always mount
+    a persistent, shared filesystem.
+
+=== "TypeScript"
+
+    Pass the FileSystem serdes to a single operation through `StepConfig`,
+    `CallbackConfig`, `MapConfig`, or `ParallelConfig`. Other operations in the
+    same handler continue to use the default serdes.
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-walkthrough.ts"
+    ```
+
+=== "Python"
+
+    Coming soon. See
+    [aws-durable-execution-sdk-python#479](https://github.com/aws/aws-durable-execution-sdk-python/issues/479).
+
+=== "Java"
+
+    Coming soon. See
+    [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
+
+### createFileSystemSerdes signature
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-signature.ts"
+    ```
+
+    **Parameters:**
+
+    - `basePath` Directory path where data files are written. Set this to your
+        filesystem mount point.
+    - `config` (optional) `FileSystemSerdesConfig` controlling storage mode, path
+        encoding, and preview generation.
+
+    **Returns:** A `Serdes` that reads and writes JSON files under `basePath`.
+
+=== "Python"
+
+    Coming soon.
+
+=== "Java"
+
+    Coming soon.
+
+### FileSystemSerdesConfig
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-config.ts"
+    ```
+
+    **Fields:**
+
+    - `storageMode` (optional) A `FileSystemSerdesMode` value. Default:
+        `FileSystemSerdesMode.ALWAYS`.
+    - `pathEncoding` (optional) A `FileSystemPathEncoding` value. Default:
+        `FileSystemPathEncoding.URI`.
+    - `generatePreview` (optional) Function that returns a preview object. The SDK
+        stores the preview inline in the checkpoint envelope alongside the file
+        pointer. Use the [`buildPreview`](#preview-and-pii-masking) helper or
+        write your own.
+
+=== "Python"
+
+    Coming soon.
+
+=== "Java"
+
+    Coming soon.
+
+### Storage modes
+
+The `storageMode` enumerated field controls when the SDK writes to the filesystem.
+
+`FileSystemSerdesMode.ALWAYS` writes every value to a file. The checkpoint stores
+only the file pointer.
+
+`FileSystemSerdesMode.OVERFLOW` uses the standard durable execution checkpoint
+store and only writes to the filesystem when the value would exceed the durable
+execution checkpoint size limit. See
+[AWS Lambda service quotas](https://docs.aws.amazon.com/general/latest/gr/lambda-service.html).
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-overflow.ts"
+    ```
+
+=== "Python"
+
+    Coming soon.
+
+=== "Java"
+
+    Coming soon.
+
+### Path encoding
+
+The `pathEncoding` field controls how the durable execution ARN and the entity ID
+become the on-disk directory and file names.
+
+`FileSystemPathEncoding.URI` builds a per-execution directory from the function
+name, execution name, and invocation ID parsed from the ARN, and encodes the entity
+ID with `encodeURIComponent` for the file name. Names stay readable when you read
+files directly from the mount. A very long entity ID may exceed the filesystem's
+per-name length limit, commonly 255 bytes.
+
+`FileSystemPathEncoding.HASH` replaces the ARN and the entity ID with their SHA-256
+hex digests. Names are a fixed 64 characters and are always filesystem-safe
+regardless of the input characters or length. Choose `HASH` when entity IDs may
+contain characters that are unsafe in a file name, such as `/`, or may be long
+enough to exceed the name-length limit.
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-path-encoding.ts"
+    ```
+
+=== "Python"
+
+    Coming soon.
+
+=== "Java"
+
+    Coming soon.
+
+### Preview and PII masking
+
+When the FileSystem serdes writes to a file, the checkpoint envelope only contains
+the file pointer, so the GetDurableExecution API and the AWS Console cannot show
+the actual data for that operation. Configure `generatePreview` to embed a small
+object inline so you can see the data without reading the file.
+
+Use `buildPreview` to compute the preview from a `PreviewConfig`. The config
+selects which fields to include, exclude, or mask. Masking replaces a field's value
+with `***` or a custom string. The preview object is capped at 4096 bytes by
+default.
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-preview.ts"
+    ```
+
+    **`PreviewConfig` fields:**
+
+    - `mode` Either `PreviewMode.INCLUDE_ALL` or `PreviewMode.EXCLUDE_ALL`. Sets
+        the starting point before applying `include`, `exclude`, and `mask`.
+    - `include` (optional) Fields to add when starting from `EXCLUDE_ALL`, or to
+        force-include when starting from `INCLUDE_ALL`.
+    - `exclude` (optional) Fields to remove. Always wins over `mask`.
+    - `mask` (optional) Fields whose values become `maskString`. A masked field is
+        visible in the preview unless it is also excluded.
+    - `maskString` (optional) Replacement value for masked fields. Default: `***`.
+    - `maxPreviewBytes` (optional) Maximum size in bytes for the preview object
+        when JSON-serialized. Default: `4096`.
+
+    Each `PreviewField` selector has a `name` and an optional `match`. Use
+    `FieldMatchMode.ANYWHERE` (default) to match the field name at any depth in
+    the object tree, or `FieldMatchMode.PATH` to match an exact dot-notation path
+    from the root.
+
+    Field names that contain a dot are not supported in selectors because a dot is
+    indistinguishable from a path separator. Array structure is not preserved in
+    the output: fields from array elements merge into a plain object at the
+    array's path.
+
+=== "Python"
+
+    Coming soon.
+
+=== "Java"
+
+    Coming soon.
+
+### Set as the default for the handler
+
+When you want every step result, child-context result, invoke result, and
+waitForCondition result in the handler to use the FileSystem serdes, configure it
+once with `configureSerdes`.
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-default.ts"
+    ```
+
+=== "Python"
+
+    Coming soon. See
+    [aws-durable-execution-sdk-python#479](https://github.com/aws/aws-durable-execution-sdk-python/issues/479).
+
+=== "Java"
+
+    Coming soon. See
+    [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
+
 ## Serialization errors
 
 When serialization or deserialization fails, each SDK raises or throws a specific
