@@ -8,6 +8,13 @@ export const handler = withDurableExecution(async (event, context) => {
     { retryStrategy: retryPresets.default },
   );
 
+  // Linear: 6 attempts, delays of 1s, 2s, 3s, 4s, 5s
+  const audit = await context.step(
+    "audit-log",
+    async () => writeAuditLog(),
+    { retryStrategy: retryPresets.linear },
+  );
+
   // No retry: fail immediately on first error
   const critical = await context.step(
     "charge-payment",
@@ -15,8 +22,9 @@ export const handler = withDurableExecution(async (event, context) => {
     { retryStrategy: retryPresets.noRetry },
   );
 
-  return { result, critical };
+  return { result, audit, critical };
 });
 
 async function callApi(): Promise<string> { return "ok"; }
+async function writeAuditLog(): Promise<string> { return "logged"; }
 async function chargePayment(): Promise<string> { return "charged"; }

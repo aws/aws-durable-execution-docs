@@ -18,10 +18,11 @@ with up to 5 retries (6 total attempts). See [Retry presets](#retry-presets).
 
 A retry strategy is a function that takes the error and the current attempt number, and
 returns a decision. The decision is either to retry with a given delay, or to stop. You
-can write a retry strategy directly yourself or use the built-in helper to build a
-ready-made retry strategy from configuration.
+can write a retry strategy directly yourself or use one of the built-in helpers to build
+a ready-made strategy from configuration. The SDK ships helpers for exponential backoff
+and linear backoff.
 
-### RetryStrategy helper
+### Exponential backoff
 
 === "TypeScript"
 
@@ -145,6 +146,110 @@ final_delay = jitter(base_delay), minimum 1 second
 - `JitterStrategy.HALF` randomizes between 50% and 100% of `base_delay`.
 - `JitterStrategy.NONE` uses the exact calculated delay.
 
+### Linear backoff
+
+Linear backoff grows the delay by a fixed `increment` on each attempt instead of
+multiplying by a backoff rate. Use it when you want predictable, bounded growth between
+retries rather than the rapid expansion of exponential backoff.
+
+=== "TypeScript"
+
+    Use `createLinearRetryStrategy()` to build a strategy, then pass it as
+    `retryStrategy` in `StepConfig`.
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/error-handling/linear-retry-strategy.ts"
+    ```
+
+=== "Python"
+
+    Use `create_linear_retry_strategy()` with a `LinearRetryStrategyConfig`, then pass it
+    as `retry_strategy` in `StepConfig`.
+
+    ```python
+    --8<-- "examples/python/sdk-reference/error-handling/linear-retry-strategy.py"
+    ```
+
+=== "Java"
+
+    Use `RetryStrategies.linearBackoff()` to build a strategy, then pass it to
+    `StepConfig.builder().retryStrategy()`.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/error-handling/linear-retry-strategy.java"
+    ```
+
+#### LinearRetryStrategyConfig signature
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/error-handling/linear-retry-strategy-config-signature.ts"
+    ```
+
+    **Parameters:**
+
+    - `maxAttempts` (optional) Total attempts including the initial attempt. Default: `6`.
+    - `initialDelay` (optional) Delay before the first retry. Default: `{ seconds: 1 }`.
+    - `increment` (optional) Amount added to the delay on each retry. Default:
+        `{ seconds: 1 }`.
+    - `maxDelay` (optional) Maximum delay between retries. Default: `{ minutes: 5 }`.
+    - `jitter` (optional) A `JitterStrategy` value. Default: `JitterStrategy.FULL`.
+    - `retryableErrors` (optional) Array of strings or `RegExp` patterns matched against
+        the error message. The SDK retries all errors when you set neither
+        `retryableErrors` nor `retryableErrorTypes`.
+    - `retryableErrorTypes` (optional) Array of error classes. The SDK retries only
+        errors that are instances of these classes. When you set both filters, the SDK
+        retries an error if it matches either (OR logic).
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/sdk-reference/error-handling/linear-retry-strategy-config-signature.py"
+    ```
+
+    **Parameters:**
+
+    - `max_attempts` (optional) Total attempts including the initial attempt. Default: `6`.
+    - `initial_delay` (optional) A `Duration`. Default: `Duration.from_seconds(1)`.
+    - `increment` (optional) Amount added to the delay on each retry. Default:
+        `Duration.from_seconds(1)`.
+    - `max_delay` (optional) A `Duration`. Default: `Duration.from_minutes(5)`.
+    - `jitter_strategy` (optional) A `JitterStrategy` value. Default:
+        `JitterStrategy.FULL`.
+    - `retryable_errors` (optional) List of strings or compiled `re.Pattern` objects
+        matched against the error message. The SDK retries all errors when you set
+        neither `retryable_errors` nor `retryable_error_types`.
+    - `retryable_error_types` (optional) List of exception classes. The SDK retries only
+        exceptions that are instances of these classes. When you set both filters, the
+        SDK retries an error if it matches either (OR logic).
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/sdk-reference/error-handling/linear-retry-strategy-config-signature.java"
+    ```
+
+    **Parameters:**
+
+    - `maxAttempts` Total attempts including the initial attempt.
+    - `initialDelay` A `java.time.Duration`. Minimum 1 second.
+    - `maxDelay` A `java.time.Duration`. Minimum 1 second. Caps the calculated delay.
+    - `increment` A `java.time.Duration` added to the delay on each retry.
+    - `jitter` A `JitterStrategy` value. The three-argument overload omits both
+        `maxDelay` and `jitter`.
+
+#### Delay calculation
+
+Linear backoff calculates the delay before each retry as:
+
+```
+base_delay = min(initial_delay + increment × (attempt - 1), max_delay)
+final_delay = jitter(base_delay), minimum 1 second
+```
+
+The same `JitterStrategy` values apply: `FULL`, `HALF`, and `NONE`.
+
 ### Write a custom strategy
 
 You can write your own retry strategy directly. The SDK calls it with the error and the
@@ -210,6 +315,9 @@ The SDK ships with preset strategies for common cases:
     **`retryPresets.default`** 6 attempts, 5s initial delay, 60s max, 2x backoff, full
     jitter.
 
+    **`retryPresets.linear`** 6 attempts with linear delays of 1s, 2s, 3s, 4s, 5s and no
+    jitter.
+
     **`retryPresets.noRetry`** 1 attempt, fails immediately on error.
 
 === "Python"
@@ -231,6 +339,12 @@ The SDK ships with preset strategies for common cases:
     **`RetryPresets.critical()`** 10 attempts, 1s initial delay, 60s max, 1.5x backoff, no
     jitter.
 
+    **`RetryPresets.linear()`** 6 attempts with linear delays of 1s, 2s, 3s, 4s, 5s and no
+    jitter.
+
+    **`RetryPresets.fixed(interval)`** 5 attempts at a constant interval. Defaults to a
+    5 second interval. Pass a `Duration` to override.
+
 === "Java"
 
     ```java
@@ -240,7 +354,56 @@ The SDK ships with preset strategies for common cases:
     **`RetryStrategies.Presets.DEFAULT`** 6 attempts, 5s initial delay, 60s max, 2x backoff,
     full jitter.
 
+    **`RetryStrategies.Presets.LINEAR`** 6 attempts with linear delays capped at 5 seconds
+    and no jitter.
+
     **`RetryStrategies.Presets.NO_RETRY`** Fails immediately on first error.
+
+## Retry any durable operation
+
+Use the `withRetry` helper to wrap any durable operation in a replay-safe retry loop.
+The `withRetry` helper extends the same `RetryStrategy` configuration capability
+available to `step` to other operations, such as `invoke`, `waitForCallback`, and
+`waitForCondition`.
+
+=== "TypeScript"
+
+    `withRetry(context, name?, func, config)` runs `func` and retries it on failure.
+    The function receives the durable context and the 1-based attempt number. By
+    default the loop is wrapped in `runInChildContext` so all attempts group under one
+    operation in execution history.
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/error-handling/with-retry-helper.ts"
+    ```
+
+=== "Python"
+
+    `with_retry(context, func, config, name=None)` runs `func` and retries it on
+    failure. The function receives the durable context and the 1-based attempt number.
+    By default the loop is wrapped in `run_in_child_context` so all attempts group
+    under one operation in execution history.
+
+    ```python
+    --8<-- "examples/python/sdk-reference/error-handling/with-retry-helper.py"
+    ```
+
+=== "Java"
+
+    `DurableContext.withRetry(name, operation, config)` runs `operation` and retries
+    it on failure. The `BiFunction` receives the 1-based attempt number first and the
+    durable context second. An async overload, `withRetryAsync`, returns a
+    `DurableFuture<T>` for parallel use.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/error-handling/with-retry-helper.java"
+    ```
+
+The `withRetry` helper wraps the retry loop in a child context and uses `context.wait`
+between attempts to suspend the invocation while waiting for the retry interval. The
+child context, the wait operations, and any operations inside each attempt count toward
+the durable operations the execution consumes. See
+[AWS Lambda service quotas](https://docs.aws.amazon.com/general/latest/gr/lambda-service.html).
 
 ## Retry only specific errors
 
