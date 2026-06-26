@@ -174,8 +174,14 @@ execute the same operation concurrently for each item in a collection.
     - `completionConfig` (optional) When to stop. Default: wait for all branches.
     - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
     - `itemSerdes` (optional) Custom `Serdes` for individual branch results.
-    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. `FLAT`
-        reduces operation overhead by ~30% at the cost of lower observability.
+    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`.
+        - With `NESTED`, child operations appear as separate scopes in the execution history,
+      making workflows easier to inspect and troubleshoot. This is recommended when
+      detailed execution visibility is important.
+        - With `FLAT`, child operations are flattened into the parent operation. This reduces
+      operation overhead by ~30%, but provides less detail in execution history and
+      observability tools such as CloudWatch logs. This is recommended for high-volume
+      workloads where minimizing overhead is more important than detailed tracing.
 
 === "Python"
 
