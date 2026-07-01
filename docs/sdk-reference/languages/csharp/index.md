@@ -6,10 +6,6 @@ serialization. The durable operations and execution model match the other SDKs. 
 differs is the host surface: your handler receives the service envelope, you call
 `DurableFunction.WrapAsync` yourself, and every operation body takes a `CancellationToken`.
 
-!!! note
-
-    The .NET SDK is in preview (`0.x`). Public APIs may change before `1.0`.
-
 ## Installation
 
 Add the package to your Lambda function project:
@@ -17,8 +13,6 @@ Add the package to your Lambda function project:
 ```console
 dotnet add package Amazon.Lambda.DurableExecution
 ```
-
-The SDK targets `net8.0` and `net10.0`. Deploy on the managed `dotnet10` runtime.
 
 ## Usage
 
