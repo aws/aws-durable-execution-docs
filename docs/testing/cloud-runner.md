@@ -29,6 +29,12 @@ until the execution completes.
     --8<-- "examples/java/testing/cloud-runner/cloud-runner.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/testing/cloud-runner/cloud-runner.cs"
+    ```
+
 ### Deploy before running
 
 Cloud mode requires a deployed function. Deploy with your preferred tool before running
@@ -74,6 +80,14 @@ completion.
 
     ```java
     --8<-- "examples/java/testing/cloud-runner/cloud-runner-timeout.java"
+    ```
+
+=== "C#"
+
+    Set `DefaultTimeout` on `CloudTestRunnerOptions`, or pass a `timeout` to `RunAsync`:
+
+    ```csharp
+    --8<-- "examples/csharp/testing/cloud-runner/cloud-runner-timeout.cs"
     ```
 
 ### Required IAM permissions

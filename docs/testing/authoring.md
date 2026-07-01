@@ -26,6 +26,14 @@
     </dependency>
     ```
 
+=== "C#"
+
+    Add the testing package to your test project:
+
+    ```bash
+    dotnet add package Amazon.Lambda.DurableExecution.Testing
+    ```
+
 ## Write a minimal test
 
 Create a runner with your handler, call `run()`, and assert on the result.
@@ -59,6 +67,16 @@ Create a runner with your handler, call `run()`, and assert on the result.
     --8<-- "examples/java/testing/authoring/minimal-test.java"
     ```
 
+=== "C#"
+
+    Construct `DurableTestRunner<TIn, TOut>` with your workflow delegate and
+    `new TestRunnerOptions { SkipTime = true }`, call `RunAsync()`, then
+    `EnsureSucceeded()` and assert on `Result`.
+
+    ```csharp
+    --8<-- "examples/csharp/testing/authoring/minimal-test.cs"
+    ```
+
 ## Test a failed execution
 
 When your handler throws outside a step, or a step exhausts all retries, the execution
@@ -82,6 +100,12 @@ fails. Assert on the status and inspect the error.
     --8<-- "examples/java/testing/authoring/test-failure.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/testing/authoring/test-failure.cs"
+    ```
+
 ## Test retries
 
 The test runner drives the full retry loop via replay. Configure a retry strategy on the
@@ -103,6 +127,12 @@ step, and the runner re-invokes the handler as many times as needed.
 
     ```java
     --8<-- "examples/java/testing/authoring/test-retries.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/testing/authoring/test-retries.cs"
     ```
 
 ## Skip time in tests
@@ -144,6 +174,18 @@ runner collapses these delays so tests finish in milliseconds.
     runner.runUntilComplete(input); // advanceTime() runs after each invocation
     ```
 
+=== "C#"
+
+    `TestRunnerOptions.SkipTime` defaults to `true`, so `RunAsync()` completes both
+    `WaitAsync` timers and step retry backoffs immediately without real-time sleeps.
+    Set it to `false` to assert on real wait durations.
+
+    ```csharp
+    await using var runner = new DurableTestRunner<TIn, TOut>(
+        Workflow, new TestRunnerOptions { SkipTime = true });
+    await runner.RunAsync(input); // waits and retry backoffs complete instantly
+    ```
+
 See [Workflow patterns: Long waits](workflow-patterns.md#long-waits) for a worked
 example.
 
@@ -168,6 +210,12 @@ own runner instance.
 
     ```java
     --8<-- "examples/java/testing/authoring/test-branching.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/testing/authoring/test-branching.cs"
     ```
 
 ## See also

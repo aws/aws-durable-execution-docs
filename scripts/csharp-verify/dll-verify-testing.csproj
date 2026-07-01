@@ -30,6 +30,8 @@
       <HintPath>$(TestingBin)\Amazon.Lambda.DurableExecution.Testing.dll</HintPath>
     </Reference>
     <PackageReference Include="xunit" Version="2.9.2" />
+    <!-- CloudDurableTestRunner's constructor exposes IAmazonLambda (AWSSDK.Lambda). -->
+    <PackageReference Include="AWSSDK.Lambda" Version="4.0.0" />
   </ItemGroup>
 
   <ItemGroup>

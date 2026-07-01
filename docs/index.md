@@ -3,7 +3,7 @@
 !!! note
 
     This guide covers the **AWS Durable Execution SDK**, the client library you use to write
-    durable functions in TypeScript, Python, and Java. For service-level topics including
+    durable functions in TypeScript, Python, Java, and C#. For service-level topics including
     IAM permissions, service quotas, infrastructure-as-code configuration, and monitoring,
     see
     [Lambda durable functions](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html)

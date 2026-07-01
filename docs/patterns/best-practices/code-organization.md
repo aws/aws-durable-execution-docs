@@ -28,6 +28,12 @@ than inline in the operation. Keep `DurableContext` out of your domain logic.
     --8<-- "examples/java/patterns/code-organization/separate-logic.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/code-organization/separate-logic.cs"
+    ```
+
 !!! tip
 
     Simplify your unit testing by not referencing `DurableContext` in your domain logic
@@ -60,6 +66,12 @@ operations.
     --8<-- "examples/java/patterns/code-organization/child-context.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/code-organization/child-context.cs"
+    ```
+
 ## Group related configuration
 
 When several steps share the same retry strategy, timeout, or serdes, define the
@@ -82,6 +94,12 @@ intent clear.
 
     ```java
     --8<-- "examples/java/patterns/code-organization/group-config.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/code-organization/group-config.cs"
     ```
 
 ## Run independent work concurrently
@@ -107,6 +125,12 @@ survives Lambda timeouts or sandbox crashes, unlike language-specific constructs
 
     ```java
     --8<-- "examples/java/patterns/code-organization/parallelism.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/code-organization/parallelism.cs"
     ```
 
 See the [parallel](../../sdk-reference/operations/parallel.md) and
