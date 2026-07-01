@@ -208,16 +208,27 @@ execution role you just created.
 
 === "C#"
 
-    .NET packaging differs structurally from the other runtimes: you build with
-    the .NET SDK, deploy on the managed `dotnet10` runtime, and set the handler
-    string according to your programming model (executable, class library, or
-    Lambda Annotations).
+    Add the SDK to your project, then publish and package the output:
 
-    Rather than duplicate that here, see the [C# SDK guide](../sdk-reference/languages/csharp/index.md),
-    which documents the programming models, serializer registration, and handler
-    string for each. Deploy with the same `aws lambda create-function` and
-    `--durable-config` flow shown for the other runtimes, substituting
-    `--runtime dotnet10` and your model's handler string.
+    ```console
+    dotnet add package Amazon.Lambda.DurableExecution
+
+    dotnet publish -c Release -o publish
+    cd publish && zip -r ../function.zip . && cd ..
+
+    aws lambda create-function \
+      --function-name my-durable-function \
+      --runtime dotnet10 \
+      --role arn:aws:iam::123456789012:role/durable-function-role \
+      --handler MyDurableFunction \
+      --zip-file fileb://function.zip \
+      --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
+    ```
+
+    The `--handler` value depends on your programming model: the assembly name for
+    the executable model, or `Assembly::Namespace.Type::Method` for a class library.
+    See the [C# SDK guide](../sdk-reference/languages/csharp/index.md) for the
+    programming models, serializer registration, and handler string for each.
 
 ### Publish a version
 
