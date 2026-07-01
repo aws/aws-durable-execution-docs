@@ -75,16 +75,13 @@ logs and traces.
 
 ## Programming models
 
-The other SDKs offer one handler pattern each. .NET gives you two, plus a code generator.
-All three run on the managed `dotnet10` runtime.
+The managed .NET runtime supports three ways to host a durable function.
 
-The **executable model** shown above owns its entry point. `Main` builds a
-`LambdaBootstrap` with your handler and an `ILambdaSerializer`, then calls `RunAsync()`.
+The **executable model** shown above owns its entry point: `Main` builds a
+`LambdaBootstrap` and calls `RunAsync()`.
 
-The **class-library model** skips the `Main` and `LambdaBootstrap` loop. The managed
-runtime supplies the bootstrap and invokes your handler directly. Declare the serializer
-with an assembly attribute and deploy with an `Assembly::Namespace.Type::Method` handler
-string (for example, `OrderProcessor::OrderProcessor.OrderProcessor::Handler`):
+The **class-library model** drops the `Main` loop. Declare the serializer with an assembly
+attribute and deploy with an `Assembly::Namespace.Type::Method` handler string:
 
 ```csharp
 using Amazon.Lambda.Core;
@@ -108,12 +105,11 @@ public class OrderProcessor
 }
 ```
 
-**Lambda Annotations** removes the handler and `WrapAsync` boilerplate. Add
+**Lambda Annotations** removes the boilerplate. Add
 [Amazon.Lambda.Annotations](https://github.com/aws/aws-lambda-dotnet/tree/master/Libraries/src/Amazon.Lambda.Annotations)
-and annotate your workflow method with both `[LambdaFunction]` and `[DurableExecution]`.
-The source generator emits the handler wrapper that calls `DurableFunction.WrapAsync`,
-and writes the `DurableConfig` block and checkpoint-API IAM permissions into the
-generated `serverless.template`.
+and annotate your workflow with `[LambdaFunction]` and `[DurableExecution]`. The source
+generator emits the `WrapAsync` wrapper and writes the `DurableConfig` block and
+checkpoint-API IAM permissions into the generated `serverless.template`.
 
 ```csharp
 using Amazon.Lambda.Annotations;
@@ -150,10 +146,7 @@ to `HandlerWrapper.GetHandlerWrapper`; in the class-library model you declare it
 
 For reflection-based serialization, use `DefaultLambdaJsonSerializer`. For trimmed or
 Native AOT functions, register `SourceGeneratorLambdaJsonSerializer<TContext>` with your
-`JsonSerializerContext` instead. AOT and reflection scenarios share one code path in the
-SDK, so no operation takes a per-call serializer argument. The library ships as
-`IsTrimmable`; keep your workflow and the types you checkpoint trim-clean so the AOT
-analyzer stays quiet.
+`JsonSerializerContext` instead. No operation takes a per-call serializer argument.
 
 ## Cancellation
 
