@@ -30,3 +30,13 @@ custom client to control the region, retry settings, credentials, or other optio
     ```java
     --8<-- "examples/java/configuration/custom-client.java"
     ```
+
+=== "C#"
+
+    Build an `AmazonLambdaConfig` (region, retry settings, and so on), construct an
+    `AmazonLambdaClient` from it, and pass that `IAmazonLambda` as the fourth argument to
+    `DurableFunction.WrapAsync`.
+
+    ```csharp
+    --8<-- "examples/csharp/configuration/custom-client.cs"
+    ```

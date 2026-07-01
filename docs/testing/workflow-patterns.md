@@ -28,6 +28,12 @@ that all steps ran and that the final result reflects the full chain.
     --8<-- "examples/java/testing/examples/sequential-workflow.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/testing/examples/sequential-workflow.cs"
+    ```
+
 ## Child contexts
 
 Child contexts group operations under a named scope. The test result exposes the child
@@ -50,6 +56,12 @@ operations.
 
     ```java
     --8<-- "examples/java/testing/examples/child-context.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/testing/examples/child-context.cs"
     ```
 
 ## Parallel operations
@@ -75,6 +87,12 @@ branches completed.
     --8<-- "examples/java/testing/examples/parallel-workflow.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/testing/examples/parallel-workflow.cs"
+    ```
+
 ## Partial failures
 
 When a step fails after earlier steps have succeeded, the execution fails but the
@@ -97,6 +115,12 @@ steps to verify which ones ran before the failure.
 
     ```java
     --8<-- "examples/java/testing/examples/partial-failures.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/testing/examples/partial-failures.cs"
     ```
 
 ## Long waits
@@ -132,6 +156,16 @@ skipping. Each SDK handles this differently.
     --8<-- "examples/java/testing/examples/long-waits.java"
     ```
 
+=== "C#"
+
+    `TestRunnerOptions.SkipTime` defaults to `true`, so the runner completes STARTED
+    waits immediately without waiting for real time. The day-long wait resolves in
+    milliseconds.
+
+    ```csharp
+    --8<-- "examples/csharp/testing/examples/long-waits.cs"
+    ```
+
 ## Polling with waitForCondition
 
 `waitForCondition` polls a check function until it signals done. The test runner drives
@@ -153,6 +187,12 @@ the polling loop the same way it drives retries.
 
     ```java
     --8<-- "examples/java/testing/examples/polling.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/testing/examples/polling.cs"
     ```
 
 ## See also

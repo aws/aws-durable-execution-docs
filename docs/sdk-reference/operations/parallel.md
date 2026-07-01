@@ -29,6 +29,12 @@ execute the same operation concurrently for each item in a collection.
     --8<-- "examples/java/operations/parallel/simple-parallel.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/parallel/simple-parallel.cs"
+    ```
+
 ## Method signature
 
 ### context.parallel
@@ -154,6 +160,54 @@ execute the same operation concurrently for each item in a collection.
         .build()
     ```
 
+=== "C#"
+
+    ```csharp
+    Task<IBatchResult<T>> ParallelAsync<T>(
+        IReadOnlyList<Func<IDurableContext, CancellationToken, Task<T>>> branches,
+        string? name = null,
+        ParallelConfig? config = null,
+        CancellationToken cancellationToken = default)
+
+    Task<IBatchResult<T>> ParallelAsync<T>(
+        IReadOnlyList<DurableBranch<T>> branches,
+        string? name = null,
+        ParallelConfig? config = null,
+        CancellationToken cancellationToken = default)
+    ```
+
+    **Parameters:**
+
+    - `branches` The branches to run concurrently, either as plain
+        `Func<IDurableContext, CancellationToken, Task<T>>` delegates or as named
+        `DurableBranch<T>` records.
+    - `name` (optional) A name for the parallel operation. Omit it to infer one from the
+        call site.
+    - `config` (optional) A `ParallelConfig` object.
+    - `cancellationToken` (optional) A token linked with the SDK's workflow-shutdown
+        signal, forwarded to each branch.
+
+    **Returns:** `Task<IBatchResult<T>>`. Use `await` to get the result.
+
+    **Throws:** Branch exceptions are captured in the `IBatchResult`. A completion-criteria
+    violation surfaces as `ParallelException` when awaited. Call `ThrowIfError()` to
+    re-throw the first branch failure explicitly.
+
+    **`DurableBranch<T>`**
+
+    Use the second overload to give each branch a name. `DurableBranch<T>` is a record
+    pairing a name with the branch function; the name surfaces on `IBatchItem<T>.Name`.
+
+    ```csharp
+    public sealed record DurableBranch<T>(
+        string Name,
+        Func<IDurableContext, CancellationToken, Task<T>> Func);
+    ```
+
+    - `Name` (required) A name for this branch.
+    - `Func` An async function receiving the branch's `IDurableContext` and a
+        `CancellationToken`, returning `Task<T>`.
+
 ### ParallelConfig
 
 === "TypeScript"
@@ -214,6 +268,31 @@ execute the same operation concurrently for each item in a collection.
     - `completionConfig` (optional) When to stop. Default:
         `CompletionConfig.allCompleted()`.
 
+=== "C#"
+
+    ```csharp
+    public sealed class ParallelConfig
+    {
+        public int? MaxConcurrency { get; set; }              // null = unlimited
+        public CompletionConfig CompletionConfig { get; set; } // default AllSuccessful()
+        public NestingType NestingType { get; set; }          // default Nested
+    }
+    ```
+
+    **Parameters:**
+
+    - `MaxConcurrency` (optional) Maximum branches running at once. `null` (default) =
+        unlimited. Must be at least 1 when set.
+    - `CompletionConfig` (optional) When to stop. Default:
+        `CompletionConfig.AllSuccessful()`.
+    - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`.
+        `Flat` records per-branch results inline on the parallel operation instead of
+        emitting a per-branch `CONTEXT` checkpoint.
+
+    The `IBatchResult` is reconstructed from per-branch checkpoints, which are serialized
+    with the `ILambdaSerializer` registered on `ILambdaContext.Serializer`; there is no
+    per-operation serializer slot.
+
 ### CompletionConfig
 
 See [Completion strategies](#completion-strategies) for how `CompletionConfig` affects
@@ -248,6 +327,23 @@ execution and the completion status of the result.
     CompletionConfig.minSuccessful(int count)
     CompletionConfig.toleratedFailureCount(int count)
     ```
+
+=== "C#"
+
+    ```csharp
+    CompletionConfig.AllSuccessful()  // tolerate zero failures (the default)
+    CompletionConfig.AllCompleted()   // run every branch; never auto-throws
+    CompletionConfig.FirstSuccessful() // resolve once one branch succeeds
+
+    // Or set the individual properties directly:
+    new CompletionConfig { MinSuccessful = 2 }
+    new CompletionConfig { ToleratedFailureCount = 1 }
+    new CompletionConfig { ToleratedFailurePercentage = 0.25 } // ratio in [0.0, 1.0]
+    ```
+
+    `AllSuccessful()` is equivalent to `ToleratedFailureCount = 0`, and `FirstSuccessful()`
+    is equivalent to `MinSuccessful = 1`. Multiple criteria combine: the operation resolves
+    as soon as any criterion is met or violated.
 
 ### Result types
 
@@ -413,6 +509,76 @@ execution and the completion status of the result.
     the `DurableFuture<T>` returned by each `branch()` call and call `.get()` on it after
     `parallel.get()` returns. Results are available in the order branches were registered.
 
+=== "C#"
+
+    ```csharp
+    public interface IBatchResult<T> : IBatchResult
+    {
+        IReadOnlyList<IBatchItem<T>> All { get; }
+        IReadOnlyList<IBatchItem<T>> Succeeded { get; }
+        IReadOnlyList<IBatchItem<T>> Failed { get; }
+        IReadOnlyList<IBatchItem<T>> Started { get; }
+        IReadOnlyList<T> GetResults();
+        IReadOnlyList<DurableExecutionException> GetErrors();
+        void ThrowIfError();
+    }
+
+    public interface IBatchResult
+    {
+        CompletionReason CompletionReason { get; }
+        bool HasFailure { get; }
+        int SuccessCount { get; }
+        int FailureCount { get; }
+        int StartedCount { get; }
+        int TotalCount { get; }
+    }
+    ```
+
+    - **`All`** all `IBatchItem` entries, one per branch, in original index order. Iterate
+        with `item.Index` for branch-indexed access when some branches fail.
+    - **`Succeeded` / `Failed` / `Started`** `IBatchItem` lists filtered by status, in
+        original index order
+    - **`GetResults()`** results of succeeded branches, preserving input order. Skips
+        failed and started items, so it never throws on partial-failure batches
+    - **`GetErrors()`** `DurableExecutionException` list for failed branches
+    - **`SuccessCount` / `FailureCount` / `StartedCount` / `TotalCount`** branch counts
+    - **`HasFailure`** `true` if any branch failed
+    - **`CompletionReason`** why the operation completed. See
+        [Completion strategies](#completion-strategies).
+    - **`ThrowIfError()`** throws the first failed branch's `Error`, if any
+
+    ```csharp
+    public interface IBatchItem<T>
+    {
+        int Index { get; }
+        string? Name { get; }
+        BatchItemStatus Status { get; }
+        T? Result { get; }                       // set when Status is Succeeded
+        DurableExecutionException? Error { get; } // set when Status is Failed
+    }
+
+    public enum BatchItemStatus
+    {
+        Succeeded,
+        Failed,
+        Started
+    }
+
+    public enum CompletionReason
+    {
+        AllCompleted,
+        MinSuccessfulReached,
+        FailureToleranceExceeded
+    }
+    ```
+
+    - **`Index`** zero-based position of this branch in the input list
+    - **`Name`** the branch name (from `DurableBranch<T>.Name`), if any
+    - **`Status`** `Succeeded`, `Failed`, or `Started` (not dispatched before the operation
+        resolved)
+    - **`Result`** the branch return value, present when `Status` is `Succeeded`
+    - **`Error`** the captured error, present when `Status` is `Failed`
+
 ## Branch functions
 
 Each branch receives a `DurableContext` and can use any durable operation such as steps,
@@ -448,6 +614,16 @@ the parent context.
     --8<-- "examples/java/operations/parallel/named-branches.java"
     ```
 
+=== "C#"
+
+    A branch is a plain `Func<IDurableContext, CancellationToken, Task<T>>`, or a
+    `DurableBranch<T>` record to give it a name. Use the named overload to surface a name
+    on `IBatchItem<T>.Name` without defining a named method.
+
+    ```csharp
+    --8<-- "examples/csharp/operations/parallel/named-branches.cs"
+    ```
+
 ### Pass arguments to branches
 
 === "TypeScript"
@@ -475,6 +651,15 @@ the parent context.
     --8<-- "examples/java/operations/parallel/pass-arguments.java"
     ```
 
+=== "C#"
+
+    Capture arguments in the closure. Copy the loop variable to a local so each branch
+    captures its own value.
+
+    ```csharp
+    --8<-- "examples/csharp/operations/parallel/pass-arguments.cs"
+    ```
+
 ## Naming parallel operations
 
 Name your parallel operations to make them easier to identify in logs and tests.
@@ -491,6 +676,11 @@ Name your parallel operations to make them easier to identify in logs and tests.
 
     The name is always required. Each `branch()` call also requires a name. Pass `null` to
     omit it.
+
+=== "C#"
+
+    The name is the optional `name` argument. Omit it to infer one from the call site. Use
+    the `DurableBranch<T>` overload to name each branch.
 
 ## Configuration
 
@@ -512,6 +702,12 @@ Configure parallel behavior using `ParallelConfig`:
 
     ```java
     --8<-- "examples/java/operations/parallel/parallel-config.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/parallel/parallel-config.cs"
     ```
 
 ## Completion strategies
@@ -574,6 +770,24 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
         `ParallelConfig` in Java does not support `toleratedFailurePercentage`. Use
         `toleratedFailureCount` instead.
 
+=== "C#"
+
+    The `IBatchResult`'s `CompletionReason` indicates the stop condition with which the
+    parallel operation completed. Branches that were not dispatched before the operation
+    resolved appear in `result.All` with status `Started`.
+
+    | `CompletionConfig`                 | Early exit `CompletionReason` | Full completion `CompletionReason` |
+    | ---------------------------------- | ----------------------------- | ---------------------------------- |
+    | `AllSuccessful()` (default)        | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `AllCompleted()`                   | n/a                           | `AllCompleted`                     |
+    | `FirstSuccessful()`                | `MinSuccessfulReached`        | `AllCompleted`                     |
+    | `MinSuccessful = N`                | `MinSuccessfulReached`        | `AllCompleted`                     |
+    | `ToleratedFailureCount = N`        | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `ToleratedFailurePercentage = N`   | `FailureToleranceExceeded`    | `AllCompleted`                     |
+
+    When the operation resolves with `FailureToleranceExceeded`, awaiting it throws
+    `ParallelException`, which carries the aggregate result on `Result`.
+
 !!! note
 
     When using a `minSuccessful` strategy, failures do not trigger early exit. If all
@@ -596,6 +810,12 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
 
     ```java
     --8<-- "examples/java/operations/parallel/completion-config.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/parallel/completion-config.cs"
     ```
 
 ## Error handling
@@ -632,6 +852,16 @@ propagating it immediately. Other branches continue running.
 
     ```java
     --8<-- "examples/java/operations/parallel/error-handling.java"
+    ```
+
+=== "C#"
+
+    `IBatchResult.HasFailure` is `true` if any branch failed. Call `ThrowIfError()` to
+    propagate the first branch error as a `DurableExecutionException`, or inspect
+    `GetErrors()` to handle errors individually.
+
+    ```csharp
+    --8<-- "examples/csharp/operations/parallel/error-handling.cs"
     ```
 
 ## Checkpointing
@@ -706,6 +936,13 @@ and will receive no further checkpoint updates.
     re-executes the branches to reconstruct the `ParallelResult` from their individual
     checkpoints.
 
+=== "C#"
+
+    Each branch checkpoints its result as it completes. The `IBatchResult` is reconstructed
+    from those per-branch checkpoints rather than stored as a single aggregate blob, so the
+    SDK reassembles it on replay from the individual branch results. Per-branch payloads are
+    serialized with the `ILambdaSerializer` registered on `ILambdaContext.Serializer`.
+
 ## Nesting parallel operations
 
 A branch function can call `context.parallel()` to create nested parallel operations.
@@ -727,6 +964,12 @@ Each nested parallel creates its own set of child contexts.
 
     ```java
     --8<-- "examples/java/operations/parallel/nested-parallel.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/parallel/nested-parallel.cs"
     ```
 
 ## See also

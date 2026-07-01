@@ -32,7 +32,7 @@ Common commands:
 
 1. Create the markdown file in `docs/`
 2. Add the page to the nav section in `zensical.toml`
-3. Create corresponding code examples in all three languages under `examples/`
+3. Create corresponding code examples in all four languages under `examples/`
 4. Test locally with `zensical serve`
 
 ## Vendored dependencies
@@ -152,14 +152,14 @@ Edit documentation in the markdown files under `docs/`.
 
 Embed code samples in documentation pages with the `--8<--` snippet syntax with content tabs for multi-language support.
 
-**IMPORTANT**: All code examples MUST include all three languages (Python, TypeScript, Java) and remain functionally equivalent across languages. The tab order must always be TypeScript → Python → Java.
+**IMPORTANT**: All code examples MUST include all four languages (TypeScript, Python, Java, C#) and remain functionally equivalent across languages. The tab order must always be TypeScript → Python → Java → C#.
 
 #### Steps to add a new code sample:
 
 1. Create example files under `examples/` following the page folder hierarchy
-2. Use identical names with hyphens across all languages (e.g., `retry-with-backoff.{py,ts,java}`)
+2. Use identical names with hyphens across all languages (e.g., `retry-with-backoff.{ts,py,java,cs}`)
 3. Organize by language: `examples/{language}/{section}/{subsection}/{example-name}.{ext}`
-4. Ensure all three language versions demonstrate the same functionality
+4. Ensure all four language versions demonstrate the same functionality
 5. Reference the examples in your documentation using content tabs:
 
 ```markdown
@@ -179,6 +179,12 @@ Embed code samples in documentation pages with the `--8<--` snippet syntax with 
 
     ```java
     --8<-- "examples/java/core/steps/basic-step.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/steps/basic-step.cs"
     ```
 ```
 
@@ -207,17 +213,28 @@ examples/
 │   └── advanced/
 │       └── error-handling/
 │           └── retry-with-backoff.py
-└── java/
+├── java/
+│   ├── getting-started/
+│   │   └── minimal-example.java
+│   ├── core/
+│   │   ├── steps/
+│   │   │   └── basic-step.java
+│   │   └── parallel/
+│   │       └── parallel-execution.java
+│   └── advanced/
+│       └── error-handling/
+│           └── retry-with-backoff.java
+└── csharp/
     ├── getting-started/
-    │   └── minimal-example.java
+    │   └── minimal-example.cs
     ├── core/
     │   ├── steps/
-    │   │   └── basic-step.java
+    │   │   └── basic-step.cs
     │   └── parallel/
-    │       └── parallel-execution.java
+    │       └── parallel-execution.cs
     └── advanced/
         └── error-handling/
-            └── retry-with-backoff.java
+            └── retry-with-backoff.cs
 ```
 
 This approach keeps code samples maintainable, testable, and consistent across all languages.
@@ -247,7 +264,7 @@ Example:
 ```
 add custom serdes examples
 
-- Add TypeScript, Python, and Java examples for custom
+- Add TypeScript, Python, Java, and C# examples for custom
   serialization
 - Include encryption-at-rest pattern for sensitive data
 - Update serialization doc page with snippet references

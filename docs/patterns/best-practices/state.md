@@ -37,6 +37,12 @@ state once you return it from the step.
     --8<-- "examples/java/patterns/state/durable-vs-local.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/state/durable-vs-local.cs"
+    ```
+
 ## Store references, not payloads
 
 A common pattern is to do the fetch inside the step, extract the identifier, and return
@@ -65,6 +71,12 @@ store inside the first step and pass the key or version ID to the next step.
 
     ```java
     --8<-- "examples/java/patterns/state/store-references.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/state/store-references.cs"
     ```
 
 ## Keep the handler input small
@@ -122,6 +134,12 @@ Keep per-item state small:
 
     ```java
     --8<-- "examples/java/patterns/state/batch-result-pointers.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/state/batch-result-pointers.cs"
     ```
 
 !!! tip

@@ -3,8 +3,8 @@
 This guide covers how to author documentation for AWS Lambda Durable Functions.
 For setup and contribution workflow, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Each SDK reference page must be equally useful to TypeScript, Python, and Java
-developers. No language is the implicit default. Language-specific quirks
+Each SDK reference page must be equally useful to TypeScript, Python, Java, and
+C# developers. No language is the implicit default. Language-specific quirks
 belong inside the relevant tab, not in shared prose.
 
 ## Verify Against SDK Source
@@ -26,7 +26,7 @@ For each code example:
 
 ### SDK repositories
 
-You will need the SDK source for all three languages. Clone them alongside
+You will need the SDK source for all four languages. Clone them alongside
 the docs repo:
 
 | Repository | Source path to read |
@@ -34,15 +34,17 @@ the docs repo:
 | [aws-durable-execution-sdk-js](https://github.com/aws/aws-durable-execution-sdk-js) | `packages/aws-durable-execution-sdk-js/src` |
 | [aws-durable-execution-sdk-python](https://github.com/aws/aws-durable-execution-sdk-python) | `src/aws_durable_execution_sdk_python` |
 | [aws-durable-execution-sdk-java](https://github.com/aws/aws-durable-execution-sdk-java) | `sdk/src/main/java/software/amazon/lambda/durable` |
+| [aws-lambda-dotnet](https://github.com/aws/aws-lambda-dotnet) | `Libraries/src/Amazon.Lambda.DurableExecution` |
 
 Testing SDKs are useful for confirming example code compiles and runs. The
-JavaScript and Java testing SDKs live in the same repos as the main SDKs
-(under `-testing` package paths). The Python testing SDK lives in a separate
-repo:
+JavaScript, Java, and C# testing SDKs live in the same repos as the main SDKs
+(under `-testing` package paths, or `Amazon.Lambda.DurableExecution.Testing`
+for C#). The Python testing SDK lives in a separate repo:
 
 | Repository | Source path to read |
 |---|---|
 | [aws-durable-execution-sdk-python-testing](https://github.com/aws/aws-durable-execution-sdk-python-testing) | `src/aws_durable_execution_sdk_python_testing` |
+| [aws-lambda-dotnet](https://github.com/aws/aws-lambda-dotnet) | `Libraries/src/Amazon.Lambda.DurableExecution.Testing` |
 
 
 ### Key source files
@@ -53,6 +55,10 @@ repo:
   `StepConfig` and `StepSemantics`. Check `types.py` for `StepContext`.
 - **Java**: `DurableContext.java` for the interface. Check
   `config/StepConfig.java`, `StepContext.java`, `StepSemantics.java`.
+- **C#**: `IDurableContext.cs` for the interface (also defines `IStepContext`,
+  `IExecutionContext`). Check `StepConfig.cs`, `RetryStrategy.cs` (also holds
+  `StepSemantics` and `JitterStrategy`), `DurableFunction.cs` for `WrapAsync`, and
+  the per-operation config types (`CallbackConfig.cs`, `MapConfig.cs`, etc.).
 
 ## Writing Style
 
@@ -149,7 +155,7 @@ as a whole new page can.
 
 ## Language Neutrality
 
-Tab order is always: **TypeScript → Python → Java**.
+Tab order is always: **TypeScript → Python → Java → C#**.
 
 If a language has a quirk, note it inside that language's tab:
 
@@ -177,6 +183,14 @@ If a language has a quirk, note it inside that language's tab:
     ```java
     --8<-- "examples/java/operations/steps/basic-step.java"
     ```
+
+=== "C#"
+
+    The name is optional. Omit it to infer one from the call site.
+
+    ```csharp
+    --8<-- "examples/csharp/operations/steps/basic-step.cs"
+    ```
 ```
 
 ## Page Structure
@@ -185,7 +199,7 @@ SDK reference pages follow this pattern:
 
 1. One or two short paragraphs explaining what the operation does and when
    to use it
-2. A minimal walkthrough example (tabs, all three languages)
+2. A minimal walkthrough example (tabs, all four languages)
 3. Method signature section with per-language tabs
 4. Parameters listed after the tabs (shared where identical, inside tabs
    where language-specific)
@@ -269,7 +283,7 @@ Model tone and structure on these pages:
 
 All code examples must:
 
-- Include all three languages (TypeScript, Python, Java)
+- Include all four languages (TypeScript, Python, Java, C#)
 - Be functionally equivalent across languages
 - Include necessary imports
 - Be minimal. Show the concept, not a full application.
@@ -283,9 +297,10 @@ examples/
   typescript/{section}/{subsection}/{example-name}.ts
   python/{section}/{subsection}/{example-name}.py
   java/{section}/{subsection}/{example-name}.java
+  csharp/{section}/{subsection}/{example-name}.cs
 ```
 
-Use hyphens in filenames. All three languages must have the same set of files.
+Use hyphens in filenames. All four languages must have the same set of files.
 
 ### Embedding in Docs
 
@@ -308,6 +323,12 @@ Use the `--8<--` snippet syntax with content tabs:
 
     ```java
     --8<-- "examples/java/operations/steps/basic-step.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/steps/basic-step.cs"
     ```
 ```
 
@@ -411,9 +432,9 @@ graph LR
 - [ ] All prose is language-neutral (no Python-only concepts described as universal)
 - [ ] No Table of Contents, no "Back to top" links, no "Back to X" links
 - [ ] No Terminology, Key Features, Best Practices, or FAQ sections
-- [ ] Tab order is TypeScript → Python → Java everywhere
+- [ ] Tab order is TypeScript → Python → Java → C# everywhere
 - [ ] Language-specific notes are inside tabs, not outside
-- [ ] All three languages have example files for every `--8<--` reference
+- [ ] All four languages have example files for every `--8<--` reference
 - [ ] Every example verified against the actual SDK source
 - [ ] Java method signatures show both sync and async variants
 - [ ] TypeScript signatures show both overloads where they exist

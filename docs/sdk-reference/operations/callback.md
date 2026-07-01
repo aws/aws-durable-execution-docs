@@ -49,6 +49,12 @@ You send the callback ID to an external system. The external system uses that ID
     --8<-- "examples/java/operations/callbacks/basic-example.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/callbacks/basic-example.cs"
+    ```
+
 ### Wait for Callback
 
 Wait for Callback combines callback creation, submission, and waiting for the result in
@@ -74,6 +80,12 @@ function and then waits for the result.
 
     ```java
     --8<-- "examples/java/operations/callbacks/wait-for-callback-example.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/callbacks/wait-for-callback-example.cs"
     ```
 
 ### Callback lifecycle
@@ -166,6 +178,27 @@ sequenceDiagram
     **Throws:** `CallbackFailedException` if the external system reports failure.
     `CallbackTimeoutException` if the callback times out.
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/callbacks/create-callback-signature.cs"
+    ```
+
+    **Parameters:**
+
+    - `name` (optional) A name for the callback. Omit it to infer one from the call
+        site.
+    - `config` (optional) A `CallbackConfig` object.
+    - `cancellationToken` (optional) A token to observe for cancellation.
+
+    **Returns:** `Task<ICallback<T>>`. Access `callback.CallbackId` to get the ID to send
+    to the external system. Call `callback.GetResultAsync()` to suspend until the external
+    system calls back.
+
+    **Throws:** `CallbackFailedException` if the external system reports failure.
+    `CallbackTimeoutException` if the callback times out. Both are thrown from
+    `GetResultAsync()`, not from `CreateCallbackAsync` itself.
+
 ### Callback Handle
 
 The object returned by `createCallback`.
@@ -202,6 +235,20 @@ The object returned by `createCallback`.
     - `callbackId()` The unique ID to send to the external system.
     - `get()` Blocks until the external system calls back. Throws `CallbackFailedException`
         or `CallbackTimeoutException` on failure.
+
+=== "C#"
+
+    ```csharp
+    public interface ICallback<T>
+    {
+        string CallbackId { get; }
+        Task<T> GetResultAsync(CancellationToken cancellationToken = default);
+    }
+    ```
+
+    - `CallbackId` The unique ID to send to the external system.
+    - `GetResultAsync()` Suspends until the external system calls back. Throws
+        `CallbackFailedException` or `CallbackTimeoutException` on failure.
 
 ### CallbackConfig
 
@@ -264,6 +311,28 @@ The object returned by `createCallback`.
         callback fails.
     - `serDes` (optional) Custom `SerDes` for the callback result. See
         [Serialization](../state/serialization.md).
+
+=== "C#"
+
+    ```csharp
+    public class CallbackConfig
+    {
+        public TimeSpan Timeout { get; set; }          // default TimeSpan.Zero (no timeout)
+        public TimeSpan HeartbeatTimeout { get; set; } // default TimeSpan.Zero (no timeout)
+    }
+    ```
+
+    **Parameters:**
+
+    - `Timeout` (optional) Maximum time to wait for the callback result. `TimeSpan.Zero`
+        (default) disables the overall timeout. Positive values must be at least 1 second.
+    - `HeartbeatTimeout` (optional) Maximum time between heartbeat signals from the external
+        system. If the external system does not send a heartbeat within this interval, the
+        callback fails. `TimeSpan.Zero` (default) disables the heartbeat timeout.
+
+    The callback result is serialized with the `ILambdaSerializer` registered on
+    `ILambdaContext.Serializer`; there is no per-callback serializer. See
+    [Serialization](../state/serialization.md).
 
 ### waitForCallback
 
@@ -334,6 +403,26 @@ callback ID rather than coding it yourself.
     `CallbackTimeoutException` if the callback times out. `CallbackSubmitterException` if
     the submitter step fails after exhausting retries.
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/callbacks/wait-for-callback-signature.cs"
+    ```
+
+    **Parameters:**
+
+    - `submitter` A function that receives the callback ID, an `IWaitForCallbackContext`,
+        and a `CancellationToken`, and submits the ID to the external system.
+    - `name` (optional) A name for the operation. Omit it to infer one from the call site.
+    - `config` (optional) A `WaitForCallbackConfig` object.
+    - `cancellationToken` (optional) A token to observe for cancellation.
+
+    **Returns:** `Task<T>`. Use `await` to get the callback result.
+
+    **Throws:** `CallbackFailedException` if the external system reports failure.
+    `CallbackTimeoutException` if the callback times out. `CallbackSubmitterException` if
+    the submitter step fails after exhausting retries.
+
 ### WaitForCallbackConfig
 
 `WaitForCallbackConfig` extends `CallbackConfig` with retry configuration for the
@@ -377,6 +466,21 @@ submitter step.
         strategy. See [Retry strategies](../error-handling/retries.md).
     - `callbackConfig` (optional) A `CallbackConfig` for the callback wait.
 
+=== "C#"
+
+    ```csharp
+    public class WaitForCallbackConfig : CallbackConfig
+    {
+        public IRetryStrategy? RetryStrategy { get; set; } // null = no retry
+    }
+    ```
+
+    - `RetryStrategy` (optional) An `IRetryStrategy` applied to the submitter step. When
+        null (default), submitter failures are not retried. Use the `RetryStrategy` factory
+        (for example `RetryStrategy.Exponential(...)`) to build one. See
+        [Retry strategies](../error-handling/retries.md).
+    - Inherits `Timeout` and `HeartbeatTimeout` from `CallbackConfig` for the callback wait.
+
 ## Timeout configuration
 
 Set a `timeout` to limit the duration the function waits for the external system. If the
@@ -419,6 +523,12 @@ help detect stalled external systems sooner.
     --8<-- "examples/java/operations/callbacks/callback-config.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/callbacks/callback-config.cs"
+    ```
+
 ## Naming callbacks
 
 Name callbacks to make them easier to identify in logs and tests. Use a name that
@@ -435,6 +545,10 @@ describes what the callback is waiting for.
 === "Java"
 
     The name is always the first argument. Pass `null` to omit it.
+
+=== "C#"
+
+    The name is the optional `name` argument. Omit it to infer one from the call site.
 
 ## Send callback results
 

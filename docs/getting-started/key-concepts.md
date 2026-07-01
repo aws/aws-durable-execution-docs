@@ -55,6 +55,12 @@ Your durable function receives a `DurableContext` instead of the default Lambda 
     --8<-- "examples/java/getting-started/durable-context.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/getting-started/durable-context.cs"
+    ```
+
 ## Operations
 
 Operations are units of work in a durable execution. Each operation type serves a
@@ -170,6 +176,12 @@ Let's trace through a simple workflow:
 
     ```java
     --8<-- "examples/java/getting-started/execution-model.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/getting-started/execution-model.cs"
     ```
 
 **First invocation (t=0s):**
