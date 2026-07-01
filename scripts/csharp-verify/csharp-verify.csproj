@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Throwaway compile-check harness for the C# documentation examples.
+    NOT part of the docs build or CI. It references the local Amazon.Lambda.DurableExecution
+    project and compiles ONE example file at a time against the real SDK surface, so
+    each snippet is proven to stand alone (matching how it appears in the docs) without
+    cross-file name collisions.
+
+    Usage (from repo root) — verify.sh loops over every example file:
+      bash scripts/csharp-verify/verify.sh
+
+    Or compile a single file directly:
+      dotnet build scripts/csharp-verify/csharp-verify.csproj -p:ExampleFile=<abs-path-to.cs>
+
+    Adjust <SdkProject> if the aws-lambda-dotnet checkout lives elsewhere.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <!-- Example snippets omit an entry point; suppress the "no Main" error. -->
+    <OutputType>Library</OutputType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <!-- Pseudo-signature files (e.g. step-signature.cs) are not compilable; exclude them. -->
+    <NoWarn>$(NoWarn)</NoWarn>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <SdkProject>..\..\..\aws-lambda-dotnet\Libraries\src\Amazon.Lambda.DurableExecution\Amazon.Lambda.DurableExecution.csproj</SdkProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="$(SdkProject)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Compile exactly one example file, supplied via -p:ExampleFile=<path>. -->
+    <Compile Include="$(ExampleFile)" />
+  </ItemGroup>
+
+</Project>

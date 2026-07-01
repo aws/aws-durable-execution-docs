@@ -29,6 +29,12 @@ Use map to apply the same operation to every item in a collection. Use
     --8<-- "examples/java/operations/map/simple-map.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/map/simple-map.cs"
+    ```
+
 ## Method signature
 
 ### context.map
@@ -91,6 +97,28 @@ Use map to apply the same operation to every item in a collection. Use
     failures. If the SDK cannot reconstruct the original exception, it throws
     `MapIterationFailedException`.
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/map/map-signature.cs"
+    ```
+
+    **Parameters:**
+
+    - `items` An `IReadOnlyList<TItem>` of items to process.
+    - `func` A function called for each item. See [Map Function](#map-function).
+    - `name` (optional) A name for the map operation. Omit it to infer one from the
+        call site.
+    - `config` (optional) A `MapConfig` object.
+    - `cancellationToken` (optional) A token linked with the SDK's workflow-shutdown
+        signal, forwarded to `func`.
+
+    **Returns:** `Task<IBatchResult<TResult>>`. Use `await` to get the result.
+
+    **Throws:** Item exceptions are captured in the `IBatchResult`. Inspect `Failed` to
+    detect failures, or call `ThrowIfError()` to re-throw the first failure. The map
+    throws `MapException` only when the `CompletionConfig` criteria are violated.
+
 ### Map Function
 
 === "TypeScript"
@@ -144,6 +172,24 @@ Use map to apply the same operation to every item in a collection. Use
     - `context` The child `DurableContext` for this item's execution.
 
     **Returns:** `O`.
+
+=== "C#"
+
+    ```csharp
+    Func<IDurableContext, TItem, int, IReadOnlyList<TItem>, CancellationToken, Task<TResult>>
+    ```
+
+    **Parameters:**
+
+    - `context` The child `IDurableContext` for this item's execution.
+    - `item` The current item being processed.
+    - `index` The zero-based index of the item in the input list.
+    - `items` The full input list.
+    - `cancellationToken` A token linked with the SDK's workflow-shutdown signal. It is
+        also tripped when a sibling item satisfies the `CompletionConfig` and the map
+        short-circuits.
+
+    **Returns:** `Task<TResult>`.
 
 ### MapConfig
 
@@ -210,6 +256,35 @@ Use map to apply the same operation to every item in a collection. Use
         `CompletionConfig.allCompleted()`.
     - `serDes` (optional) Custom `SerDes` for item results and the overall result.
 
+=== "C#"
+
+    ```csharp
+    public sealed class MapConfig
+    {
+        public int? MaxConcurrency { get; set; }               // null = unlimited
+        public CompletionConfig CompletionConfig { get; set; } // default AllCompleted()
+        public NestingType NestingType { get; set; }           // default Nested
+        public Func<object, int, string>? ItemNamer { get; set; }
+    }
+    ```
+
+    **Parameters:**
+
+    - `MaxConcurrency` (optional) Maximum items running at once. `null` (default) is
+        unlimited; must be at least 1 when set.
+    - `CompletionConfig` (optional) When to stop. Default: `CompletionConfig.AllCompleted()`
+        — every item runs regardless of per-item failures.
+    - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`.
+        `Flat` records per-item results inline on the map operation instead of emitting a
+        per-item `CONTEXT` checkpoint.
+    - `ItemNamer` (optional) A function that returns a custom name for each item, given the
+        item and its zero-based index. Used in logs and traces. When `null` (default),
+        items are named by index.
+
+    The `BatchResult` and per-item results are serialized with the `ILambdaSerializer`
+    registered on `ILambdaContext.Serializer`; there is no per-item serializer slot. See
+    [Serialization](../state/serialization.md).
+
 ### CompletionConfig
 
 See [Completion strategies](#completion-strategies) for how `CompletionConfig` affects
@@ -244,6 +319,20 @@ execution and the completion status of the result.
     CompletionConfig.minSuccessful(int count)
     CompletionConfig.toleratedFailureCount(int count)
     CompletionConfig.toleratedFailurePercentage(double percentage)
+    ```
+
+=== "C#"
+
+    Use the static factories or set the properties directly:
+
+    ```csharp
+    CompletionConfig.AllCompleted()    // default for map: every item runs
+    CompletionConfig.AllSuccessful()   // ToleratedFailureCount = 0
+    CompletionConfig.FirstSuccessful() // MinSuccessful = 1
+
+    new CompletionConfig { MinSuccessful = count }
+    new CompletionConfig { ToleratedFailureCount = count }
+    new CompletionConfig { ToleratedFailurePercentage = ratio } // ratio in [0.0, 1.0]
     ```
 
 ### Result types
@@ -390,6 +479,65 @@ execution and the completion status of the result.
     Items that did not start before the operation reached its completion criteria have
     status `SKIPPED` (not `STARTED` as in TypeScript and Python).
 
+=== "C#"
+
+    Map returns the same `IBatchResult<TResult>` type as parallel. It holds per-item
+    results with individual status, result, and error.
+
+    ```csharp
+    public interface IBatchResult<T> : IBatchResult
+    {
+        IReadOnlyList<IBatchItem<T>> All { get; }        // one per item, index order
+        IReadOnlyList<IBatchItem<T>> Succeeded { get; }
+        IReadOnlyList<IBatchItem<T>> Failed { get; }
+        IReadOnlyList<IBatchItem<T>> Started { get; }
+        IReadOnlyList<T> GetResults();                   // succeeded results, index order
+        IReadOnlyList<DurableExecutionException> GetErrors();
+        void ThrowIfError();                             // throws first item error, if any
+    }
+
+    public interface IBatchResult
+    {
+        CompletionReason CompletionReason { get; }
+        bool HasFailure { get; }
+        int SuccessCount { get; }
+        int FailureCount { get; }
+        int StartedCount { get; }
+        int TotalCount { get; }
+    }
+    ```
+
+    - **`All`** all `IBatchItem` entries, one per item, in original index order
+    - **`GetResults()`** results of succeeded items, preserving index order
+    - **`GetErrors()`** `DurableExecutionException` for failed items, in index order
+    - **`Succeeded` / `Failed` / `Started`** `IBatchItem` lists filtered by status
+    - **`SuccessCount` / `FailureCount` / `StartedCount` / `TotalCount`** item counts
+    - **`CompletionReason`** why the operation completed. See
+        [Completion strategies](#completion-strategies).
+    - **`HasFailure`** `true` if any item failed
+    - **`ThrowIfError()`** throws the first item error, if any
+
+    ```csharp
+    public interface IBatchItem<T>
+    {
+        int Index { get; }
+        string? Name { get; }
+        BatchItemStatus Status { get; }
+        T? Result { get; }                       // set when Status == Succeeded
+        DurableExecutionException? Error { get; } // set when Status == Failed
+    }
+
+    public enum BatchItemStatus
+    {
+        Succeeded,
+        Failed,
+        Started
+    }
+    ```
+
+    Items that did not start before the operation reached its completion criteria have
+    status `Started`.
+
 ## The map function
 
 The map function can use any durable operation such as steps, waits, or nested map and
@@ -412,6 +560,12 @@ state with each other or with the parent context.
 
     ```java
     --8<-- "examples/java/operations/map/map-function.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/map/map-function.cs"
     ```
 
 ## Naming map operations
@@ -451,6 +605,23 @@ Name your map operations to make them easier to identify in logs and tests.
     The name is always required in Java. The SDK derives each item's name from the operation
     name: `{name}-iteration-{index}`.
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/map/named-map.cs"
+    ```
+
+    The name is the optional trailing argument. Omit it to infer one from the call site.
+
+    Use `ItemNamer` in `MapConfig` to give each item a custom name:
+
+    ```csharp
+    var config = new MapConfig
+    {
+        ItemNamer = (item, index) => $"order-{((Order)item).Id}",
+    };
+    ```
+
 ## Configuration
 
 Configure map behavior using `MapConfig`:
@@ -471,6 +642,12 @@ Configure map behavior using `MapConfig`:
 
     ```java
     --8<-- "examples/java/operations/map/map-config.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/map/map-config.cs"
     ```
 
 ## Completion strategies
@@ -526,6 +703,20 @@ abandoned items, but cancellation is not guaranteed.
     | `toleratedFailureCount(N)`      | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
     | `toleratedFailurePercentage(p)` | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
 
+=== "C#"
+
+    The `IBatchResult`'s `CompletionReason` indicates the stop condition. Items that were
+    not dispatched before the operation completed have status `Started`.
+
+    | `CompletionConfig`                   | Early exit `CompletionReason` | Full completion `CompletionReason` |
+    | ------------------------------------ | ----------------------------- | ---------------------------------- |
+    | `AllCompleted()` (default)           | n/a                           | `AllCompleted`                     |
+    | `AllSuccessful()`                    | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `FirstSuccessful()`                  | `MinSuccessfulReached`        | `AllCompleted`                     |
+    | `MinSuccessful = N`                  | `MinSuccessfulReached`        | `AllCompleted`                     |
+    | `ToleratedFailureCount = N`          | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `ToleratedFailurePercentage = ratio` | `FailureToleranceExceeded`    | `AllCompleted`                     |
+
 !!! note
 
     When using a `minSuccessful` strategy, failures do not trigger early exit. If all items
@@ -548,6 +739,12 @@ abandoned items, but cancellation is not guaranteed.
 
     ```java
     --8<-- "examples/java/operations/map/completion-config.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/map/completion-config.cs"
     ```
 
 ## Error handling
@@ -583,6 +780,16 @@ propagating it immediately. Other items continue running.
 
     ```java
     --8<-- "examples/java/operations/map/error-handling.java"
+    ```
+
+=== "C#"
+
+    `IBatchResult.HasFailure` is `true` if any item failed. Call `ThrowIfError()` to
+    propagate the first item error as an exception, or inspect `GetErrors()` (which returns
+    `DurableExecutionException` objects) to handle errors individually.
+
+    ```csharp
+    --8<-- "examples/csharp/operations/map/error-handling.cs"
     ```
 
 ## Checkpointing
@@ -659,6 +866,15 @@ receive no further checkpoint updates.
     flag. On replay, the SDK re-executes the items to reconstruct the `MapResult` from their
     individual checkpoints.
 
+=== "C#"
+
+    The `IBatchResult` is reconstructed from the per-item child-context checkpoints — the
+    aggregate is never stored as a single serialized blob. On replay, the SDK reassembles the
+    `IBatchResult` from those individual checkpoints without re-executing completed items.
+
+    Each item's result is serialized with the `ILambdaSerializer` registered on
+    `ILambdaContext.Serializer`; there is no per-item summary generator to configure.
+
 ## Nesting map operations
 
 A map function can call `context.map()` or `context.parallel()` to create nested
@@ -680,6 +896,12 @@ operations. Each nested map creates its own set of child contexts.
 
     ```java
     --8<-- "examples/java/operations/map/nested-map.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/map/nested-map.cs"
     ```
 
 ## See also

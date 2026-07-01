@@ -91,6 +91,7 @@ nav = [
       { "TypeScript" = "sdk-reference/languages/typescript/index.md" },
       { "Python" = "sdk-reference/languages/python/index.md" },
       { "Java" = "sdk-reference/languages/java/index.md" },
+      { "C#" = "sdk-reference/languages/csharp/index.md" },
     ]},
   ]},
   { "Testing" = [

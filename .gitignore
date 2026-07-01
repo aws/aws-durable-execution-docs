@@ -10,6 +10,10 @@ __pycache__/
 # MkDocs build output
 site/
 
+# .NET build output (from the throwaway C# example compile-check harness)
+[Bb]in/
+[Oo]bj/
+
 # OS files
 .DS_Store
 Thumbs.db
@@ -20,3 +24,6 @@ Thumbs.db
 *~
 .vscode/
 .idea/
+
+# C# example compile-check scratch dir
+.verify/

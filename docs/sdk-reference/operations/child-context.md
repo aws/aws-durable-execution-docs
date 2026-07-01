@@ -35,6 +35,12 @@ multiple child contexts concurrently.
     --8<-- "examples/java/operations/child-contexts/basic-child-context.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/child-contexts/basic-child-context.cs"
+    ```
+
 ## Method signature
 
 ### Run in ChildContext
@@ -95,6 +101,28 @@ multiple child contexts concurrently.
     **Throws:** The original exception re-thrown after deserialization if possible,
     otherwise `ChildContextFailedException`.
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/child-contexts/run-in-child-context-signature.cs"
+    ```
+
+    **Parameters:**
+
+    - `func` A function that receives an `IDurableContext` and a `CancellationToken`
+        and returns a `Task<T>` (or `Task` for the no-value overload).
+    - `name` (optional) A name for the child context. Omit it to infer one from the
+        call site.
+    - `config` (optional) A `ChildContextConfig` object.
+    - `cancellationToken` (optional) A token linked with the SDK's workflow-shutdown
+        signal, forwarded to `func`.
+
+    **Returns:** `Task<T>`, or `Task` for the no-value overload. Use `await` to get the
+    result.
+
+    **Throws:** `ChildContextException` if the child context function throws. Supply
+    `ChildContextConfig.ErrorMapping` to remap it into a domain-specific exception.
+
 ### Child Config
 
 === "TypeScript"
@@ -144,6 +172,23 @@ multiple child contexts concurrently.
     - `serDes` (optional) Custom `SerDes` for the child context result. See
         [Serialization](../state/serialization.md).
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/child-contexts/child-config-signature.cs"
+    ```
+
+    **Parameters:**
+
+    - `SubType` (optional) An operation sub-type label for observability. Used
+        internally by `map` and `parallel`; not needed for direct use.
+    - `ErrorMapping` (optional) A function that maps exceptions thrown by the child
+        context (surfaced as `ChildContextException`) into a domain-specific exception.
+
+    The child context result is serialized with the `ILambdaSerializer` registered on
+    `ILambdaContext.Serializer`; there is no per-context serializer. See
+    [Serialization](../state/serialization.md).
+
 ## The child context's function
 
 The child context function receives a `DurableContext` as its argument. This is the
@@ -183,6 +228,15 @@ corrupt execution state and cause non-deterministic behaviour.
     --8<-- "examples/java/operations/child-contexts/context-function.java"
     ```
 
+=== "C#"
+
+    Pass an `async (child, ct) => ...` lambda directly. The function receives its own
+    `IDurableContext` and must return a `Task<T>`.
+
+    ```csharp
+    --8<-- "examples/csharp/operations/child-contexts/context-function.cs"
+    ```
+
 ### Pass arguments to the child context
 
 === "TypeScript"
@@ -207,6 +261,14 @@ corrupt execution state and cause non-deterministic behaviour.
 
     ```java
     --8<-- "examples/java/operations/child-contexts/pass-arguments.java"
+    ```
+
+=== "C#"
+
+    Capture arguments in the closure:
+
+    ```csharp
+    --8<-- "examples/csharp/operations/child-contexts/pass-arguments.cs"
     ```
 
 ## Naming child contexts
@@ -236,6 +298,14 @@ Name child contexts to make them easier to identify in logs and tests.
 
     ```java
     --8<-- "examples/java/operations/child-contexts/named-child-context.java"
+    ```
+
+=== "C#"
+
+    The name is the optional `name` argument. Omit it to infer one from the call site.
+
+    ```csharp
+    --8<-- "examples/csharp/operations/child-contexts/named-child-context.cs"
     ```
 
 ## Concurrency
@@ -294,6 +364,14 @@ sequentially in the parent.
     --8<-- "examples/java/operations/child-contexts/concurrent-child-contexts.java"
     ```
 
+=== "C#"
+
+    Don't `await` each child context immediately. Start them all, then await together.
+
+    ```csharp
+    --8<-- "examples/csharp/operations/child-contexts/concurrent-child-contexts.cs"
+    ```
+
 ## Testing
 
 The testing SDK records child context operations as `CONTEXT` type operations. Inspect
@@ -315,6 +393,12 @@ them to verify the child context ran and produced the expected result.
 
     ```java
     --8<-- "examples/java/operations/child-contexts/test-child-context.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/child-contexts/test-child-context.cs"
     ```
 
 ## See also

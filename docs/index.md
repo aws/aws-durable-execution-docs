@@ -60,6 +60,8 @@ For detailed programming language reference, see [SDK Reference](sdk-reference/)
         [aws-durable-execution-sdk-python](https://github.com/aws/aws-durable-execution-sdk-python)
     - :simple-github:
         [aws-durable-execution-sdk-java](https://github.com/aws/aws-durable-execution-sdk-java)
+    - :simple-github:
+        [aws-lambda-dotnet (C#)](https://github.com/aws/aws-lambda-dotnet/tree/master/Libraries/src/Amazon.Lambda.DurableExecution)
 
 ## Related documentation
 

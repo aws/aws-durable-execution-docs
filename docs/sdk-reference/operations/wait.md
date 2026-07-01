@@ -57,6 +57,12 @@ Here's a simple example of using a wait operation:
     --8<-- "examples/java/core/wait/basic-wait.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/basic-wait.cs"
+    ```
+
 When this function runs:
 
 1. The SDK checkpoints the wait operation with a scheduled end time
@@ -86,6 +92,14 @@ When this function runs:
 
     Set `name` to `null` to omit it.
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/wait-signature.cs"
+    ```
+
+    Omit `name` to infer one from the call site.
+
 **Parameters:**
 
 - `duration` (required) - How long to wait. Must be at least 1 second. See
@@ -108,6 +122,10 @@ When this function runs:
 
     `DurableFuture<Void>` (async)
 
+=== "C#"
+
+    `Task`
+
 **Raises/Throws:**
 
 === "TypeScript"
@@ -121,6 +139,10 @@ When this function runs:
 === "Java"
 
     `IllegalArgumentException`
+
+=== "C#"
+
+    `ArgumentOutOfRangeException`
 
 ## Duration
 
@@ -144,6 +166,12 @@ When this function runs:
     --8<-- "examples/java/core/wait/duration-signature.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/duration-signature.cs"
+    ```
+
 ### Duration usage
 
 === "TypeScript"
@@ -162,6 +190,12 @@ When this function runs:
 
     ```java
     --8<-- "examples/java/core/wait/duration-helpers.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/duration-helpers.cs"
     ```
 
 ## Named wait operations
@@ -184,6 +218,12 @@ Name wait operations to make them easier to identify in logs and tests.
 
     ```java
     --8<-- "examples/java/core/wait/named-wait.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/named-wait.cs"
     ```
 
 ## Scheduled end timestamp
@@ -236,6 +276,15 @@ while a step runs in parallel.
     --8<-- "examples/java/core/wait/async-wait.java"
     ```
 
+=== "C#"
+
+    Don't `await` the wait immediately — capture the `Task` and use `Task.WhenAll` to run
+    it alongside other operations.
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/async-wait.cs"
+    ```
+
 ## Testing
 
 You can verify wait operations in your tests by inspecting the operations list:
@@ -256,6 +305,12 @@ You can verify wait operations in your tests by inspecting the operations list:
 
     ```java
     --8<-- "examples/java/core/wait/test-multiple-waits.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/test-multiple-waits.cs"
     ```
 
 ## See also
