@@ -51,6 +51,15 @@ and linear backoff.
     --8<-- "examples/java/sdk-reference/error-handling/exponential-backoff.java"
     ```
 
+=== "C#"
+
+    Use `RetryStrategy.Exponential(...)` to build an `IRetryStrategy`, then set it on
+    `StepConfig.RetryStrategy`.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/exponential-backoff.cs"
+    ```
+
 #### RetryStrategyConfig signature
 
 === "TypeScript"
@@ -111,6 +120,28 @@ and linear backoff.
     Java does not have built-in error type filtering. Filter by error type manually inside
     the `RetryStrategy` lambda. See [Retrying specific errors](#retry-only-specific-errors).
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/retry-strategy-config-signature.cs"
+    ```
+
+    **Parameters:**
+
+    - `maxAttempts` (optional) Total attempts including the initial attempt. Default: `3`.
+    - `initialDelay` (optional) A `TimeSpan`. Must be positive. Default:
+        `TimeSpan.FromSeconds(5)`.
+    - `maxDelay` (optional) A `TimeSpan`. Must be positive and `>= initialDelay`. Default:
+        `TimeSpan.FromSeconds(300)`.
+    - `backoffRate` (optional) Multiplier applied to the delay on each retry. Must be
+        `>= 1.0`. Default: `2.0`.
+    - `jitter` (optional) A `JitterStrategy` value. Default: `JitterStrategy.Full`.
+    - `retryableExceptions` (optional) An array of exception `Type`s. The SDK retries only
+        exceptions assignable to one of these types.
+    - `retryableMessagePatterns` (optional) An array of regex strings matched against the
+        exception message. When you set neither filter, the SDK retries all exceptions.
+        When you set both, the SDK retries an exception if it matches either (OR logic).
+
 #### JitterStrategy
 
 === "TypeScript"
@@ -129,6 +160,12 @@ and linear backoff.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/jitter-strategy-signature.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/jitter-strategy-signature.cs"
     ```
 
 #### Delay calculation
@@ -177,6 +214,15 @@ retries rather than the rapid expansion of exponential backoff.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/linear-retry-strategy.java"
+    ```
+
+=== "C#"
+
+    The .NET SDK ships no built-in linear strategy. Use `RetryStrategy.FromDelegate` and
+    compute a linearly growing delay yourself, then set it on `StepConfig.RetryStrategy`.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/linear-retry-strategy.cs"
     ```
 
 #### LinearRetryStrategyConfig signature
@@ -239,6 +285,19 @@ retries rather than the rapid expansion of exponential backoff.
     - `jitter` A `JitterStrategy` value. The three-argument overload omits both
         `maxDelay` and `jitter`.
 
+=== "C#"
+
+    There is no linear config type in .NET. Build the delay from `RetryStrategy.FromDelegate`:
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/linear-retry-strategy-config-signature.cs"
+    ```
+
+    The delegate receives the failing exception and the 1-based attempt number and returns
+    a `RetryDecision`. Return `RetryDecision.DoNotRetry()` to stop, or
+    `RetryDecision.RetryAfter(delay)` to retry after a computed delay
+    (`initialDelay + increment * (attempt - 1)`, capped at your own `maxDelay`).
+
 #### Delay calculation
 
 Linear backoff calculates the delay before each retry as:
@@ -275,6 +334,12 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/java/sdk-reference/error-handling/retry-strategy-signature.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/retry-strategy-signature.cs"
+    ```
+
 #### Example
 
 === "TypeScript"
@@ -300,6 +365,15 @@ current attempt number after each failure. The attempt number is one-indexed.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/custom-retry-strategy.java"
+    ```
+
+=== "C#"
+
+    Use `RetryStrategy.FromDelegate((error, attempt) => ...)`. Return
+    `RetryDecision.DoNotRetry()` to stop, or `RetryDecision.RetryAfter(delay)` to retry.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/custom-retry-strategy.cs"
     ```
 
 ## Retry presets
@@ -359,6 +433,20 @@ The SDK ships with preset strategies for common cases:
 
     **`RetryStrategies.Presets.NO_RETRY`** Fails immediately on first error.
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/retry-presets.cs"
+    ```
+
+    **`RetryStrategy.Default`** 6 attempts, 5s initial delay, 60s max, 2x backoff, full
+    jitter.
+
+    **`RetryStrategy.Transient`** 3 attempts, 1s initial delay, 5s max, 2x backoff, half
+    jitter.
+
+    **`RetryStrategy.None`** 1 attempt, fails immediately on error.
+
 ## Retry any durable operation
 
 Use the `withRetry` helper to wrap any durable operation in a replay-safe retry loop.
@@ -399,6 +487,17 @@ available to `step` to other operations, such as `invoke`, `waitForCallback`, an
     --8<-- "examples/java/sdk-reference/error-handling/with-retry-helper.java"
     ```
 
+=== "C#"
+
+    The .NET SDK has no separate `withRetry` helper, and `InvokeConfig` does not accept a
+    retry strategy. To retry another durable operation, wrap it in a `step` and set the
+    retry strategy on `StepConfig.RetryStrategy`. The step retries the wrapped operation
+    with backoff between failed attempts.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/with-retry-helper.cs"
+    ```
+
 The `withRetry` helper wraps the retry loop in a child context and uses `context.wait`
 between attempts to suspend the invocation while waiting for the retry interval. The
 child context, the wait operations, and any operations inside each attempt count toward
@@ -432,6 +531,15 @@ You can retry only certain error types and fail immediately on others.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/retry-specific-errors.java"
+    ```
+
+=== "C#"
+
+    Pass `retryableExceptions` to `RetryStrategy.Exponential(...)` to retry only those
+    exception types (and their subclasses). Every other exception fails immediately.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/retry-specific-errors.cs"
     ```
 
 ## See also

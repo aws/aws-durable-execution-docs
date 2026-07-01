@@ -55,6 +55,12 @@ end-to-end, combine at-most-once with a no-retry strategy.
     --8<-- "examples/java/patterns/idempotency/choose-semantics.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/idempotency/choose-semantics.cs"
+    ```
+
 !!! warning
 
     At-most-once applies per attempt, not per workflow. Combine it with a no-retry strategy
@@ -88,6 +94,12 @@ at-least-once retries are safe.
 
     ```java
     --8<-- "examples/java/patterns/idempotency/idempotency-tokens.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/idempotency/idempotency-tokens.cs"
     ```
 
 The same pattern applies to any operation that writes to an external store. Include the

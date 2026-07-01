@@ -54,6 +54,12 @@ code.
     --8<-- "examples/java/patterns/determinism/non-deterministic-in-step.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/determinism/non-deterministic-in-step.cs"
+    ```
+
 Because the SDK checkpoints the result of `generate-transaction-id`, every replay sees
 the same `transactionId` and the charge step receives the same argument. Without the
 wrapper, `UUID.randomUUID()` would produce a new value on every replay and the
@@ -87,6 +93,12 @@ breaks as soon as the workflow replays after a crash or a wait.
 
     ```java
     --8<-- "examples/java/patterns/determinism/return-value-passing.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/determinism/return-value-passing.cs"
     ```
 
 For processing a list of independent items,
@@ -124,6 +136,12 @@ non-deterministic decision into a step and branch on the step's return value.
 
     ```java
     --8<-- "examples/java/patterns/determinism/stable-branches.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/determinism/stable-branches.cs"
     ```
 
 The same rule applies to reading from external services. Fetching a flag from a database

@@ -19,7 +19,7 @@ The `docs/` directory contains the Markdown source files that power the
 documentation site.
 
 Code examples are in `examples/`, organized by language
-(`typescript/`, `python/`, `java/`) and mirroring the docs folder hierarchy.
+(`typescript/`, `python/`, `java/`, `csharp/`) and mirroring the docs folder hierarchy.
 
 Examples are embedded into documentation pages using snippet syntax — see the
 [Contributing Guide](CONTRIBUTING.md) for details.
@@ -63,6 +63,7 @@ for details.
 - [JavaScript SDK Repository](https://github.com/aws/aws-durable-execution-sdk-js)
 - [Python SDK Repository](https://github.com/aws/aws-durable-execution-sdk-python)
 - [Java SDK Repository](https://github.com/aws/aws-durable-execution-sdk-java)
+- [C# SDK Repository](https://github.com/aws/aws-lambda-dotnet/tree/master/Libraries/src/Amazon.Lambda.DurableExecution)
 
 ## Feedback & Support
 

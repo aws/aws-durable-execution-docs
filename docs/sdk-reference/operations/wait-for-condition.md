@@ -41,6 +41,12 @@ Here's a simple example that polls until a job completes:
     --8<-- "examples/java/core/wait/wait-for-condition.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/wait-for-condition.cs"
+    ```
+
 ```mermaid
 graph TD
     A[Start with initial state] --> B["check (step)"]
@@ -68,6 +74,12 @@ graph TD
 
     ```java
     --8<-- "examples/java/core/wait/wait-for-condition-signature.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/wait-for-condition-signature.cs"
     ```
 
 **Parameters:**
@@ -109,6 +121,12 @@ provide.
     --8<-- "examples/java/core/wait/wait-strategy-signature.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/wait-strategy-signature.cs"
+    ```
+
 ### Custom strategy
 
 Write your own strategy function for full control over polling behavior. The function
@@ -136,6 +154,17 @@ continue polling or not.
     --8<-- "examples/java/core/wait/custom-strategy.java"
     ```
 
+=== "C#"
+
+    Implement `IWaitStrategy<TState>` or wrap a delegate with
+    `WaitStrategy.FromDelegate`. The strategy returns a `WaitDecision`:
+    `WaitDecision.Stop()` to stop polling or `WaitDecision.ContinueAfter(delay)`
+    to poll again.
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/custom-strategy.cs"
+    ```
+
 To stop polling and signal an error, throw an exception from the strategy or the check
 function.
 
@@ -161,6 +190,12 @@ re-use common wait strategy logic without having to code your own function.
 
     ```java
     --8<-- "examples/java/core/wait/strategy-helper.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/core/wait/strategy-helper.cs"
     ```
 
 **Helper parameters:**

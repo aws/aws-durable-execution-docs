@@ -39,6 +39,12 @@ it to your handler. You can catch it there and handle it as required.
     --8<-- "examples/java/sdk-reference/error-handling/basic-error-handling.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/basic-error-handling.cs"
+    ```
+
 ## Replay throws the same error
 
 When the SDK replays a completed operation from its checkpoint, it returns the
@@ -159,6 +165,53 @@ error and the operation details.
     interrupted before the SDK checkpointed the result. See
     [Step interrupted](#step-interrupted) below.
 
+=== "C#"
+
+    ```mermaid
+    graph TD
+      DEE[DurableExecutionException]
+      DEE --> NonDeterministicExecutionException
+      DEE --> StepException
+      StepException --> StepInterruptedException
+      DEE --> ChildContextException
+      DEE --> InvokeException
+      InvokeException --> InvokeFailedException
+      InvokeException --> InvokeTimedOutException
+      InvokeException --> InvokeStoppedException
+      DEE --> CallbackException
+      CallbackException --> CallbackFailedException
+      CallbackException --> CallbackTimeoutException
+      CallbackException --> CallbackSubmitterException
+      DEE --> ParallelException
+      DEE --> MapException
+      DEE --> WaitForConditionException
+      OCE["OperationCanceledException (System)"]
+    ```
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/exception-hierarchy.cs"
+    ```
+
+    `DurableExecutionException` is the base class for all SDK exceptions.
+
+    `StepException` is thrown when a step exhausts all retry attempts. Its `ErrorType`,
+    `ErrorData`, and `OriginalStackTrace` properties carry the details of the original
+    exception. `StepInterruptedException` is a subclass thrown when an at-most-once step
+    started but Lambda was interrupted before the SDK checkpointed the result. See
+    [Step interrupted](#step-interrupted) below.
+
+    `CallbackException` is the parent class for callback failures. `CallbackFailedException`
+    reports a failure the external system sent, `CallbackTimeoutException` signals a
+    callback (or heartbeat) timeout, and `CallbackSubmitterException` wraps a failure raised
+    inside the submitter delegate. `InvokeException` (and its `InvokeFailedException`,
+    `InvokeTimedOutException`, and `InvokeStoppedException` subclasses) reports chained-invoke
+    failures.
+
+    `OperationCanceledException` is a standard .NET exception, not a
+    `DurableExecutionException`. The SDK surfaces it when the linked `CancellationToken`
+    trips (workflow shutdown or cooperative short-circuit); it is treated as cancellation,
+    not a step failure.
+
 ## Validation errors
 
 The SDK does not retry validation errors. The SDK throws validation errors when you pass
@@ -187,6 +240,15 @@ name.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/validation-error.java"
+    ```
+
+=== "C#"
+
+    The SDK throws `ArgumentException` (or `ArgumentOutOfRangeException`) for invalid
+    configuration values.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/validation-error.cs"
     ```
 
 ## Step interrupted
@@ -218,6 +280,12 @@ succeeded before deciding how to proceed.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/step-interrupted.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/step-interrupted.cs"
     ```
 
 ## Serialization errors
@@ -252,6 +320,17 @@ exception type when they encounter a value they cannot handle.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/serdes-error.java"
+    ```
+
+=== "C#"
+
+    The step result is serialized with the `ILambdaSerializer` registered on
+    `ILambdaContext.Serializer`. When serialization or deserialization fails, the SDK
+    surfaces the failure as an unhandled exception, returns a `FAILED` status, and does
+    not retry.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/error-handling/serdes-error.cs"
     ```
 
 ## See also

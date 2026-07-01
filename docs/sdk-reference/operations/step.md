@@ -37,6 +37,12 @@ The step will checkpoint the last error after exhausting all retry attempts.
     --8<-- "examples/java/operations/steps/add-numbers.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/steps/add-numbers.cs"
+    ```
+
 ## Method signature
 
 ### step
@@ -96,6 +102,28 @@ The step will checkpoint the last error after exhausting all retry attempts.
     **Throws:** The original exception re-thrown after deserialization if possible,
     otherwise `StepFailedException`. `StepInterruptedException` if an at-most-once step was
     interrupted.
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/steps/step-signature.cs"
+    ```
+
+    **Parameters:**
+
+    - `func` A function that receives an `IStepContext` and a `CancellationToken` and
+        returns a `Task<T>` (or `Task` for the no-value overload).
+    - `name` (optional) A name for the step. Omit it to infer one from the call site.
+    - `config` (optional) A `StepConfig` object.
+    - `cancellationToken` (optional) A token linked with the SDK's workflow-shutdown
+        signal, forwarded to `func`.
+
+    **Returns:** `Task<T>`, or `Task` for the no-value overload. Use `await` to get the
+    result.
+
+    **Throws:** The exception thrown by the step body after retries are exhausted. An
+    `OperationCanceledException` that propagates via the linked token is treated as
+    cancellation, not a step failure. See [Cancellation](../languages/csharp/index.md#cancellation).
 
 ### StepConfig
 
@@ -159,6 +187,29 @@ The step will checkpoint the last error after exhausting all retry attempts.
     - `serDes` (optional) Custom `SerDes` for the step result. See
         [Serialization](../state/serialization.md).
 
+=== "C#"
+
+    ```csharp
+    public sealed class StepConfig
+    {
+        public IRetryStrategy? RetryStrategy { get; set; }  // null = no retry
+        public StepSemantics Semantics { get; set; }        // default AtLeastOncePerRetry
+    }
+    ```
+
+    **Parameters:**
+
+    - `RetryStrategy` (optional) An `IRetryStrategy`. When null (default), failures are
+        not retried. Use the `RetryStrategy` factory (for example
+        `RetryStrategy.Exponential(...)`) to build one. See
+        [Retry strategies](../error-handling/retries.md).
+    - `Semantics` (optional) `StepSemantics.AtLeastOncePerRetry` (default) or
+        `StepSemantics.AtMostOncePerRetry`.
+
+    The step result is serialized with the `ILambdaSerializer` registered on
+    `ILambdaContext.Serializer`; there is no per-step serializer. See
+    [Serialization](../state/serialization.md).
+
 ### StepContext
 
 === "TypeScript"
@@ -197,6 +248,22 @@ The step will checkpoint the last error after exhausting all retry attempts.
         [Logging](../observability/logging.md).
     - `getAttempt()` The current retry attempt number (0-based).
     - `isReplaying()` Whether the function is currently replaying from a checkpoint.
+
+=== "C#"
+
+    ```csharp
+    public interface IStepContext
+    {
+        ILogger Logger { get; }
+        int AttemptNumber { get; }   // current retry attempt, 1-based
+        string OperationId { get; }
+    }
+    ```
+
+    - `Logger` A logger enriched with execution context metadata. See
+        [Logging](../observability/logging.md).
+    - `AttemptNumber` The current retry attempt number (1-based).
+    - `OperationId` The deterministic operation ID for this step.
 
 ### StepSemantics
 
@@ -245,6 +312,22 @@ The step will checkpoint the last error after exhausting all retry attempts.
         function replays before the result is checkpointed, the SDK skips the step and
         throws `StepInterruptedException`. Use for operations with side effects.
 
+=== "C#"
+
+    ```csharp
+    public enum StepSemantics
+    {
+        AtLeastOncePerRetry,
+        AtMostOncePerRetry
+    }
+    ```
+
+    - `AtLeastOncePerRetry` (default) Re-executes the step if the Lambda is re-invoked
+        before the result is checkpointed. Safe for idempotent operations.
+    - `AtMostOncePerRetry` Executes the step at most once per retry attempt. If the Lambda
+        is re-invoked before the result is checkpointed, the SDK skips re-execution. Use
+        for operations with side effects.
+
 ## The Step's function
 
 A step function receives a `StepContext` as its first parameter.
@@ -277,6 +360,15 @@ A step function receives a `StepContext` as its first parameter.
     --8<-- "examples/java/operations/steps/validate-order.java"
     ```
 
+=== "C#"
+
+    Pass an `async (ctx, ct) => ...` lambda directly. Step bodies are async; `await`
+    the result of `ctx.StepAsync()`.
+
+    ```csharp
+    --8<-- "examples/csharp/operations/steps/validate-order.cs"
+    ```
+
 ### Anonymous step functions
 
 You can also use inline lambdas.
@@ -300,6 +392,12 @@ You can also use inline lambdas.
 
     ```java
     --8<-- "examples/java/operations/steps/lambda-step-no-name.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/steps/lambda-step-no-name.cs"
     ```
 
 ### Pass arguments to the step function
@@ -328,6 +426,14 @@ You can also use inline lambdas.
     --8<-- "examples/java/operations/steps/multi-argument-step.java"
     ```
 
+=== "C#"
+
+    Capture arguments in the closure:
+
+    ```csharp
+    --8<-- "examples/csharp/operations/steps/multi-argument-step.cs"
+    ```
+
 ## Naming steps
 
 Name your steps so they're easy to identify in logs and tests. Use descriptive names
@@ -346,6 +452,10 @@ debugging easier.
 === "Java"
 
     The name is always the first argument. Pass `null` for no name.
+
+=== "C#"
+
+    The name is the optional `name` argument. Omit it to infer one from the call site.
 
 ## Configuration
 
@@ -367,6 +477,12 @@ Configure step behavior using `StepConfig`:
 
     ```java
     --8<-- "examples/java/operations/steps/process-data.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/steps/process-data.cs"
     ```
 
 ## Pass data between steps
@@ -395,6 +511,12 @@ lost.
     --8<-- "examples/java/operations/steps/passing-data-wrong.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/steps/passing-data-wrong.cs"
+    ```
+
 ### correct way to pass data between steps
 
 === "TypeScript"
@@ -413,6 +535,12 @@ lost.
 
     ```java
     --8<-- "examples/java/operations/steps/passing-data-correct.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/steps/passing-data-correct.cs"
     ```
 
 ## Nesting steps

@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Harness variant for TEST examples (*/test-*.cs) that use the durable-execution
+    testing SDK (Amazon.Lambda.DurableExecution.Testing) and Xunit, mirroring the
+    JUnit/pytest test examples in the other languages. References the prebuilt
+    Testing SDK output DLLs plus Xunit. Compiles ONE file via -p:ExampleFile.
+
+    Prereq: build the Testing SDK once:
+      dotnet build <SDK>/../Amazon.Lambda.DurableExecution.Testing/*.csproj -c Release -f net10.0
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Library</OutputType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <TestingBin>..\..\..\aws-lambda-dotnet\Libraries\src\Amazon.Lambda.DurableExecution.Testing\bin\Release\net10.0</TestingBin>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Amazon.Lambda.Core">
+      <HintPath>$(TestingBin)\Amazon.Lambda.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Amazon.Lambda.DurableExecution">
+      <HintPath>$(TestingBin)\Amazon.Lambda.DurableExecution.dll</HintPath>
+    </Reference>
+    <Reference Include="Amazon.Lambda.DurableExecution.Testing">
+      <HintPath>$(TestingBin)\Amazon.Lambda.DurableExecution.Testing.dll</HintPath>
+    </Reference>
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <!-- CloudDurableTestRunner's constructor exposes IAmazonLambda (AWSSDK.Lambda). -->
+    <PackageReference Include="AWSSDK.Lambda" Version="4.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="$(ExampleFile)" />
+  </ItemGroup>
+
+</Project>

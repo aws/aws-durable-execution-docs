@@ -38,6 +38,12 @@ suspended.
     --8<-- "examples/java/patterns/pause-resume/wait-vs-sleep.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/pause-resume/wait-vs-sleep.cs"
+    ```
+
 !!! tip
 
     Name every wait. Named waits show up in the operation history and CloudWatch, which
@@ -65,6 +71,12 @@ up to the execution timeout, holding the resource slot until an operator interve
 
     ```java
     --8<-- "examples/java/patterns/pause-resume/callback-timeout.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/pause-resume/callback-timeout.cs"
     ```
 
 !!! danger
@@ -101,6 +113,12 @@ is in progress.
     --8<-- "examples/java/patterns/pause-resume/heartbeat-timeout.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/pause-resume/heartbeat-timeout.cs"
+    ```
+
 !!! warning
 
     A 24-hour timeout means a 24-hour outage when the external worker crashes. Set a
@@ -135,6 +153,12 @@ create a retry storm.
 
     ```java
     --8<-- "examples/java/patterns/pause-resume/wait-for-condition.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/pause-resume/wait-for-condition.cs"
     ```
 
 !!! tip

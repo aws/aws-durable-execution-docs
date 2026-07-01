@@ -1,7 +1,7 @@
 # Quickstart
 
 Create and deploy your first durable function using the AWS CLI. This guide covers
-TypeScript, Python, and Java.
+TypeScript, Python, Java, and C#.
 
 !!! note "Adding all your dependencies to the deployment package"
 
@@ -27,6 +27,10 @@ TypeScript, Python, and Java.
 === "Java"
 
     - Java 17+ and Maven 3.8+
+
+=== "C#"
+
+    - .NET 10 SDK
 
 ## Create the execution role
 
@@ -92,6 +96,18 @@ Note the role ARN returned. You'll need it in the next step.
     ```java
     --8<-- "examples/java/getting-started/quickstart.java"
     ```
+
+=== "C#"
+
+    Save as `Function.cs`
+
+    ```csharp
+    --8<-- "examples/csharp/getting-started/quickstart.cs"
+    ```
+
+    This shows the workflow and handler. For the entry point (`Main` +
+    `LambdaBootstrap` + serializer), the class-library alternative, and the full
+    project setup, see the [C# SDK guide](../sdk-reference/languages/csharp/index.md).
 
 The wait here is for 10 seconds just for an easy quick example, but it could as easily
 be 10 days without incurring extra compute.
@@ -189,6 +205,31 @@ execution role you just created.
       --zip-file fileb://target/*.jar \
       --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
     ```
+
+=== "C#"
+
+    Add the SDK to your project, then publish and package the output:
+
+    ```console
+    dotnet add package Amazon.Lambda.DurableExecution
+
+    dotnet publish -c Release -o publish
+    cd publish && zip -r ../function.zip . && cd ..
+
+    aws lambda create-function \
+      --function-name my-durable-function \
+      --runtime dotnet10 \
+      --role arn:aws:iam::123456789012:role/durable-function-role \
+      --handler MyDurableFunction \
+      --zip-file fileb://function.zip \
+      --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
+    ```
+
+    The `--handler` value depends on your programming model: the assembly name for
+    the executable model, or `Assembly::Namespace.Type::Method` for a class library.
+    See the
+    [C# SDK guide](../sdk-reference/languages/csharp/index.md) for the programming
+    models, serializer registration, and handler string for each.
 
 ### Publish a version
 

@@ -79,6 +79,33 @@ CI.
     - `handler` (optional) A `DurableHandler` instance. The runner extracts its
         configuration automatically.
 
+=== "C#"
+
+    The local runner type is `DurableTestRunner<TInput, TOutput>`. Construct it with the
+    workflow delegate and dispose it with `await using`:
+
+    ```csharp
+    DurableTestRunner(
+        Func<TInput, IDurableContext, Task<TOutput>> handler,
+        TestRunnerOptions? options = null)
+    ```
+
+    ```csharp
+    await using var runner = new DurableTestRunner<object?, string>(
+        Workflow,
+        new TestRunnerOptions { SkipTime = true });
+    ```
+
+    There is no static setup/teardown. The `await using` declaration and `DisposeAsync()`
+    replace the TypeScript `setupTestEnvironment`/`teardownTestEnvironment` lifecycle.
+
+    **Constructor parameters:**
+
+    - `handler` (required) A `Func<TInput, IDurableContext, Task<TOutput>>`, either a method
+        group or an inline `(input, ctx) => ...` async lambda.
+    - `options` (optional) A [`TestRunnerOptions`](#localdurabletestrunnersetupparameters)
+        record. Defaults to a new instance with `SkipTime = true`.
+
 ### Run the handler
 
 === "TypeScript"
@@ -139,6 +166,32 @@ CI.
 
     **Returns:** `TestResult<O>`
 
+=== "C#"
+
+    ```csharp
+    Task<TestResult<TOutput>> RunAsync(
+        TInput input,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    ```
+
+    `RunAsync` drives the full replay loop until the workflow reaches a terminal state. It
+    throws `InvalidOperationException` if the workflow suspends on a callback — use the
+    `StartAsync` + `WaitForCallbackAsync` two-call pattern for callback workflows.
+
+    ```csharp
+    TestResult<string> result = await runner.RunAsync(null);
+    ```
+
+    **Parameters:**
+
+    - `input` (required) The handler input.
+    - `timeout` (optional) Wall-clock timeout for the call. Defaults to
+        `TestRunnerOptions.DefaultTimeout` (30 seconds).
+    - `cancellationToken` (optional) A `CancellationToken`.
+
+    **Returns:** `Task<TestResult<TOutput>>`
+
 ### Run asynchronously
 
 === "TypeScript"
@@ -166,6 +219,25 @@ CI.
     Not applicable on the local runner. `run()` runs a single invocation,
     `runUntilComplete()` drives the full loop. The cloud runner exposes `startAsync()`, see
     [CloudDurableTestRunner](#clouddurabletestrunner).
+
+=== "C#"
+
+    The local runner supports the async pattern, primarily for callback workflows:
+
+    ```csharp
+    // Start the workflow and return the durable execution ARN
+    Task<string> StartAsync(
+        TInput input, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+
+    // Drive a started workflow to a terminal state
+    Task<TestResult<TOutput>> WaitForResultAsync(
+        string durableExecutionArn, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+    ```
+
+    `StartAsync` drives the workflow to its first suspension point and returns the ARN.
+    `WaitForResultAsync` must be preceded by a `StartAsync` on the same runner; it throws
+    `InvalidOperationException` otherwise. Use these together with `WaitForCallbackAsync`
+    and the `SendCallback*` methods to drive callback workflows.
 
 ### Inspect operations
 
@@ -207,6 +279,23 @@ CI.
 
     **Returns:** `TestOperation`, or `null` if not found.
 
+=== "C#"
+
+    The .NET runner does not expose operation lookups; inspect operations through the
+    returned [`TestResult<TOutput>`](#testresult) instead:
+
+    ```csharp
+    TestStep GetStep(string name)      // throws if not found
+    TestStep? FindStep(string name)    // null if not found
+    IReadOnlyList<TestStep> GetSteps(string name)
+    TestStep GetStepById(string operationId)
+    IReadOnlyList<TestStep> GetStepsByStatus(string status)
+    IReadOnlyList<TestStep> GetChildren(TestStep parent)
+    ```
+
+    `result.Steps` also exposes the full list of recorded operations (excluding the
+    top-level execution). See [TestResult](#testresult).
+
 ### Drive callbacks
 
 === "TypeScript"
@@ -247,6 +336,33 @@ CI.
     void timeoutCallback(String callbackId)
     ```
 
+=== "C#"
+
+    Callbacks are driven from the runner. After `StartAsync`, wait for the callback ID, then
+    send success, failure, or a heartbeat:
+
+    ```csharp
+    // Wait for a pending callback and return its ID
+    Task<string> WaitForCallbackAsync(
+        string durableExecutionArn, string? name = null,
+        TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+
+    // Complete a callback with a success result
+    Task SendCallbackSuccessAsync<TResult>(
+        string callbackId, TResult result, CancellationToken cancellationToken = default)
+
+    // Fail a callback
+    Task SendCallbackFailureAsync(
+        string callbackId, ErrorObject? error = null, CancellationToken cancellationToken = default)
+
+    // Keep a callback alive
+    Task SendCallbackHeartbeatAsync(
+        string callbackId, CancellationToken cancellationToken = default)
+    ```
+
+    There is no separate "time out" method: to simulate a timeout, fail the callback with an
+    `ErrorObject` or let the configured callback timeout elapse.
+
 ### Drive chained invokes
 
 === "TypeScript"
@@ -275,6 +391,13 @@ CI.
     void stopChainedInvoke(String name, ErrorObject error)
     ```
 
+=== "C#"
+
+    The .NET SDK does not expose per-invoke completion methods. Instead, register the
+    invoked function's handler on the runner and let the real invoke path run against it. See
+    [Register mock handlers for invoke](#register-mock-handlers-for-invoke). To make an
+    invoke fail, throw from the registered handler.
+
 ### Register mock handlers for invoke
 
 === "TypeScript"
@@ -297,6 +420,22 @@ CI.
 
     Not applicable.
 
+=== "C#"
+
+    ```csharp
+    // Register a durable sibling that the workflow invokes with context.InvokeAsync()
+    DurableTestRunner<TInput, TOutput> RegisterDurableFunction<TPayload, TResult>(
+        string functionNameOrArn,
+        Func<TPayload, IDurableContext, Task<TResult>> handler)
+
+    // Register a plain (non-durable) Lambda sibling, also invoked with context.InvokeAsync()
+    DurableTestRunner<TInput, TOutput> RegisterFunction<TPayload, TResult>(
+        string functionNameOrArn,
+        Func<TPayload, ILambdaContext, Task<TResult>> handler)
+    ```
+
+    Both methods return the runner for chaining.
+
 ### Simulate failures
 
 === "TypeScript"
@@ -316,6 +455,12 @@ CI.
     // Remove a step checkpoint (simulates fire-and-forget loss)
     void simulateFireAndForgetCheckpointLoss(String stepName)
     ```
+
+=== "C#"
+
+    The .NET SDK does not expose checkpoint-manipulation methods. To exercise failure and
+    retry paths, throw from inside a step and assert on `TestStep.Attempt` and the recorded
+    operation status. See the retry example in [Authoring](authoring.md).
 
 ### Control time
 
@@ -341,6 +486,21 @@ CI.
     directly, call `advanceTime()` yourself between invocations. `advanceTime()` marks
     PENDING step retries as READY and completes STARTED waits without real-time sleeps.
 
+=== "C#"
+
+    Set `SkipTime` on `TestRunnerOptions`. When true (the default), both `WaitAsync` delays
+    and step/`WaitForConditionAsync` retry backoffs complete immediately instead of sleeping
+    for real wall-clock time. There is no manual `advanceTime()` call — `RunAsync` advances
+    time internally.
+
+    ```csharp
+    await using var runner = new DurableTestRunner<object, string>(
+        Workflow,
+        new TestRunnerOptions { SkipTime = true });
+    ```
+
+    Set `SkipTime = false` to assert on real wait durations.
+
 See [Authoring: Skip time in tests](authoring.md#skip-time-in-tests) for an overview.
 
 ### Reset between runs
@@ -361,6 +521,11 @@ See [Authoring: Skip time in tests](authoring.md#skip-time-in-tests) for an over
 === "Java"
 
     Create a new `LocalDurableTestRunner` instance per test.
+
+=== "C#"
+
+    There is no `reset()`. A runner is single-use and not thread-safe: create a new
+    `DurableTestRunner<TInput, TOutput>` per test and dispose it with `await using`.
 
 ### Reference types
 
@@ -391,6 +556,36 @@ See [Authoring: Skip time in tests](authoring.md#skip-time-in-tests) for an over
 
     Not applicable. Configure with `withDurableConfig`, `withOutputType`, and
     `advanceTime()` on the runner instance.
+
+=== "C#"
+
+    Configuration lives in the `TestRunnerOptions` record passed to the constructor:
+
+    ```csharp
+    public sealed record TestRunnerOptions
+    {
+        public bool SkipTime { get; init; } = true;
+        public int MaxInvocations { get; init; } = 100;
+        public TimeSpan DefaultTimeout { get; init; } = TimeSpan.FromSeconds(30);
+        public ILambdaSerializer? Serializer { get; init; }
+        public ILoggerFactory? LoggerFactory { get; init; }
+        public string DurableExecutionArn { get; init; } // synthetic test ARN by default
+    }
+    ```
+
+    **Fields:**
+
+    - `SkipTime` (optional) Complete waits and retry backoffs instantly. Defaults to `true`
+        (the opposite of the JavaScript SDK, where time-skipping is opt-in).
+    - `MaxInvocations` (optional) Maximum handler invocations before throwing
+        `TestExecutionLimitException`. Defaults to `100`.
+    - `DefaultTimeout` (optional) Wall-clock timeout per `RunAsync`/`WaitForResultAsync`
+        call. Defaults to 30 seconds.
+    - `Serializer` (optional) An `ILambdaSerializer` for result deserialization. Defaults to
+        `DefaultLambdaJsonSerializer`.
+    - `LoggerFactory` (optional) An `ILoggerFactory` for runtime logging.
+    - `DurableExecutionArn` (optional) The ARN used in the test context. Defaults to a
+        synthetic test ARN.
 
 ## TestResult
 
@@ -425,6 +620,18 @@ error, and the full operation history.
 
     **Returns:** `ExecutionStatus` (`SUCCEEDED`, `FAILED`, `PENDING`).
 
+=== "C#"
+
+    ```csharp
+    InvocationStatus Status { get; }
+    bool IsSucceeded { get; }   // Status == InvocationStatus.Succeeded
+    bool IsFailed { get; }      // Status == InvocationStatus.Failed
+    ```
+
+    **Type:** `InvocationStatus` (`Succeeded`, `Failed`, `Pending`). There is no separate
+    execution-status enum in .NET; the cloud runner maps the service's finer terminal states
+    (`FAILED`, `TIMED_OUT`, `STOPPED`) onto `InvocationStatus.Failed`.
+
 ### Result
 
 === "TypeScript"
@@ -457,6 +664,22 @@ error, and the full operation history.
 
     **Throws:** `IllegalStateException` if the execution did not succeed.
 
+=== "C#"
+
+    ```csharp
+    TOutput? Result { get; }
+    ```
+
+    The deserialized execution output when `Status` is `InvocationStatus.Succeeded`;
+    otherwise the default value for `TOutput`. The result type is fixed at the runner's
+    `TOutput` type parameter, so no per-call type argument is needed. Call
+    `EnsureSucceeded()` first if you want a failed run to throw before you read `Result`.
+
+    ```csharp
+    result.EnsureSucceeded();
+    Assert.Equal("hello", result.Result);
+    ```
+
 ### Error
 
 === "TypeScript"
@@ -479,6 +702,21 @@ error, and the full operation history.
 
     ```java
     Optional<ErrorObject> getError()
+    ```
+
+=== "C#"
+
+    ```csharp
+    ErrorObject? Error { get; }
+    ```
+
+    The error when `Status` is `InvocationStatus.Failed`; otherwise `null`. `ErrorObject`
+    comes from `Amazon.Lambda.DurableExecution` and exposes `ErrorType`, `ErrorMessage`,
+    `ErrorData`, and `StackTrace`.
+
+    ```csharp
+    Assert.True(result.IsFailed);
+    Assert.NotNull(result.Error);
     ```
 
 ### Operations
@@ -524,6 +762,23 @@ error, and the full operation history.
 
     `getOperation(name)` returns `null` if not found.
 
+=== "C#"
+
+    ```csharp
+    IReadOnlyList<TestStep> Steps { get; }   // all operations except the top-level execution
+
+    TestStep GetStep(string name)                 // throws if not found
+    TestStep? FindStep(string name)               // null if not found
+    IReadOnlyList<TestStep> GetSteps(string name) // all matches (parallel branches, map items)
+    TestStep GetStepById(string operationId)
+    IReadOnlyList<TestStep> GetStepsByStatus(string status)  // pass OperationStatus constants
+    IReadOnlyList<TestStep> GetChildren(TestStep parent)
+    ```
+
+    Filter `Steps` by kind with LINQ, e.g.
+    `result.Steps.Where(s => s.Kind == OperationKind.Step)`. Use the `OperationStatus`
+    string constants (e.g. `OperationStatus.Succeeded`) with `GetStepsByStatus`.
+
 ### History events
 
 === "TypeScript"
@@ -543,6 +798,13 @@ error, and the full operation history.
     List<Event> getEventsForOperation(String operationName)
     ```
 
+=== "C#"
+
+    The .NET `TestResult<TOutput>` does not expose raw history events. Assert on the folded
+    operations through `Steps` and the `TestStep` accessors instead. (Internally the cloud
+    runner reconstructs operations from the history event stream, but that stream is not
+    surfaced on the result.)
+
 ### Invocations
 
 === "TypeScript"
@@ -561,6 +823,16 @@ error, and the full operation history.
 
     Not available on the test result.
 
+=== "C#"
+
+    ```csharp
+    int? InvocationCount { get; }
+    ```
+
+    The number of handler invocations the local runner used to drive the workflow. It is
+    `null` when not tracked — the cloud runner never tracks it, so do not assert on
+    `InvocationCount` in tests intended to run against both backends.
+
 ### Pretty-print
 
 === "TypeScript"
@@ -578,6 +850,11 @@ error, and the full operation history.
 === "Java"
 
     Not applicable.
+
+=== "C#"
+
+    The .NET SDK does not expose a pretty-print method on the result. Iterate `result.Steps`
+    and format them yourself, e.g. with a `foreach` over `Name`, `Kind`, and `Status`.
 
 ### Reference types {#testresult-reference-types}
 
@@ -612,6 +889,20 @@ error, and the full operation history.
     ```java
     ErrorObject.errorMessage()  // String
     ErrorObject.errorType()     // String
+    ```
+
+=== "C#"
+
+    Uses `ErrorObject` from `Amazon.Lambda.DurableExecution`:
+
+    ```csharp
+    public sealed class ErrorObject
+    {
+        public string? ErrorType { get; set; }
+        public string? ErrorMessage { get; set; }
+        public string? ErrorData { get; set; }
+        public IReadOnlyList<string>? StackTrace { get; set; }
+    }
     ```
 
 ## Operation
@@ -668,6 +959,24 @@ shared set of accessors.
     String getId()
     ```
 
+=== "C#"
+
+    The docs "Operation" type maps to `TestStep` in .NET. Common accessors:
+
+    ```csharp
+    string Id { get; }
+    string? Name { get; }
+    string? ParentId { get; }
+    OperationKind Kind { get; }              // Step, Wait, Callback, ChainedInvoke, Context, Execution
+    string? SubKind { get; }                 // e.g. "Parallel", "Map", "WaitForCallback"
+    string Status { get; }                   // compare against OperationStatus constants
+    int Attempt { get; }                     // 1-based for steps, 0 for other kinds
+    DateTimeOffset? StartedAt { get; }
+    DateTimeOffset? EndedAt { get; }
+    TimeSpan? Duration { get; }
+    IReadOnlyList<TestStep> Children { get; }
+    ```
+
 ### Step details
 
 === "TypeScript"
@@ -702,6 +1011,20 @@ shared set of accessors.
     int getAttempt()
     ```
 
+=== "C#"
+
+    `TestStep` exposes step details through kind-aware accessors rather than a separate
+    details object:
+
+    ```csharp
+    T? GetResult<T>()          // deserializes the step result
+    ErrorObject? GetError()    // the step error, or null
+    int Attempt { get; }       // retry attempt (1-based)
+    ```
+
+    `GetResult<T>()` routes to the right details block based on `Kind`, so it also works for
+    chained-invoke, context, and callback operations.
+
 ### Wait details
 
 === "TypeScript"
@@ -726,6 +1049,14 @@ shared set of accessors.
 
     `WaitDetails.scheduledEndTimestamp()` returns an `Instant`.
 
+=== "C#"
+
+    ```csharp
+    DateTimeOffset? GetWaitEndsAt()
+    ```
+
+    Returns the scheduled end time for a wait operation, or `null` for non-wait kinds.
+
 ### Callback details
 
 === "TypeScript"
@@ -749,6 +1080,14 @@ shared set of accessors.
     CallbackDetails getCallbackDetails()
     ```
 
+=== "C#"
+
+    ```csharp
+    string? GetCallbackId()   // the callback ID for a callback operation, or null
+    T? GetResult<T>()         // the delivered callback result
+    ErrorObject? GetError()   // the callback error, or null
+    ```
+
 ### Chained invoke details
 
 === "TypeScript"
@@ -768,6 +1107,14 @@ shared set of accessors.
 
     ```java
     ChainedInvokeDetails getChainedInvokeDetails()
+    ```
+
+=== "C#"
+
+    ```csharp
+    string? GetChainedInvokeFunctionName()   // invoked function name, or null
+    T? GetResult<T>()                        // the invoke result
+    ErrorObject? GetError()                  // the invoke error, or null
     ```
 
 ### Context details
@@ -799,6 +1146,17 @@ shared set of accessors.
     ContextDetails getContextDetails()
     ```
 
+=== "C#"
+
+    A child context is a `TestStep` with `Kind == OperationKind.Context`. Read its result
+    and children through the shared accessors:
+
+    ```csharp
+    T? GetResult<T>()                    // the context result
+    ErrorObject? GetError()              // the context error, or null
+    IReadOnlyList<TestStep> Children { get; }   // steps recorded inside the context
+    ```
+
 ### Execution details
 
 === "TypeScript"
@@ -814,6 +1172,12 @@ shared set of accessors.
     ```java
     ExecutionDetails getExecutionDetails()
     ```
+
+=== "C#"
+
+    The .NET SDK does not expose execution details on a step. The top-level execution
+    operation is excluded from `result.Steps`, and the execution-level outcome is surfaced
+    on the result itself via `Status`, `Result`, and `Error`.
 
 ### Drive a callback from an operation
 
@@ -833,6 +1197,12 @@ shared set of accessors.
 === "Java"
 
     Driven from the runner. See [LocalDurableTestRunner: Drive callbacks](#drive-callbacks).
+
+=== "C#"
+
+    Driven from the runner, not from the `TestStep`. Use `WaitForCallbackAsync` to get the
+    callback ID and the `SendCallback*` methods to deliver a result. See
+    [LocalDurableTestRunner: Drive callbacks](#drive-callbacks).
 
 ## Enums
 
@@ -874,6 +1244,19 @@ The terminal status of a durable execution.
     | `FAILED`    | Execution failed                 |
     | `PENDING`   | Execution is waiting             |
 
+=== "C#"
+
+    `InvocationStatus` from `Amazon.Lambda.DurableExecution`:
+
+    | Value       | Meaning                          |
+    | ----------- | -------------------------------- |
+    | `Succeeded` | Execution completed successfully |
+    | `Failed`    | Execution failed                 |
+    | `Pending`   | Execution is waiting             |
+
+    There is no separate execution-status enum. The cloud runner maps the service's
+    `TIMED_OUT` and `STOPPED` terminal states onto `Failed`.
+
 ### Operation status
 
 The status of an individual operation.
@@ -902,6 +1285,26 @@ The status of an individual operation.
     `OperationStatus` from `software.amazon.awssdk.services.lambda.model`. Same values as
     TypeScript.
 
+=== "C#"
+
+    `OperationStatus` from `Amazon.Lambda.DurableExecution.Testing` is a static class of
+    string constants (compare against `TestStep.Status`), not an enum:
+
+    | Constant                  | Meaning                          |
+    | ------------------------- | -------------------------------- |
+    | `OperationStatus.Started`   | Operation is running             |
+    | `OperationStatus.Succeeded` | Operation completed successfully |
+    | `OperationStatus.Failed`    | Operation failed                 |
+    | `OperationStatus.Pending`   | Operation is queued              |
+    | `OperationStatus.Cancelled` | Operation was cancelled          |
+    | `OperationStatus.TimedOut`  | Operation exceeded its timeout   |
+    | `OperationStatus.Stopped`   | Operation was stopped            |
+    | `OperationStatus.Ready`     | Operation is ready to resume     |
+
+    ```csharp
+    Assert.Equal(OperationStatus.Succeeded, result.GetStep("step-1").Status);
+    ```
+
 ### Operation type
 
 === "TypeScript"
@@ -927,6 +1330,23 @@ The status of an individual operation.
     `OperationType` from `software.amazon.awssdk.services.lambda.model`. Same values as
     TypeScript.
 
+=== "C#"
+
+    `OperationKind` from `Amazon.Lambda.DurableExecution.Testing` (read via `TestStep.Kind`):
+
+    | Value                       | Meaning                      |
+    | --------------------------- | ---------------------------- |
+    | `OperationKind.Step`          | A step operation             |
+    | `OperationKind.Wait`          | A wait operation             |
+    | `OperationKind.Callback`      | A callback operation         |
+    | `OperationKind.ChainedInvoke` | An invoke operation          |
+    | `OperationKind.Context`       | A child context              |
+    | `OperationKind.Execution`     | The root execution operation |
+
+    ```csharp
+    var stepOps = result.Steps.Where(s => s.Kind == OperationKind.Step).ToList();
+    ```
+
 ### Waiting operation status
 
 === "TypeScript"
@@ -947,6 +1367,12 @@ The status of an individual operation.
 === "Java"
 
     Not applicable. Use `runner.getCallbackId()` after `run()` returns `PENDING`.
+
+=== "C#"
+
+    The .NET SDK does not expose a waiting-operation-status enum. After `StartAsync`, call
+    `WaitForCallbackAsync(arn, name)` to obtain the callback ID; the `OperationStatus`
+    constants cover the operation lifecycle states.
 
 ## CloudDurableTestRunner
 
@@ -1024,6 +1450,33 @@ types, so tests written against the local runner run unchanged against the cloud
     - `lambdaClient` (optional) A configured `LambdaClient`. Defaults to a client using
         `DefaultCredentialsProvider`.
 
+=== "C#"
+
+    ```csharp
+    CloudDurableTestRunner(
+        string functionArn,
+        IAmazonLambda? lambdaClient = null,
+        CloudTestRunnerOptions? options = null)
+    ```
+
+    ```csharp
+    await using var runner = new CloudDurableTestRunner<OrderInput, OrderResult>(
+        "arn:aws:lambda:us-east-1:123456789012:function:my-fn:live");
+    ```
+
+    **Parameters:**
+
+    - `functionArn` (required) The qualified function ARN (with alias, version, or
+        `$LATEST`). A qualifier is required for durable functions.
+    - `lambdaClient` (optional) An `IAmazonLambda` client. When null, the runner creates and
+        owns an `AmazonLambdaClient` using the default credential chain and disposes it on
+        `DisposeAsync`.
+    - `options` (optional) A [`CloudTestRunnerOptions`](#clouddurabletestrunnerconfig)
+        record for poll intervals, timeout, and serializer.
+
+    The input and output types are the runner's type parameters, so no separate `inputType`
+    or `outputType` argument is needed.
+
 ### Run the handler {#cloud-run-the-handler}
 
 === "TypeScript"
@@ -1067,6 +1520,29 @@ types, so tests written against the local runner run unchanged against the cloud
 
     **Returns:** `TestResult<O>`
 
+=== "C#"
+
+    ```csharp
+    Task<TestResult<TOutput>> RunAsync(
+        TInput input,
+        TimeSpan? timeout = null,
+        CancellationToken cancellationToken = default)
+    ```
+
+    Invokes the deployed function (Event invocation), polls the durable-execution history
+    until the execution reaches a terminal state, and returns the folded result. This is the
+    same signature as the local runner, so tests written against
+    `IDurableTestRunner<TInput, TOutput>` run unchanged on either backend.
+
+    **Parameters:**
+
+    - `input` (required) The handler input.
+    - `timeout` (optional) Wall-clock timeout. Defaults to
+        `CloudTestRunnerOptions.DefaultTimeout` (5 minutes).
+    - `cancellationToken` (optional) A `CancellationToken`.
+
+    **Returns:** `Task<TestResult<TOutput>>`
+
 ### Run asynchronously {#cloud-run-asynchronously}
 
 === "TypeScript"
@@ -1094,6 +1570,23 @@ types, so tests written against the local runner run unchanged against the cloud
     `getOperations()`, `getStatus()`, `getExecutionArn()`, `completeCallback()`,
     `failCallback()`, and `heartbeatCallback()`.
 
+=== "C#"
+
+    The .NET SDK does not return a dedicated async-execution handle. Use the same
+    `StartAsync` + `WaitForResultAsync` pair as the local runner:
+
+    ```csharp
+    Task<string> StartAsync(
+        TInput input, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+
+    Task<TestResult<TOutput>> WaitForResultAsync(
+        string durableExecutionArn, TimeSpan? timeout = null, CancellationToken cancellationToken = default)
+    ```
+
+    `StartAsync` fires an Event invocation and resolves the durable execution ARN by
+    listing executions. Drive callbacks with `WaitForCallbackAsync` and the `SendCallback*`
+    methods between the two calls.
+
 ### Inspect operations {#cloud-inspect-operations}
 
 === "TypeScript"
@@ -1114,6 +1607,12 @@ types, so tests written against the local runner run unchanged against the cloud
     ```java
     TestOperation getOperation(String name)
     ```
+
+=== "C#"
+
+    Inspect operations through the returned [`TestResult<TOutput>`](#testresult) — the cloud
+    result exposes the same `Steps` list and `GetStep`/`FindStep`/`GetSteps` accessors as the
+    local runner. See [TestResult](#testresult).
 
 ### Drive callbacks {#cloud-drive-callbacks}
 
@@ -1137,6 +1636,13 @@ types, so tests written against the local runner run unchanged against the cloud
     `getCallbackId()`, `completeCallback()`, `failCallback()`, and `heartbeatCallback()` on
     the async handle.
 
+=== "C#"
+
+    Callbacks are driven from the runner, same as the local runner. After `StartAsync`, call
+    `WaitForCallbackAsync` and then `SendCallbackSuccessAsync`, `SendCallbackFailureAsync`,
+    or `SendCallbackHeartbeatAsync`. On the cloud runner these issue the corresponding
+    `SendDurableExecutionCallback*` Lambda API calls.
+
 ### Configure polling and timeouts
 
 === "TypeScript"
@@ -1154,6 +1660,25 @@ types, so tests written against the local runner run unchanged against the cloud
     Use `withPollInterval(Duration)`, `withTimeout(Duration)`, and
     `withInvocationType(InvocationType)` on the runner.
 
+=== "C#"
+
+    Configure polling and timeout through the `CloudTestRunnerOptions` record passed to the
+    constructor. Per-call timeouts can also be passed to `RunAsync`/`WaitForResultAsync`:
+
+    ```csharp
+    await using var runner = new CloudDurableTestRunner<OrderInput, OrderResult>(
+        functionArn,
+        options: new CloudTestRunnerOptions
+        {
+            InitialPollInterval = TimeSpan.FromMilliseconds(200),
+            PollInterval = TimeSpan.FromSeconds(2),
+            DefaultTimeout = TimeSpan.FromMinutes(5),
+        });
+    ```
+
+    The invocation type is fixed to `Event` (fire-and-forget) so callback workflows do not
+    deadlock; there is no `invocationType` knob.
+
 ### Reset between runs {#cloud-reset-between-runs}
 
 === "TypeScript"
@@ -1169,6 +1694,11 @@ types, so tests written against the local runner run unchanged against the cloud
 === "Java"
 
     Create a new runner instance per test.
+
+=== "C#"
+
+    There is no `reset()`. Create a new `CloudDurableTestRunner<TInput, TOutput>` per test
+    and dispose it with `await using` (which disposes a runner-owned Lambda client).
 
 ### Reference types {#cloud-reference-types}
 
@@ -1196,6 +1726,30 @@ types, so tests written against the local runner run unchanged against the cloud
 === "Java"
 
     Not a separate config object. Use the `with*` builder methods on the runner.
+
+=== "C#"
+
+    The .NET equivalent is the `CloudTestRunnerOptions` record:
+
+    ```csharp
+    public sealed record CloudTestRunnerOptions
+    {
+        public TimeSpan InitialPollInterval { get; init; } = TimeSpan.FromMilliseconds(200);
+        public TimeSpan PollInterval { get; init; } = TimeSpan.FromSeconds(2);
+        public TimeSpan DefaultTimeout { get; init; } = TimeSpan.FromMinutes(5);
+        public ILambdaSerializer? Serializer { get; init; }
+    }
+    ```
+
+    **Fields:**
+
+    - `InitialPollInterval` (optional) Delay before the first poll retry; subsequent delays
+        grow exponentially up to `PollInterval`. Defaults to 200 milliseconds.
+    - `PollInterval` (optional) Maximum steady-state interval between polls. Defaults to
+        2 seconds.
+    - `DefaultTimeout` (optional) Wall-clock timeout for polling. Defaults to 5 minutes.
+    - `Serializer` (optional) An `ILambdaSerializer` for payload and result serialization.
+        Defaults to `DefaultLambdaJsonSerializer`.
 
 ## See also
 

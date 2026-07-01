@@ -1,0 +1,46 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Parallel-safe compile-check harness. References the PREBUILT SDK DLLs directly
+    (no ProjectReference), so concurrent builds with isolated obj/bin dirs never
+    rebuild or corrupt the SDK project. Compiles ONE example file at a time.
+
+    Prereq: the SDK must be built once (Release/net10.0) beforehand.
+
+    Single file:
+      dotnet build scripts/csharp-verify/dll-verify.csproj \
+        -p:ExampleFile=<abs.cs> \
+        -p:BaseIntermediateOutputPath=<uniq>/obj/ -p:BaseOutputPath=<uniq>/bin/
+
+    Override <SdkBin> if the aws-lambda-dotnet checkout lives elsewhere.
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <OutputType>Library</OutputType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <SdkBin>..\..\..\aws-lambda-dotnet\Libraries\src\Amazon.Lambda.DurableExecution\bin\Release\net10.0</SdkBin>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Amazon.Lambda.Core">
+      <HintPath>$(SdkBin)\Amazon.Lambda.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="Amazon.Lambda.DurableExecution">
+      <HintPath>$(SdkBin)\Amazon.Lambda.DurableExecution.dll</HintPath>
+    </Reference>
+    <Reference Include="Microsoft.Extensions.Logging.Abstractions">
+      <HintPath>$(SdkBin)\Microsoft.Extensions.Logging.Abstractions.dll</HintPath>
+    </Reference>
+    <!-- Public AWS SDK deps of Amazon.Lambda.DurableExecution, for examples that use
+         the Lambda client directly (custom-client.cs). Version matches the SDK's pin. -->
+    <PackageReference Include="AWSSDK.Lambda" Version="4.0.13.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="$(ExampleFile)" />
+  </ItemGroup>
+
+</Project>

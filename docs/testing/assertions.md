@@ -35,6 +35,15 @@ Look up a step by name and check its status and result.
     --8<-- "examples/java/testing/assertions/assert-step.java"
     ```
 
+=== "C#"
+
+    Use `result.GetStep(name)` to get the `TestStep`, then call `GetResult<T>()` to
+    deserialize the result.
+
+    ```csharp
+    --8<-- "examples/csharp/testing/assertions/assert-step.cs"
+    ```
+
 ## Assert on a wait
 
 Look up a wait operation and check that it was scheduled with the expected duration.
@@ -63,6 +72,15 @@ Look up a wait operation and check that it was scheduled with the expected durat
 
     ```java
     --8<-- "examples/java/testing/assertions/assert-wait.java"
+    ```
+
+=== "C#"
+
+    `GetWaitEndsAt()` returns the scheduled end time as a `DateTimeOffset?`. With the
+    default `SkipTime` on, the wait completes immediately.
+
+    ```csharp
+    --8<-- "examples/csharp/testing/assertions/assert-wait.cs"
     ```
 
 ## Assert on a callback
@@ -98,6 +116,16 @@ then completes it from the test.
     --8<-- "examples/java/testing/assertions/assert-callback.java"
     ```
 
+=== "C#"
+
+    Use `StartAsync()` to drive the workflow to the callback, `WaitForCallbackAsync()` to
+    get the callback ID, `SendCallbackSuccessAsync()` to complete it, then
+    `WaitForResultAsync()` to finish the execution.
+
+    ```csharp
+    --8<-- "examples/csharp/testing/assertions/assert-callback.cs"
+    ```
+
 ## Assert on a child context
 
 Child contexts appear as `CONTEXT` operations in the result. You can walk their child
@@ -119,6 +147,15 @@ operations to assert on what ran inside the context.
 
     ```java
     --8<-- "examples/java/testing/assertions/assert-child-context.java"
+    ```
+
+=== "C#"
+
+    Child contexts appear as `OperationKind.Context` steps. Walk `TestStep.Children` to
+    assert on the operations that ran inside the context.
+
+    ```csharp
+    --8<-- "examples/csharp/testing/assertions/assert-child-context.cs"
     ```
 
 ## Filter operations by status
@@ -150,6 +187,16 @@ status to count failures and successes separately.
 
     ```java
     --8<-- "examples/java/testing/assertions/filter-by-status.java"
+    ```
+
+=== "C#"
+
+    A retried step reuses a single operation record, so the history holds one entry per
+    operation with its terminal status. Pass an `OperationStatus` constant to
+    `result.GetStepsByStatus(...)` to filter.
+
+    ```csharp
+    --8<-- "examples/csharp/testing/assertions/filter-by-status.cs"
     ```
 
 ## See also
