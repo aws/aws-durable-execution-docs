@@ -72,6 +72,12 @@ sequenceDiagram
     --8<-- "examples/java/operations/invoke/process-order.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/invoke/process-order.cs"
+    ```
+
 When this function runs:
 
 1. The SDK checkpoints the first invoke operation's start and triggers
@@ -146,6 +152,29 @@ When this function runs:
     - `InvokeTimedOutException` if the invocation times out (Python only, via
     - `InvokeConfig.timeout`). `InvokeStoppedException` if the invocation was stopped.
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/invoke/invoke-method-signature.cs"
+    ```
+
+    **Parameters:**
+
+    - `functionName` (required) The qualified identifier (version, alias, or `$LATEST`)
+        of the durable Lambda function to invoke. Unqualified ARNs are rejected.
+    - `payload` (required) The payload to send to the invoked function.
+    - `name` (optional) A name for the invoke operation. Omit it to infer one from the
+        call site.
+    - `config` (optional) An `InvokeConfig` object.
+    - `cancellationToken` (optional) A token to observe for cancellation.
+
+    **Returns:** `Task<TResult>`. Use `await` to get the result.
+
+    **Throws:** `InvokeException` when the invocation reaches a non-success terminal
+    state: `InvokeFailedException` if the invoked function threw,
+    `InvokeTimedOutException` on the service-side timeout, and `InvokeStoppedException`
+    if the invocation was stopped. All extend `InvokeException`.
+
 ### InvokeConfig
 
 === "TypeScript"
@@ -201,6 +230,23 @@ When this function runs:
     - `serDes` (optional) Custom `SerDes` for the result. Defaults to JSON serialization.
     - `tenantId` (optional) Tenant identifier for multi-tenant isolation.
 
+=== "C#"
+
+    ```csharp
+    public sealed class InvokeConfig
+    {
+        public string? TenantId { get; set; }
+    }
+    ```
+
+    **Parameters:**
+
+    - `TenantId` (optional) Tenant identifier for multi-tenant isolation.
+
+    The payload and result are serialized with the `ILambdaSerializer` registered on
+    `ILambdaContext.Serializer`; there are no per-invoke serializer fields. See
+    [Serialization](../state/serialization.md).
+
 ## Naming invoke operations
 
 Name invoke operations to make them easier to identify in logs and tests. You can use
@@ -217,6 +263,10 @@ names to describe what the invocation does rather than which function it calls.
 === "Java"
 
     The name is always the first argument. Pass `null` to omit it.
+
+=== "C#"
+
+    The name is the optional `name` argument. Omit it to infer one from the call site.
 
 ## Configuration
 
@@ -240,6 +290,12 @@ Configure invoke behavior using `InvokeConfig`:
     --8<-- "examples/java/operations/invoke/invoke-with-config.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/invoke/invoke-with-config.cs"
+    ```
+
 ## Error handling
 
 Errors from the invoked function propagate to the calling function. Catch them to handle
@@ -261,6 +317,12 @@ failures without letting them terminate the calling function.
 
     ```java
     --8<-- "examples/java/operations/invoke/handle-invocation-error.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/operations/invoke/handle-invocation-error.cs"
     ```
 
 Java exposes separate exception types for different failure modes:

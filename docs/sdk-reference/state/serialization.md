@@ -32,6 +32,12 @@ the step result automatically.
     --8<-- "examples/java/sdk-reference/serialization/Walkthrough.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/Walkthrough.cs"
+    ```
+
 ## Lambda handler serialization
 
 The Durable Execution SDK SerDes only applies to durable operation results. It does not
@@ -57,6 +63,12 @@ separately.
     Lambda serializes handler return values with Jackson. The same `JacksonSerDes`
     configuration applies to both step results and handler return values when you use
     `DurableHandler`.
+
+=== "C#"
+
+    The registered `ILambdaSerializer` serializes everything: durable operation results
+    and the handler's final return value. There is no separate serializer for operation
+    results, so the same configuration always applies to both.
 
 ## Default serialization
 
@@ -84,6 +96,15 @@ Each SDK uses a default SerDes when you do not provide one.
 
     Pass a custom `ObjectMapper` to the `JacksonSerDes` constructor to override the default
     configuration.
+
+=== "C#"
+
+    There is no per-operation default SerDes. Register a single `ILambdaSerializer` at the
+    host boundary and the SDK uses it for every durable operation result.
+
+    Use `DefaultLambdaJsonSerializer` (from `Amazon.Lambda.Serialization.SystemTextJson`)
+    for reflection-based serialization. For AOT or trim-friendly functions, use
+    `SourceGeneratorLambdaJsonSerializer<TContext>` and register your `JsonSerializerContext`.
 
 ## SerDes interface definition
 
@@ -140,6 +161,25 @@ Each SDK uses a default SerDes when you do not provide one.
     Use `TypeToken<T>` to capture generic type information that Java erases at runtime. For
     example: `new TypeToken<List<String>>() {}`.
 
+=== "C#"
+
+    .NET has no per-operation SerDes interface. Serialization is controlled by the single
+    `ILambdaSerializer` registered on `ILambdaContext.Serializer`.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/SerdesInterface.cs"
+    ```
+
+    **Methods:**
+
+    - `Serialize<T>(T response, Stream responseStream)` Writes the serialized form of
+        `response` to `responseStream`.
+    - `Deserialize<T>(Stream requestStream)` Reads `requestStream` and returns the
+        deserialized value of type `T`.
+
+    The same `ILambdaSerializer` handles every durable operation result and the handler's
+    return value.
+
 ## Custom SerDes example
 
 Implement the SerDes interface when the default cannot handle your types, or when you
@@ -161,6 +201,15 @@ need special behavior such as encryption or compression.
 
     ```java
     --8<-- "examples/java/sdk-reference/serialization/OrderSerDes.java"
+    ```
+
+=== "C#"
+
+    Implement `ILambdaSerializer` and register it at the host boundary. The custom
+    serializer applies to every durable operation result, not a single operation.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/OrderSerDes.cs"
     ```
 
 ## Custom SerDes on durable operations
@@ -189,6 +238,16 @@ same handler continue to use the default.
     --8<-- "examples/java/sdk-reference/serialization/StepConfigExample.java"
     ```
 
+=== "C#"
+
+    `StepConfig` does not expose a serializer. The step result is serialized with the
+    `ILambdaSerializer` registered at the host boundary. Register a custom
+    `ILambdaSerializer` there to change how step results are serialized.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/StepConfigExample.cs"
+    ```
+
 ### CallbackConfig
 
 The callback SerDes controls how the SDK deserializes the payload that an external
@@ -213,6 +272,16 @@ system sends when it completes the callback.
 
     ```java
     --8<-- "examples/java/sdk-reference/serialization/CallbackConfigExample.java"
+    ```
+
+=== "C#"
+
+    `CallbackConfig` does not expose a serializer. The payload the external system delivers
+    is deserialized with the `ILambdaSerializer` registered at the host boundary. Register a
+    custom `ILambdaSerializer` there to change how the callback payload is deserialized.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/CallbackConfigExample.cs"
     ```
 
 ### MapConfig & ParallelConfig
@@ -249,6 +318,16 @@ Map and parallel perations support two SerDes fields that apply at different lev
     - `serDes` applies to each item result.
     - Java `ParallelConfig` does not have a `serDes` field.
 
+=== "C#"
+
+    `MapConfig` does not expose a serializer, and there is no separate item-level
+    serializer. Each item result is serialized with the `ILambdaSerializer` registered at
+    the host boundary. `ParallelConfig` likewise has no serializer field.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/MapConfigExample.cs"
+    ```
+
 ## Built-in SerDes helpers
 
 === "TypeScript"
@@ -279,6 +358,16 @@ Map and parallel perations support two SerDes fields that apply at different lev
 
     ```java
     --8<-- "examples/java/sdk-reference/serialization/PassThroughSerdesExample.java"
+    ```
+
+=== "C#"
+
+    `DefaultLambdaJsonSerializer` handles class and record instances via System.Text.Json.
+    You can create a pass-through serializer that stores string values as-is by implementing
+    `ILambdaSerializer` and registering it at the host boundary:
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/PassThroughSerdesExample.cs"
     ```
 
 ## FileSystem serdes
@@ -331,6 +420,12 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
     Coming soon. See
     [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
 
+=== "C#"
+
+    Not available. The .NET SDK has no FileSystem serdes. To keep large payloads out of the
+    checkpoint, write them to a persistent store (such as Amazon S3) inside a step and
+    checkpoint a pointer instead of the payload.
+
 ### Create a FileSystem serdes
 
 Create a FileSystem serdes and pass it to an operation's config.
@@ -372,6 +467,10 @@ Create a FileSystem serdes and pass it to an operation's config.
 === "Java"
 
     Coming soon.
+
+=== "C#"
+
+    Not available.
 
 ### FileSystemSerdesConfig
 
@@ -415,6 +514,10 @@ Create a FileSystem serdes and pass it to an operation's config.
 
     Coming soon.
 
+=== "C#"
+
+    Not available.
+
 ### Storage modes
 
 The `storageMode` enumerated field controls when the SDK writes to the filesystem.
@@ -442,6 +545,10 @@ execution checkpoint size limit. See
 === "Java"
 
     Coming soon.
+
+=== "C#"
+
+    Not available.
 
 ### Path encoding
 
@@ -475,6 +582,10 @@ enough to exceed the name-length limit.
 === "Java"
 
     Coming soon.
+
+=== "C#"
+
+    Not available.
 
 ### Preview and PII masking
 
@@ -546,6 +657,10 @@ default.
 
     Coming soon.
 
+=== "C#"
+
+    Not available.
+
 ### Set as the default for the handler
 
 When you want every step result, child-context result, invoke result, and
@@ -571,6 +686,11 @@ once with `configureSerdes`.
 
     Coming soon. See
     [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
+
+=== "C#"
+
+    Not available. The single `ILambdaSerializer` you register at the host boundary is
+    already applied to every durable operation result in the handler.
 
 ## Serialization errors
 

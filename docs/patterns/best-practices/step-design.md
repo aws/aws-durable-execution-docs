@@ -34,6 +34,12 @@ different name on subsequent invocations.
     --8<-- "examples/java/patterns/step-design/step-names.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/step-design/step-names.cs"
+    ```
+
 !!! warning
 
     A step name with a timestamp or random value resolves to a different name on replay.
@@ -75,6 +81,12 @@ re-run.
     --8<-- "examples/java/patterns/step-design/one-thing-per-step.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/step-design/one-thing-per-step.cs"
+    ```
+
 ## Reuse step logic
 
 Define a reusable step function once and reference it repeatedly from the workflow.
@@ -104,6 +116,14 @@ Define a reusable step function once and reference it repeatedly from the workfl
     --8<-- "examples/java/patterns/step-design/reusable-step.java"
     ```
 
+=== "C#"
+
+    Define a method returning `Task<T>` and reference it as the step body.
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/step-design/reusable-step.cs"
+    ```
+
 ## Step nesting
 
 A step receives a `StepContext`, not the full `DurableContext`. A step is the atomic
@@ -127,6 +147,12 @@ unit the SDK checkpoints. You cannot call other durable operations such as `step
 
     ```java
     --8<-- "examples/java/patterns/step-design/step-boundary.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/step-design/step-boundary.cs"
     ```
 
 ## Handle errors explicitly
@@ -168,6 +194,14 @@ options.
 
     ```java
     --8<-- "examples/java/patterns/step-design/handle-errors-in-step.java"
+    ```
+
+=== "C#"
+
+    List the retryable exception types in the retry strategy configuration.
+
+    ```csharp
+    --8<-- "examples/csharp/patterns/step-design/handle-errors-in-step.cs"
     ```
 
 !!! warning

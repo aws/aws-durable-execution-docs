@@ -29,6 +29,12 @@ IDs, log sampling, and X-Ray tracing integration.
     --8<-- "examples/java/sdk-reference/observability/basic-usage.java"
     ```
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/observability/basic-usage.cs"
+    ```
+
 ## Log methods
 
 === "TypeScript"
@@ -78,6 +84,23 @@ IDs, log sampling, and X-Ray tracing integration.
 
     The Java logger uses SLF4J format strings. Pass `{}` placeholders and positional
     arguments.
+
+=== "C#"
+
+    ```csharp
+    // context.Logger and stepContext.Logger are Microsoft.Extensions.Logging.ILogger.
+    // Use the standard ILogger extension methods:
+    context.Logger.LogTrace(string message, params object?[] args);
+    context.Logger.LogDebug(string message, params object?[] args);
+    context.Logger.LogInformation(string message, params object?[] args);
+    context.Logger.LogWarning(string message, params object?[] args);
+    context.Logger.LogError(string message, params object?[] args);
+    context.Logger.LogError(Exception exception, string message, params object?[] args);
+    context.Logger.LogCritical(string message, params object?[] args);
+    ```
+
+    The `ILogger` methods use message templates. Pass `{Name}` placeholders and
+    positional arguments.
 
 ## Default log format
 
@@ -140,6 +163,30 @@ IDs, log sampling, and X-Ray tracing integration.
     }
     ```
 
+=== "C#"
+
+    The SDK writes through `Microsoft.Extensions.Logging.ILogger` and attaches
+    execution context fields via `ILogger.BeginScope`. When your Lambda function's
+    log format is set to JSON and your logger provider includes scope fields in its
+    output, those fields appear as top-level keys in the JSON log record. See
+    [Using Lambda advanced logging controls with C#](https://docs.aws.amazon.com/lambda/latest/dg/csharp-logging.html#csharp-logging-advanced).
+
+    Field names and structure depend on your logger provider configuration. A JSON
+    console output might look like:
+
+    ```json
+    {
+      "Timestamp": "2025-11-21T18:39:24.743Z",
+      "LogLevel": "Information",
+      "Message": "Running step",
+      "requestId": "72171fff-...",
+      "executionArn": "arn:aws:lambda:...",
+      "operationId": "abc123",
+      "operationName": "process",
+      "attempt": 1
+    }
+    ```
+
 ## Execution metadata
 
 The SDK automatically enriches log entries with execution metadata. The metadata varies
@@ -172,6 +219,11 @@ All DurableContext fields, plus:
 
     - `contextId` the operation ID of the child context operation
     - `contextName` the name given to the child context, when you provide one
+
+=== "C#"
+
+    - `operationId` the deterministic operation ID of the child context operation
+    - `operationName` the name given to the child context, when you provide one
 
 ### Operation context
 
@@ -210,6 +262,15 @@ instead of DurableContext's logger adds step-specific fields (`operationId`,
 
     ```java
     --8<-- "examples/java/sdk-reference/observability/step-context-logger.java"
+    ```
+
+=== "C#"
+
+    The C# SDK attaches fields via `ILogger.BeginScope`. Configure your logger
+    provider to include scope fields in its output.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/observability/step-context-logger.cs"
     ```
 
 ## Replay log suppression
@@ -251,6 +312,15 @@ Logs inside a retrying step body always emit, because the step has not completed
     Pass `LoggerConfig.withReplayLogging()` to `DurableConfig` to emit logs on every replay.
     See [Configure logger](#configure-logger).
 
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/observability/replay-suppression.cs"
+    ```
+
+    Call `context.ConfigureLogger(new LoggerConfig { ModeAware = false })` to emit logs
+    on every replay. See [Configure logger](#configure-logger).
+
 ## Custom logger
 
 You can replace the default logger with any logger that implements the SDK's logger
@@ -279,6 +349,15 @@ interface.
     an SLF4J logger obtained from `LoggerFactory`. To change logging behavior, configure
     your SLF4J implementation (Logback, Log4j2) or adjust `LoggerConfig` via
     `DurableConfig`. See [Configure logger](#configure-logger).
+
+=== "C#"
+
+    Any `Microsoft.Extensions.Logging.ILogger` works. Pass it as the `CustomLogger`
+    on `LoggerConfig` to `context.ConfigureLogger`.
+
+    ```csharp
+    context.ConfigureLogger(new LoggerConfig { CustomLogger = myLogger });
+    ```
 
 ## Configure logger
 
@@ -340,6 +419,31 @@ interface.
         .build();
     ```
 
+=== "C#"
+
+    Configure the logger on the handler's `IDurableContext`.
+
+    ```csharp
+    void IDurableContext.ConfigureLogger(LoggerConfig config);
+    ```
+
+    **`LoggerConfig`**
+
+    ```csharp
+    public sealed class LoggerConfig
+    {
+        public ILogger? CustomLogger { get; init; }  // null = keep current logger
+        public bool ModeAware { get; init; } = true;
+    }
+    ```
+
+    **`LoggerConfig` parameters:**
+
+    - `CustomLogger` (optional) An `ILogger` to use instead of the SDK default. When
+        null, the durable context keeps its existing inner logger.
+    - `ModeAware` (optional) When `true` (default), the SDK suppresses logs during
+        replay. Set to `false` to emit logs on every replay.
+
 ## Logger interface
 
 === "TypeScript"
@@ -362,6 +466,12 @@ interface.
 
     The Java SDK wraps any SLF4J `Logger` in `DurableLogger`. There is no interface to
     implement.
+
+=== "C#"
+
+    The C# SDK uses `Microsoft.Extensions.Logging.ILogger` directly. There is no
+    SDK-specific interface to implement; pass any `ILogger` as the `CustomLogger` on
+    `LoggerConfig`.
 
 ## Powertools for AWS Lambda
 
@@ -398,6 +508,17 @@ structured logger that works as a drop-in replacement for the SDK's default logg
 
     ```java
     --8<-- "examples/java/sdk-reference/observability/powertools-logger.java"
+    ```
+
+=== "C#"
+
+    The
+    [Powertools for AWS Lambda (.NET) logger](https://docs.aws.amazon.com/powertools/dotnet/core/logging/)
+    is a `Microsoft.Extensions.Logging.ILogger`. Pass it as the `CustomLogger` via
+    `context.ConfigureLogger`.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/observability/powertools-logger.cs"
     ```
 
 ## See also

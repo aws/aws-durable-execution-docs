@@ -37,7 +37,7 @@ aws lambda stop-durable-execution \
 
 After updating your code, publish a new version and point your alias to it.
 
-=== "Zip (TypeScript/Python)"
+=== "Zip (TypeScript/Python/C#)"
 
     ```console
     aws lambda update-function-code \
