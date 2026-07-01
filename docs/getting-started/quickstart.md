@@ -218,16 +218,16 @@ execution role you just created.
 
     aws lambda create-function \
       --function-name my-durable-function \
-      --runtime <dotnet-runtime> \
+      --runtime dotnet10 \
       --role arn:aws:iam::123456789012:role/durable-function-role \
       --handler MyDurableFunction \
       --zip-file fileb://function.zip \
       --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
     ```
 
-    Set `--runtime` to the current managed .NET runtime identifier. The `--handler`
-    value depends on your programming model: the assembly name for the executable
-    model, or `Assembly::Namespace.Type::Method` for a class library. See the
+    The `--handler` value depends on your programming model: the assembly name for
+    the executable model, or `Assembly::Namespace.Type::Method` for a class library.
+    See the
     [C# SDK guide](../sdk-reference/languages/csharp/index.md) for the programming
     models, serializer registration, and handler string for each.
 
