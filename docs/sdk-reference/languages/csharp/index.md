@@ -146,7 +146,8 @@ to `HandlerWrapper.GetHandlerWrapper`; in the class-library model you declare it
 
 For reflection-based serialization, use `DefaultLambdaJsonSerializer`. For trimmed or
 Native AOT functions, register `SourceGeneratorLambdaJsonSerializer<TContext>` with your
-`JsonSerializerContext` instead. No operation takes a per-call serializer argument.
+`JsonSerializerContext`. Every operation uses the serializer you register at the host
+boundary.
 
 ## Cancellation
 
