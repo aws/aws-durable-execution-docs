@@ -318,17 +318,26 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
 
 === "Python"
 
-    Coming soon. See
-    [aws-durable-execution-sdk-python#479](https://github.com/aws/aws-durable-execution-sdk-python/issues/479).
+    Pass the FileSystem serdes to a single operation through `StepConfig`,
+    `CallbackConfig`, `MapConfig`, or `ParallelConfig`. Other operations in the
+    same handler continue to use the default serdes.
+
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-walkthrough.py"
+    ```
 
 === "Java"
 
     Coming soon. See
     [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
 
-### createFileSystemSerdes signature
+### Create a FileSystem serdes
+
+Create a FileSystem serdes and pass it to an operation's config.
 
 === "TypeScript"
+
+    `createFileSystemSerdes(basePath, config?)` returns a `Serdes<unknown>`.
 
     ```typescript
     --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-signature.ts"
@@ -336,7 +345,7 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
 
     **Parameters:**
 
-    - `basePath` Directory path where data files are written. Set this to your
+    - `basePath` Directory where the SDK writes data files. Set this to your
         filesystem mount point.
     - `config` (optional) `FileSystemSerdesConfig` controlling storage mode, path
         encoding, and preview generation.
@@ -345,7 +354,20 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
 
 === "Python"
 
-    Coming soon.
+    `FileSystemSerDes(base_path, config?)` is a `SerDes` subclass you instantiate.
+
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-signature.py"
+    ```
+
+    **Parameters:**
+
+    - `base_path` Directory where the SDK writes data files. Set this to your
+        filesystem mount point.
+    - `config` (optional) `FileSystemSerDesConfig` controlling storage mode, path
+        encoding, and preview generation.
+
+    **Returns:** A `SerDes` instance that reads and writes JSON files under `base_path`.
 
 === "Java"
 
@@ -372,7 +394,22 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
 
 === "Python"
 
-    Coming soon.
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-config.py"
+    ```
+
+    **Fields:**
+
+    - `storage_mode` (optional) A `FileSystemSerDesMode` value. Default:
+        `FileSystemSerDesMode.ALWAYS`.
+    - `path_encoding` (optional) A `FileSystemPathEncoding` value. Default:
+        `FileSystemPathEncoding.URI`.
+    - `generate_preview` (optional) Callable that returns a preview dict or `None`.
+        The SDK stores the preview inline in the checkpoint envelope alongside the
+        file pointer. Use the [`build_preview`](#preview-and-pii-masking) helper or
+        write your own.
+    - `serdes` (optional) `SerDes` instance that serializes values before writing
+        them to the filesystem. Default: `ExtendedTypeSerDes`.
 
 === "Java"
 
@@ -398,7 +435,9 @@ execution checkpoint size limit. See
 
 === "Python"
 
-    Coming soon.
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-overflow.py"
+    ```
 
 === "Java"
 
@@ -429,7 +468,9 @@ enough to exceed the name-length limit.
 
 === "Python"
 
-    Coming soon.
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-path-encoding.py"
+    ```
 
 === "Java"
 
@@ -456,9 +497,8 @@ default.
     **`PreviewConfig` fields:**
 
     - `mode` Either `PreviewMode.INCLUDE_ALL` or `PreviewMode.EXCLUDE_ALL`. Sets
-        the starting point before applying `include`, `exclude`, and `mask`.
-    - `include` (optional) Fields to add when starting from `EXCLUDE_ALL`, or to
-        force-include when starting from `INCLUDE_ALL`.
+        the starting point before applying `exclude` and `mask`.
+    - `include` (optional) Fields to add when starting from `EXCLUDE_ALL`.
     - `exclude` (optional) Fields to remove. Always wins over `mask`.
     - `mask` (optional) Fields whose values become `maskString`. A masked field is
         visible in the preview unless it is also excluded.
@@ -471,14 +511,36 @@ default.
     the object tree, or `FieldMatchMode.PATH` to match an exact dot-notation path
     from the root.
 
-    Field names that contain a dot are not supported in selectors because a dot is
-    indistinguishable from a path separator. Array structure is not preserved in
-    the output: fields from array elements merge into a plain object at the
-    array's path.
+    Selectors cannot address field names that contain a dot because a dot is
+    indistinguishable from a path separator. The preview merges array elements
+    into a plain object at the array's path rather than preserving array structure.
 
 === "Python"
 
-    Coming soon.
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-preview.py"
+    ```
+
+    **`PreviewConfig` fields:**
+
+    - `mode` Either `PreviewMode.INCLUDE_ALL` or `PreviewMode.EXCLUDE_ALL`. Sets
+        the starting point before applying `exclude` and `mask`.
+    - `include` (optional) Fields to add when starting from `EXCLUDE_ALL`.
+    - `exclude` (optional) Fields to remove. Always wins over `mask`.
+    - `mask` (optional) Fields whose values become `mask_string`. A masked field is
+        visible in the preview unless it is also excluded.
+    - `mask_string` (optional) Replacement value for masked fields. Default: `"***"`.
+    - `max_preview_bytes` (optional) Maximum size in bytes for the preview object
+        when JSON-serialized. Default: `4096`.
+
+    Each `PreviewField` selector has a `name` and an optional `match`. Use
+    `FieldMatchMode.ANYWHERE` (default) to match the field name at any depth in
+    the object tree, or `FieldMatchMode.PATH` to match an exact dot-notation path
+    from the root.
+
+    Selectors cannot address field names that contain a dot because a dot is
+    indistinguishable from a path separator. The preview merges array elements
+    into a plain object at the array's path rather than preserving array structure.
 
 === "Java"
 
@@ -498,8 +560,12 @@ once with `configureSerdes`.
 
 === "Python"
 
-    Coming soon. See
-    [aws-durable-execution-sdk-python#479](https://github.com/aws/aws-durable-execution-sdk-python/issues/479).
+    Create a single `FileSystemSerDes` instance and a shared `StepConfig`, then
+    pass it to every operation in the handler.
+
+    ```python
+    --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-default.py"
+    ```
 
 === "Java"
 
