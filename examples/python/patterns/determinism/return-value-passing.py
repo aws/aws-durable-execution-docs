@@ -1,26 +1,39 @@
-# Wrong: total mutates outside the step, replay restarts it at 0.
-@durable_execution
-def handler(event, context: DurableContext) -> dict:
-    total = 0
-    for item in event["items"]:
-        context.step(save_item(item), name=f"save-{item['id']}")
-        total += item["price"]
-    return {"total": total}
-
-
-# Right: each step returns the new running total.
+# Wrong: the step body mutates an outer list passed by reference.
+# Replay returns the cached None without running the body, so the
+# list stays empty and the handler returns {"receipts": []} on replay.
 @durable_step
-def save_and_accumulate(ctx: StepContext, item: dict, running_total: float) -> float:
-    save_item(item)
-    return running_total + item["price"]
+def save_and_track(ctx: StepContext, item: dict, target: list) -> None:
+    receipt = save_item(item)
+    target.append(receipt["id"])
 
 
 @durable_execution
 def handler(event, context: DurableContext) -> dict:
-    total = 0.0
+    receipts: list[str] = []
     for item in event["items"]:
-        total = context.step(
-            save_and_accumulate(item, total),
+        context.step(
+            save_and_track(item, receipts),
             name=f"save-{item['id']}",
         )
-    return {"total": total}
+    return {"receipts": receipts}
+
+
+# Right: the step returns the receipt id. The handler appends the
+# returned value to the outer list, which replay rebuilds from the
+# cached step results.
+@durable_step
+def save_and_return_id(ctx: StepContext, item: dict) -> str:
+    receipt = save_item(item)
+    return receipt["id"]
+
+
+@durable_execution
+def handler(event, context: DurableContext) -> dict:
+    receipts: list[str] = []
+    for item in event["items"]:
+        receipt_id = context.step(
+            save_and_return_id(item),
+            name=f"save-{item['id']}",
+        )
+        receipts.append(receipt_id)
+    return {"receipts": receipts}

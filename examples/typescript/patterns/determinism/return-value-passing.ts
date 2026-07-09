@@ -1,21 +1,28 @@
-// Wrong: total mutates outside the step, replay restarts it at 0.
+// Wrong: the step body pushes to an outer list. Replay returns the
+// cached undefined without running the body, so the list stays empty
+// and the handler returns { receipts: [] } on replay.
 export const handler = withDurableExecution(async (event, context) => {
-  let total = 0;
+  const receipts: string[] = [];
   for (const item of event.items) {
-    await context.step(`save-${item.id}`, async () => saveItem(item));
-    total += item.price;
-  }
-  return { total };
-});
-
-// Right: each step returns the new running total.
-export const handler = withDurableExecution(async (event, context) => {
-  let total = 0;
-  for (const item of event.items) {
-    total = await context.step(`save-${item.id}`, async () => {
-      await saveItem(item);
-      return total + item.price;
+    await context.step(`save-${item.id}`, async () => {
+      const receipt = await saveItem(item);
+      receipts.push(receipt.id);
     });
   }
-  return { total };
+  return { receipts };
+});
+
+// Right: the step returns the receipt id. The handler appends the
+// returned value to the outer list, which replay rebuilds from the
+// cached step results.
+export const handler = withDurableExecution(async (event, context) => {
+  const receipts: string[] = [];
+  for (const item of event.items) {
+    const receiptId = await context.step(`save-${item.id}`, async () => {
+      const receipt = await saveItem(item);
+      return receipt.id;
+    });
+    receipts.push(receiptId);
+  }
+  return { receipts };
 });

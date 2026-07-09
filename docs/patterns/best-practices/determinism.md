@@ -66,10 +66,14 @@ service.
 
 ## Pass data through return values, not closures
 
-State outside a step resets to its initial value on replay. Steps return their cached
-results, but assignments, mutations, and pushes that happen outside steps run again on
-every invocation. Although this pattern looks like it works on the first invocation, it
-breaks as soon as the workflow replays after a crash or a wait.
+Steps checkpoint their return value. On replay the SDK returns the cached value in
+place of running the step body. Replay discards any state a step body writes to
+variables outside itself through a closure, because the write happens inside the body
+and the body does not run. The first invocation succeeds. Replay leaves the outer state
+at its initial value.
+
+Return the value from the step. Read the return value in the handler and update outer
+state there.
 
 === "TypeScript"
 
@@ -98,8 +102,10 @@ Each step must produce the same result on replay.
 
 !!! danger
 
-    Mutating state outside a step fails silently. The first invocation looks correct. Replay
-    resets the mutation while steps return their cached results.
+    Side effects inside a step body that write to outer state do not re-run on replay.
+    The first invocation looks correct because the body runs and the write lands. Replay
+    returns the cached result and skips the body, so the outer state stays at its initial
+    value.
 
 ## Keep branches stable across replay
 
