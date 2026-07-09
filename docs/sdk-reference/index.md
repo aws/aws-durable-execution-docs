@@ -29,6 +29,7 @@ The core building blocks for constructing durable workflows:
 ## Observability
 
 - [Logging](observability/logging.md) Structured logging within durable functions
+- [Plugins](observability/plugins.md) Instrument the execution lifecycle to integrate external tooling
 
 ## Configuration
 
