@@ -27,6 +27,10 @@ export const examplePlugin: DurableInstrumentationPlugin = {
     console.log(`operation ${info.name} end, status: ${info.status}, error: ${info.error}`);
   },
 
+  async onOperationChange(info: OperationChangeInfo): Promise<void> {
+    console.log(`operations changed, ids: ${Object.keys(info.updatedOperations)}`);
+  },
+
   async onOperationAttemptStart(info: AttemptInfo): Promise<void> {
     console.log(`attempt ${info.name} start, attempt: ${info.attempt}`);
   },
@@ -51,10 +55,6 @@ export const examplePlugin: DurableInstrumentationPlugin = {
   wrapOperationAttemptFn(info: AttemptInfo, fn: () => unknown): unknown {
     console.log(`wrap attempt ${info.name}, attempt: ${info.attempt}`);
     return fn();
-  },
-
-  async onOperationChange(info: OperationChangeInfo): Promise<void> {
-    console.log(`operations changed, ids: ${Object.keys(info.updatedOperations)}`);
   },
 
   enrichLogContext(): Record<string, string | number | boolean> {

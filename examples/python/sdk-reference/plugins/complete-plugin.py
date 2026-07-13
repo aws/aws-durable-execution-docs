@@ -4,6 +4,7 @@ from aws_durable_execution_sdk_python.plugin import (
     InvocationEndInfo,
     OperationStartInfo,
     OperationEndInfo,
+    OperationChangeInfo,
     UserFunctionStartInfo,
     UserFunctionEndInfo,
 )
@@ -21,6 +22,9 @@ class ExamplePlugin(DurableInstrumentationPlugin):
 
     def on_operation_end(self, info: OperationEndInfo) -> None:
         print(f"operation {info.name} end, status: {info.status}, error: {info.error}")
+
+    def on_operation_change(self, info: OperationChangeInfo) -> None:
+        print("operations changed", "ids:", list(info.updated_operations.keys()))
 
     def on_user_function_start(self, info: UserFunctionStartInfo) -> None:
         print(f"user function {info.name} start, attempt: {info.attempt}")
