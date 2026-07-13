@@ -3,6 +3,7 @@ import software.amazon.lambda.durable.plugin.InvocationInfo;
 import software.amazon.lambda.durable.plugin.InvocationEndInfo;
 import software.amazon.lambda.durable.plugin.OperationInfo;
 import software.amazon.lambda.durable.plugin.OperationEndInfo;
+import software.amazon.lambda.durable.plugin.OperationChangeInfo;
 import software.amazon.lambda.durable.plugin.UserFunctionStartInfo;
 import software.amazon.lambda.durable.plugin.UserFunctionEndInfo;
 
@@ -27,6 +28,11 @@ public class ExamplePlugin implements DurableExecutionPlugin {
     @Override
     public void onOperationEnd(OperationEndInfo info) {
         System.out.println("operation " + info.name() + " end, error: " + info.error());
+    }
+
+    @Override
+    public void onOperationChange(OperationChangeInfo info) {
+        System.out.println("operations changed, ids: " + info.updatedOperations().keySet());
     }
 
     @Override

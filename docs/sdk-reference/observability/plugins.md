@@ -141,11 +141,15 @@ snapshot of all operations.
 
 === "Python"
 
-    This hook is a work in progress and is not yet available in the Python SDK.
+    ```python
+    --8<-- "examples/python/sdk-reference/plugins/checkpoint-change-hook.py"
+    ```
 
 === "Java"
 
-    This hook is a work in progress and is not yet available in the Java SDK.
+    ```java
+    --8<-- "examples/java/sdk-reference/plugins/checkpoint-change-hook.java"
+    ```
 
 ## Use a plugin
 
