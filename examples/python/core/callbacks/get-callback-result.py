@@ -1,1 +1,0 @@
-def result() -> T | None
