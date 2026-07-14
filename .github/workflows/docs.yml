@@ -34,6 +34,9 @@ jobs:
 
       - name: Verify vendored GLightbox
         run: python3 scripts/vendor_glightbox.py --check
+
+      - name: Verify example references
+        run: python3 scripts/check_example_refs.py
       
       - name: Build documentation
         run: zensical build --clean
