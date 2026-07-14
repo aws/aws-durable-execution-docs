@@ -14,3 +14,5 @@ Best practices for your Durable Execution SDK workflow code.
     and polling external services with backoff.
 - [Code organization](code-organization.md) Separating business logic from
     orchestration, using child contexts, and grouping configuration.
+- [Saga pattern](saga-pattern.md) Implementing sagas with compensation logic
+    for distributed transactions.

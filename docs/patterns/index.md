@@ -22,3 +22,6 @@ Best practices for deterministic workflows.
     timeouts, heartbeats, and polling external services with backoff.
 - [Code organization](best-practices/code-organization.md) Separating business logic
     from orchestration, using child contexts, and grouping configuration.
+- [Saga pattern](best-practices/saga-pattern.md) Implementing sagas with compensation logic
+    for distributed transactions.
+    
