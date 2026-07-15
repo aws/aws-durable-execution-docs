@@ -168,8 +168,10 @@ Use map to apply the same operation to every item in a collection. Use
     - `completionConfig` (optional) When to stop. Default: wait for all items.
     - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
     - `itemSerdes` (optional) Custom `Serdes` for individual item results.
-    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. `FLAT`
-        reduces operation overhead by ~30% at the cost of lower observability.
+    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`.
+        This option is available only in the TypeScript SDK.
+        - With `NESTED`, the map operation wraps each iteration in its own child context with its own `CONTEXT` operation, so every iteration appears as a separate operation in the execution history. Use `NESTED` when you want to inspect each iteration's operations independently.
+        - With `FLAT`, the map operation uses a virtual context for each iteration and skips the per-iteration `CONTEXT` operation, so iterations no longer appear as separate operations in the execution history. This provides up to 2x cost reduction and up to 2x more iterations per execution. Use `FLAT` for high-volume workloads where per-iteration visibility matters less than operation overhead.
 
 === "Python"
 

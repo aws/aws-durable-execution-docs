@@ -174,8 +174,10 @@ execute the same operation concurrently for each item in a collection.
     - `completionConfig` (optional) When to stop. Default: wait for all branches.
     - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
     - `itemSerdes` (optional) Custom `Serdes` for individual branch results.
-    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. `FLAT`
-        reduces operation overhead by ~30% at the cost of lower observability.
+    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`.
+        This option is available only in the TypeScript SDK.
+        - With `NESTED`, the parallel operation wraps each branch in its own child context with its own `CONTEXT` operation, so every branch appears as a separate operation in the execution history. Use `NESTED` when you want to inspect each branch's operations independently.
+        - With `FLAT`, the parallel operation uses a virtual context for each branch and skips the per-branch `CONTEXT` operation, so branches no longer appear as separate operations in the execution history. This provides up to 2x cost reduction and up to 2x more branches per execution. Use `FLAT` for high-volume workloads where per-branch visibility matters less than operation overhead.
 
 === "Python"
 
