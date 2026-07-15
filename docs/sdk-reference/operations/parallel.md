@@ -175,13 +175,9 @@ execute the same operation concurrently for each item in a collection.
     - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
     - `itemSerdes` (optional) Custom `Serdes` for individual branch results.
     - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`.
-        - With `NESTED`, child operations appear as separate scopes in the execution history,
-      making workflows easier to inspect and troubleshoot. This is recommended when
-      detailed execution visibility is important.
-        - With `FLAT`, child operations are flattened into the parent operation. This reduces
-      operation overhead by ~30%, but provides less detail in execution history and
-      observability tools such as CloudWatch logs. This is recommended for high-volume
-      workloads where minimizing overhead is more important than detailed tracing.
+        This option is available only in the TypeScript SDK.
+        - With `NESTED`, the parallel operation wraps each branch in its own child context with its own `CONTEXT` operation, so every branch appears as a separate operation in the execution history. Use `NESTED` when you want to inspect each branch's operations independently.
+        - With `FLAT`, the parallel operation uses a virtual context for each branch and skips the per-branch `CONTEXT` operation, so branches no longer appear as separate operations in the execution history. This provides up to 2x cost reduction and up to 2x more branches per execution. Use `FLAT` for high-volume workloads where per-branch visibility matters less than operation overhead.
 
 === "Python"
 
