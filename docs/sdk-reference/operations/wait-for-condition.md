@@ -8,7 +8,7 @@ signals it to stop. Behind the scenes, the check condition runs as a
 results automatically and tracks state between attempts. The function suspends between
 attempts and does not consume Lambda execution time.
 
-It manages the entire poll-wait-check cycle for you, including state tracking, backoff,
+It manages the entire check-and-wait cycle for you, including state tracking, backoff,
 and attempt counting.
 
 Use `waitForCondition` when you need to poll until a condition is met. For example, if
@@ -47,6 +47,24 @@ Here's a simple example that polls until a job completes:
     --8<-- "examples/csharp/core/wait/wait-for-condition.cs"
     ```
 
+## Timing and order of operations
+
+Each attempt runs the check function first, then applies the wait. The SDK runs the
+first check immediately, with no delay before it.
+
+An attempt proceeds in this order:
+
+1. The SDK runs the check function with the current state. The first attempt receives
+    the `initialState` you configured. Each later attempt receives the state the
+    previous check returned.
+2. The SDK evaluates whether the condition is met. If it is, `waitForCondition`
+    checkpoints the final state and returns it.
+3. If the condition is not met, the SDK checkpoints the delay for this attempt,
+    suspends the function, and resumes for the next attempt once the delay elapses.
+
+Where you express the stop-or-continue decision differs by language. See
+[Custom strategy](#custom-strategy).
+
 ```mermaid
 graph TD
     A[Start with initial state] --> B["check (step)"]
@@ -55,6 +73,15 @@ graph TD
     E -->|step retry| B
     D -->|Stop| F[Return final state]
 ```
+
+The attempt counter starts at 1 and increments by one on each new attempt. The wait
+strategy receives this number, so it can grow the delay or cap the total attempts.
+
+Because the check runs before the wait, no delay precedes the first check. With the
+[strategy builder helper](#strategy-builder-helper), `initialDelay` sets the wait after
+the first unmet check, before the second attempt. Each later wait grows from there:
+attempt _n_ waits `initialDelay * backoffRate^(n - 1)`, capped at `maxDelay`, with jitter
+applied.
 
 ## Method signature
 
