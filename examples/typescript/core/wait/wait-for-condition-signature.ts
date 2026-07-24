@@ -16,9 +16,10 @@ type WaitForConditionCheckFunc<T> = (
   context: WaitForConditionContext,
 ) => Promise<T>;
 
-// WaitForConditionContext — provides a logger for use during checks
+// WaitForConditionContext — provides a logger and the 1-based attempt number
 interface WaitForConditionContext {
   logger: DurableLogger;
+  attempt: number;
 }
 
 // Config

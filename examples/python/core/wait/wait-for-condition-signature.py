@@ -9,9 +9,10 @@ def wait_for_condition(
 # Check function
 Callable[[T, WaitForConditionCheckContext], T]
 
-# WaitForConditionCheckContext — provides a logger for use during checks
+# WaitForConditionCheckContext — provides a logger and the 1-based attempt number
 class WaitForConditionCheckContext:
     logger: LoggerInterface
+    attempt: int
 
 # Config
 @dataclass
