@@ -67,13 +67,13 @@ Operations are units of work in a durable execution. Each operation type serves 
 specific purpose:
 
 - [Steps](../sdk-reference/operations/step.md) Execute business logic with automatic
-    checkpointing and configurable retry
+    checkpointing and configurable retry, which can suspend the execution
 - [Waits](../sdk-reference/operations/wait.md) Suspend execution for a duration without
     consuming compute resources
 - [Callbacks](../sdk-reference/operations/callback.md) Suspend execution and wait for an
     external system to submit a result
-- [Invoke](../sdk-reference/operations/invoke.md) Invoke another Lambda function and
-    checkpoint the result
+- [Invoke](../sdk-reference/operations/invoke.md) Invoke another Lambda function, suspending 
+    until we checkpoint the result
 - [Parallel](../sdk-reference/operations/parallel.md) Execute multiple independent
     operations concurrently
 - [Map](../sdk-reference/operations/map.md) Execute an operation on each item in an
@@ -81,7 +81,7 @@ specific purpose:
 - [Child context](../sdk-reference/operations/child-context.md) Group operations into an
     isolated context for sub-workflow organization and concurrent determinism
 - [Wait for condition](../sdk-reference/operations/wait-for-condition.md) Poll for a
-    condition with automatic checkpointing between attempts
+    condition with automatic checkpointing between attempts, suspending execution between polls
 
 ## Checkpoints
 
@@ -119,7 +119,7 @@ again from the beginning and replays the checkpoint log:
 2. **Run from beginning** your handler runs from the start, not from where it paused
 3. **Skip completed operations** as your code calls durable operations, the SDK checks
     each against the checkpoint log and returns stored results without re-executing the
-    operation code
+    operation code, saving you active lambda compute time costs
 4. **Resume at interruption point** when the SDK reaches an operation without a
     checkpoint, it executes normally and creates new checkpoints from that point
     forward
@@ -205,3 +205,18 @@ Let's trace through a simple workflow:
 6. The SDK checkpoints the result of the process step
 7. The function returns naturally and the invocation ends
 8. The durable execution ends
+
+## Cost implications
+
+With durable functions, you pay for what you use. The pricing dimensions are (in no particular order):
+
+1. Lambda compute duration
+2. Lambda requests
+3. Durable operations
+4. Storage written
+5. Storage persisted
+6. Data transfer
+
+When your execution is suspended, you're not paying for compute. A small storage persisted charge keeps your checkpoints around while your execution is suspended and through the retention period after it completes. Operations are what make suspension possible, each one creates a checkpoint, and each checkpoint has its own cost. See [Checkpoint consumption](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-sdk.html#durable-operations-checkpoint-consumption) for the breakdown.
+
+Durable functions work alongside other Lambda features, so check out [Lambda pricing](https://aws.amazon.com/lambda/pricing/) for the full picture.
