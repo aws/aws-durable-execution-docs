@@ -71,6 +71,7 @@ nav = [
       { "Parallel" = "sdk-reference/operations/parallel.md" },
       { "Map" = "sdk-reference/operations/map.md" },
       { "Child Context" = "sdk-reference/operations/child-context.md" },
+      { "DAG" = "sdk-reference/operations/dag.md" },
     ]},
     { "Error Handling" = [
       { "Errors" = "sdk-reference/error-handling/errors.md" },
