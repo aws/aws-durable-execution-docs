@@ -501,6 +501,20 @@ one of the first two finishes.
 The default is 40. Raise it when tasks are IO bound and the downstream services
 tolerate the load, and lower it to protect a rate limited dependency.
 
+!!! warning "Unlike `map()` and `parallel()`, the default is not unbounded"
+
+    `map()` and `parallel()` run every item or branch at once unless you set
+    their own concurrency limit. `dag()` does not: with no `maxConcurrency`,
+    it still caps top-level tasks at 40. This matters most when you refactor
+    a wide `parallel()` call into a `dag()` to add dependency edges between
+    some of its branches — the call keeps working, but silently runs at a
+    fraction of the concurrency it did before. Set `maxConcurrency` explicitly
+    if you need a different bound.
+
+    A nested `dag()` task gets its own independent budget of 40, not a share
+    of its parent's. Several nested DAGs inside one outer DAG can therefore
+    run far more total concurrent work than the outer DAG's own limit suggests.
+
 The bound applies only to the DAG's own tasks. A `map` or `parallel` task inside
 the DAG keeps its own concurrency setting for its internal fan out, so a DAG
 limit of 2 does not stop one `map` task from processing many items at once. A
