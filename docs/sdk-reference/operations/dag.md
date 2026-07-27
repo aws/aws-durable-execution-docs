@@ -261,13 +261,9 @@ its own operation config, such as a step's retry policy.
       defaultRetryStrategy?: (error: Error, attemptCount: number) => RetryDecision;
       defaultTriggerRule?: TriggerRule;
       serdes?: Serdes<DagResult>;
-      summaryGenerator?: (result: DagResult) => string;
       nesting?: NestingType;
     }
     ```
-
-    `summaryGenerator` produces a human readable summary for observability. The
-    SDK never reads it back on replay.
 
 === "Python"
 
@@ -279,7 +275,6 @@ its own operation config, such as a step's retry policy.
         default_retry_strategy: Callable[[Exception, int], RetryDecision] | None = None
         default_trigger_rule: TriggerRule = TriggerRule.ALL_SUCCESS
         serdes: SerDes | None = None
-        summary_generator: Callable[[DagResult], str] | None = None
     ```
 
     Leaving `max_concurrency` unset applies the default of 40, which the
@@ -302,8 +297,6 @@ its own operation config, such as a step's retry policy.
     interface with static factories: `allCompleted()`, `allSuccessful()`,
     `firstSuccessful()`, `minSuccessful(n)`, `toleratedFailureCount(n)`, and
     `toleratedFailurePercentage(p)`.
-
-    Java's `DagConfig` has no summary generator field.
 
 `maxConcurrency` defaults to 40. `completionConfig` defaults to draining the
 whole reachable graph, so every task that can run does run. Set a completion
@@ -601,19 +594,19 @@ Each task checkpoints its own result. When an invocation resumes, a task that
 already succeeded is not run again. Its stored result is returned instead, which
 is what makes an expensive or non idempotent task safe inside a DAG.
 
-The container also checkpoints an aggregate result. When that aggregate is
-larger than the checkpoint payload limit, the SDK stores a compact form and
-recovers the full results from the individual task checkpoints on replay. The
-task bodies themselves are not re executed, so a task's side effects still
-happen exactly once.
+The container checkpoints one aggregate envelope beside the task checkpoints.
+The envelope carries the task counts, the completion reason, and the per task
+detail. When it fits under the checkpoint payload limit the SDK stores it whole,
+and a resumed invocation reads every result straight back from it without
+touching the task checkpoints.
 
-=== "Python"
-
-    One exception applies when a large aggregate is combined with an early
-    completion config. The set of in flight tasks is not reproduced faithfully
-    on replay, so a task that had started but not finished can start again. A
-    task that already succeeded is never re run. This behavior is inherited from
-    `map()` and `parallel()`.
+When the envelope exceeds the limit the SDK drops the per task detail and keeps
+the counts and the completion reason. On replay it rebuilds that detail by re
+running the deterministic registration graph and reading each task's result from
+its own retained checkpoint. The task bodies do not re run, so a task's side
+effects still happen exactly once. The set of in flight tasks is preserved in
+the envelope, so a task that had started but not finished resumes rather than
+starting again.
 
 ## See also
 

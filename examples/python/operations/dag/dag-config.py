@@ -6,6 +6,8 @@ from aws_durable_execution_sdk_python import (
     durable_execution,
 )
 from aws_durable_execution_sdk_python.config import CompletionConfig
+
+
 @durable_execution
 def handler(event: dict, context: DurableContext) -> int:
     config = DagConfig(

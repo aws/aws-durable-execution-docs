@@ -4,6 +4,8 @@ from aws_durable_execution_sdk_python import (
     DurableContext,
     durable_execution,
 )
+
+
 def _charge_card(deps, sc):
     raise RuntimeError("card declined")
 

@@ -4,6 +4,8 @@ from aws_durable_execution_sdk_python import (
     DurableContext,
     durable_execution,
 )
+
+
 @durable_execution
 def handler(event: dict, context: DurableContext) -> int:
     def register(dag: DagContext) -> None:
