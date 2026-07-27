@@ -258,7 +258,6 @@ its own operation config, such as a step's retry policy.
     interface DagConfig {
       maxConcurrency?: number;
       completionConfig?: DagCompletionConfig;
-      defaultRetryStrategy?: (error: Error, attemptCount: number) => RetryDecision;
       defaultTriggerRule?: TriggerRule;
       serdes?: Serdes<DagResult>;
       nesting?: NestingType;
@@ -272,7 +271,6 @@ its own operation config, such as a step's retry policy.
     class DagConfig:
         max_concurrency: int | None = None
         completion_config: CompletionConfig | None = None
-        default_retry_strategy: Callable[[Exception, int], RetryDecision] | None = None
         default_trigger_rule: TriggerRule = TriggerRule.ALL_SUCCESS
         serdes: SerDes | None = None
     ```
@@ -286,7 +284,6 @@ its own operation config, such as a step's retry policy.
     DagConfig.builder()
         .maxConcurrency(int)
         .completionConfig(DagCompletionConfig)
-        .defaultRetryStrategy(RetryStrategy)
         .defaultTriggerRule(TriggerRule)
         .serDes(SerDes)
         .build()
@@ -543,9 +540,9 @@ raises `DagExecutionError`, or `DagExecutionException` in Java, carrying the
 first failure as its cause. To stop scheduling early once failures pile up, set
 a completion config with a failure tolerance.
 
-Retries are per task. A task's own config controls its retry policy, and
-`defaultRetryStrategy` on the DAG supplies a policy for tasks that do not set
-one.
+Retries are per task. A task's own config controls its retry policy, so a task
+that should be retried carries its own strategy. To share one policy across
+several tasks, hold it in a variable and pass it to each.
 
 ## Nest DAGs
 
