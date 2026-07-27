@@ -105,7 +105,7 @@ The IAM principal running the tests needs these permissions on the target functi
     "lambda:GetDurableExecution",
     "lambda:GetDurableExecutionHistory"
   ],
-  "Resource": "arn:aws:lambda:region:account-id:function:function-name"
+  "Resource": "arn:aws:lambda:region:account-id:function:function-name:*"
 }
 ```
 

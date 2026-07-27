@@ -552,6 +552,8 @@ describes what the callback is waiting for.
 
 ## Send callback results
 
+The calling principal needs permission to send callbacks for the durable execution. See [Security and permissions for Lambda durable functions](https://docs.aws.amazon.com/lambda/latest/dg/durable-security.html) in the AWS Lambda Developer Guide.
+
 External systems send results back using the
 [`SendDurableExecutionCallbackSuccess`](https://docs.aws.amazon.com/lambda/latest/api/API_SendDurableExecutionCallbackSuccess.html)
 or
