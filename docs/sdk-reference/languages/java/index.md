@@ -133,15 +133,15 @@ The main changes are:
 
 - Replace `StepConfig.builder().semantics(...)` with `semanticsPerRetry(...)`.
 - Preserve old `AT_MOST_ONCE_PER_RETRY` behavior by also setting
-  `retryStrategy(RetryStrategies.Presets.NO_RETRY)`.
+    `retryStrategy(RetryStrategies.Presets.NO_RETRY)`.
 - Update log queries and dashboards from `durableExecutionArn`, `contextId`, and
-  `contextName` to `executionArn`, `operationId`, and `operationName`.
+    `contextName` to `executionArn`, `operationId`, and `operationName`.
 - Move replay checks to `DurableContext.isReplaying()`; `StepContext` no longer exposes
-  replay state.
+    replay state.
 - Update tests and error handling that expect invalid context usage to throw
-  `IllegalDurableOperationException`; `2.x` throws `IllegalStateException`.
+    `IllegalDurableOperationException`; `2.x` throws `IllegalStateException`.
 - Verify custom `SerDes` implementations can deserialize values immediately after
-  serialization. `2.x` validates this round trip before checkpointing by default.
+    serialization. `2.x` validates this round trip before checkpointing by default.
 
 Useful searches before upgrading:
 

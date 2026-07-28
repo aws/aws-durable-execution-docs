@@ -72,7 +72,7 @@ specific purpose:
     consuming compute resources
 - [Callbacks](../sdk-reference/operations/callback.md) Suspend execution and wait for an
     external system to submit a result
-- [Invoke](../sdk-reference/operations/invoke.md) Invoke another Lambda function, suspending 
+- [Invoke](../sdk-reference/operations/invoke.md) Invoke another Lambda function, suspending
     until we checkpoint the result
 - [Parallel](../sdk-reference/operations/parallel.md) Execute multiple independent
     operations concurrently
@@ -94,11 +94,11 @@ When your code calls a durable operation, the SDK follows this sequence:
 
 1. **Check for an existing checkpoint** if this operation already completed in a
     previous invocation, the SDK returns the stored result without re-executing
-2. **Execute the operation** if no checkpoint exists, the SDK runs the operation code
-3. **Serialize the result** the SDK serializes the result for storage
-4. **Persist the checkpoint** the SDK calls the Lambda checkpoint API to durably store
+1. **Execute the operation** if no checkpoint exists, the SDK runs the operation code
+1. **Serialize the result** the SDK serializes the result for storage
+1. **Persist the checkpoint** the SDK calls the Lambda checkpoint API to durably store
     the result before continuing
-5. **Return the result** execution continues to the next operation
+1. **Return the result** execution continues to the next operation
 
 Once the SDK persists a checkpoint, that operation's result is safe. If your function is
 interrupted at any point, the SDK can replay up to the last persisted checkpoint on the
@@ -116,11 +116,11 @@ again from the beginning and replays the checkpoint log:
 
 1. **Load checkpoint log** the SDK retrieves the checkpoint log for the execution from
     Lambda
-2. **Run from beginning** your handler runs from the start, not from where it paused
-3. **Skip completed operations** as your code calls durable operations, the SDK checks
+1. **Run from beginning** your handler runs from the start, not from where it paused
+1. **Skip completed operations** as your code calls durable operations, the SDK checks
     each against the checkpoint log and returns stored results without re-executing the
     operation code, saving you active lambda compute time costs
-4. **Resume at interruption point** when the SDK reaches an operation without a
+1. **Resume at interruption point** when the SDK reaches an operation without a
     checkpoint, it executes normally and creates new checkpoints from that point
     forward
 
@@ -150,10 +150,10 @@ Wrap such non-deterministic code in [steps](../sdk-reference/operations/step.md)
 ### Rules for deterministic durable operations
 
 1. All durable operations in a context must start sequentially.
-2. To run durable operations concurrently, wrap each set of operations in its own
+1. To run durable operations concurrently, wrap each set of operations in its own
     [child context](../sdk-reference/operations/child-context.md) and then run the
     child contexts concurrently.
-3. Only use the child `DurableContext` in the child context scope. Do not use any
+1. Only use the child `DurableContext` in the child context scope. Do not use any
     parent's context in a child context scope.
 
 ## Replay Walkthrough
@@ -187,35 +187,35 @@ Let's trace through a simple workflow:
 **First invocation (t=0s):**
 
 1. You start a durable execution by invoking a durable function
-2. The durable functions service invokes your durable function handler
-3. The fetch step runs and calls an external API
-4. The SDK checkpoints the result of the fetch step
-5. Execution reaches `context.wait()` and the SDK checkpoints the wait operation
-6. The SDK terminates the current Lambda invocation, but the durable execution is still
+1. The durable functions service invokes your durable function handler
+1. The fetch step runs and calls an external API
+1. The SDK checkpoints the result of the fetch step
+1. Execution reaches `context.wait()` and the SDK checkpoints the wait operation
+1. The SDK terminates the current Lambda invocation, but the durable execution is still
     active
 
 **Second invocation (t=30s):**
 
 1. The durable functions service invokes your function again
-2. The function runs from the beginning
-3. The fetch step returns its checkpointed result instantly, it does not re-execute the
+1. The function runs from the beginning
+1. The fetch step returns its checkpointed result instantly, it does not re-execute the
     API call
-4. The wait has already elapsed, so execution continues
-5. The process step runs for the first time
-6. The SDK checkpoints the result of the process step
-7. The function returns naturally and the invocation ends
-8. The durable execution ends
+1. The wait has already elapsed, so execution continues
+1. The process step runs for the first time
+1. The SDK checkpoints the result of the process step
+1. The function returns naturally and the invocation ends
+1. The durable execution ends
 
 ## Cost implications
 
 With durable functions, you pay for what you use. The pricing dimensions are (in no particular order):
 
 1. Lambda compute duration
-2. Lambda requests
-3. Durable operations
-4. Storage written
-5. Storage persisted
-6. Data transfer
+1. Lambda requests
+1. Durable operations
+1. Storage written
+1. Storage persisted
+1. Data transfer
 
 When your execution is suspended, you're not paying for compute. A small storage persisted charge keeps your checkpoints around while your execution is suspended and through the retention period after it completes. Operations are what make suspension possible, each one creates a checkpoint, and each checkpoint has its own cost. See [Checkpoint consumption](https://docs.aws.amazon.com/lambda/latest/dg/durable-execution-sdk.html#durable-operations-checkpoint-consumption) for the breakdown.
 

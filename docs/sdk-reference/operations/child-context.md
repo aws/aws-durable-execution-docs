@@ -331,11 +331,11 @@ sequentially in the parent.
 ### Concurrency rules
 
 1. All durable operations inside a context must start sequentially.
-2. To run durable operations concurrently, enclose each set of operations in its own
+1. To run durable operations concurrently, enclose each set of operations in its own
     child context.
-3. Start each child context serially. You do not have to wait for the previous child
+1. Start each child context serially. You do not have to wait for the previous child
     context to complete before starting the next.
-4. Inside the child function you must use the child context argument, not the parent
+1. Inside the child function you must use the child context argument, not the parent
     context.
 
 === "TypeScript"

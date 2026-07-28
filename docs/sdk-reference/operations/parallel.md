@@ -776,14 +776,14 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
     parallel operation completed. Branches that were not dispatched before the operation
     resolved appear in `result.All` with status `Started`.
 
-    | `CompletionConfig`                 | Early exit `CompletionReason` | Full completion `CompletionReason` |
-    | ---------------------------------- | ----------------------------- | ---------------------------------- |
-    | `AllSuccessful()` (default)        | `FailureToleranceExceeded`    | `AllCompleted`                     |
-    | `AllCompleted()`                   | n/a                           | `AllCompleted`                     |
-    | `FirstSuccessful()`                | `MinSuccessfulReached`        | `AllCompleted`                     |
-    | `MinSuccessful = N`                | `MinSuccessfulReached`        | `AllCompleted`                     |
-    | `ToleratedFailureCount = N`        | `FailureToleranceExceeded`    | `AllCompleted`                     |
-    | `ToleratedFailurePercentage = N`   | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `CompletionConfig`               | Early exit `CompletionReason` | Full completion `CompletionReason` |
+    | -------------------------------- | ----------------------------- | ---------------------------------- |
+    | `AllSuccessful()` (default)      | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `AllCompleted()`                 | n/a                           | `AllCompleted`                     |
+    | `FirstSuccessful()`              | `MinSuccessfulReached`        | `AllCompleted`                     |
+    | `MinSuccessful = N`              | `MinSuccessfulReached`        | `AllCompleted`                     |
+    | `ToleratedFailureCount = N`      | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `ToleratedFailurePercentage = N` | `FailureToleranceExceeded`    | `AllCompleted`                     |
 
     When the operation resolves with `FailureToleranceExceeded`, awaiting it throws
     `ParallelException`, which carries the aggregate result on `Result`.
