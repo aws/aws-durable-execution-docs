@@ -18,4 +18,7 @@ number = true
 extensions = ["mkdocs", "tables"]
 
 [tool.codespell]
-skip = "*.lock"
+skip = "*.lock,docs/assets,*.min.js,*.tiny.js"
+# Known acronyms, code identifiers, and intentional spellings that are not typos.
+# Entries are lowercased. Add new false positives here rather than disabling the check.
+ignore-words-list = "sie,oce,afterall,re-use"

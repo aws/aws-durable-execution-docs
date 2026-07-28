@@ -43,7 +43,7 @@ sequenceDiagram
 ```
 
 - **Function** The durable Lambda function. This contains your code.
-- **Target Function** The Lambda function targetted by the durable invoke.
+- **Target Function** The Lambda function targeted by the durable invoke.
 - **Execution** The complete end-to-end lifecycle of a durable function, spanning
     potentially multiple invocations.
 - **Invocation** A single Lambda invocation within the execution. The invocation
@@ -82,12 +82,12 @@ When this function runs:
 
 1. The SDK checkpoints the first invoke operation's start and triggers
     `validate-order-function`
-2. The calling function suspends until the validation result is available
-3. The backend checkpoints the invoke's result and reinvokes the calling function
-4. Execution resumes with the validation result
-5. The SDK checkpoints the second invoke's start and triggers
+1. The calling function suspends until the validation result is available
+1. The backend checkpoints the invoke's result and reinvokes the calling function
+1. Execution resumes with the validation result
+1. The SDK checkpoints the second invoke's start and triggers
     `payment-processor-function`
-6. The calling function suspends again until the payment result is available
+1. The calling function suspends again until the payment result is available
 
 ## Method signature
 

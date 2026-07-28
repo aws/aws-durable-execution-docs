@@ -57,9 +57,9 @@ An attempt proceeds in this order:
 1. The SDK runs the check function with the current state. The first attempt receives
     the `initialState` you configured. Each later attempt receives the state the
     previous check returned.
-2. The SDK evaluates whether the condition is met. If it is, `waitForCondition`
+1. The SDK evaluates whether the condition is met. If it is, `waitForCondition`
     checkpoints the final state and returns it.
-3. If the condition is not met, the SDK checkpoints the delay for this attempt,
+1. If the condition is not met, the SDK checkpoints the delay for this attempt,
     suspends the function, and resumes for the next attempt once the delay elapses.
 
 Where you express the stop-or-continue decision differs by language. See

@@ -22,4 +22,3 @@ flowchart LR
     style dev fill:#e3f2fd
     style prod fill:#fff3e0
 ```
-

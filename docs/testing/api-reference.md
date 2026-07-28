@@ -1290,8 +1290,8 @@ The status of an individual operation.
     `OperationStatus` from `Amazon.Lambda.DurableExecution.Testing` is a static class of
     string constants (compare against `TestStep.Status`), not an enum:
 
-    | Constant                  | Meaning                          |
-    | ------------------------- | -------------------------------- |
+    | Constant                    | Meaning                          |
+    | --------------------------- | -------------------------------- |
     | `OperationStatus.Started`   | Operation is running             |
     | `OperationStatus.Succeeded` | Operation completed successfully |
     | `OperationStatus.Failed`    | Operation failed                 |
@@ -1334,8 +1334,8 @@ The status of an individual operation.
 
     `OperationKind` from `Amazon.Lambda.DurableExecution.Testing` (read via `TestStep.Kind`):
 
-    | Value                       | Meaning                      |
-    | --------------------------- | ---------------------------- |
+    | Value                         | Meaning                      |
+    | ----------------------------- | ---------------------------- |
     | `OperationKind.Step`          | A step operation             |
     | `OperationKind.Wait`          | A wait operation             |
     | `OperationKind.Callback`      | A callback operation         |

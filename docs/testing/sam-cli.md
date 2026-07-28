@@ -3,7 +3,7 @@
 SAM CLI provides two ways to test durable functions:
 
 1. local invocation inside a local container.
-2. remote invocation against a deployed function.
+1. remote invocation against a deployed function.
 
 ## Local invoke
 

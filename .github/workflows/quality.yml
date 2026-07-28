@@ -1,0 +1,46 @@
+name: PR quality checks
+
+# Runs on every pull request so it can be marked as a required status check.
+# (No paths filter: a path-filtered required check that is skipped blocks merges.)
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: docs quality checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+
+      - name: Install quality tooling
+        run: pip install mdformat mdformat-mkdocs mdformat-gfm codespell
+
+      # 4. Markdown formatting. Config lives in [tool.mdformat] in pyproject.toml.
+      - name: Markdown formatting (mdformat)
+        run: mdformat --check docs/
+
+      # 1 & 2. Spelling and known acronyms. codespell reads [tool.codespell] from
+      # pyproject.toml (skip list + ignore-words-list of known acronyms/identifiers).
+      - name: Spelling and acronyms (codespell)
+        run: codespell docs/
+
+      # 3. Prevent hidden / invisible characters in hand-authored markdown:
+      # zero-width space/joiners (U+200B-U+200D), BOM/ZWNBSP (U+FEFF),
+      # line/paragraph separators (U+2028/U+2029), and non-breaking space (U+00A0).
+      - name: No hidden / invisible characters
+        run: |
+          matches=$(grep -rlP '[\x{200B}\x{200C}\x{200D}\x{FEFF}\x{2028}\x{2029}\x{00A0}]' docs --include='*.md' || true)
+          if [ -n "$matches" ]; then
+            echo "::error::Hidden or invisible Unicode characters found in:"
+            echo "$matches"
+            echo "Remove zero-width spaces, BOMs, non-breaking spaces, and line/paragraph separators."
+            exit 1
+          fi
+          echo "No hidden characters found."
