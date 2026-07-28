@@ -4,6 +4,7 @@ from aws_durable_execution_sdk_python import (
     DurableContext,
     durable_execution,
 )
+from aws_durable_execution_sdk_python.config import Duration
 
 
 @durable_execution
@@ -18,7 +19,7 @@ def handler(event: dict, context: DurableContext) -> int:
 
         dag.map([1, 2, 3], square, name="square-each")
 
-        dag.wait(1, name="cooldown")
+        dag.wait(Duration.from_seconds(1), name="cooldown")
 
         def group(deps, child: DurableContext) -> str:
             return child.step(lambda sc: "done", name="inner")

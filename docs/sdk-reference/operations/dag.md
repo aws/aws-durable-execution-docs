@@ -187,7 +187,7 @@ language.
     step(func, deps=None, name=None, config=None, *, trigger_rule=..., run_if=None)
     invoke(function_name, payload_fn, deps=None, name=None, config=None, *, ...)
     wait_for_callback(submitter, deps=None, name=None, config=None, *, ...)
-    wait(seconds, deps=None, name=None, *, ...)
+    wait(duration, deps=None, name=None, *, ...)
     wait_for_condition(check, config, deps=None, name=None, *, ...)
     run_in_child_context(func, deps=None, name=None, config=None, *, ...)
     map(inputs, func, deps=None, name=None, config=None, *, ...)
