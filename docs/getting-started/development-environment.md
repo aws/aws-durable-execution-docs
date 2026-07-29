@@ -143,8 +143,7 @@ Every durable function needs three things, whichever tool you deploy with:
 
 1. A `DurableConfig` on the function (`ExecutionTimeout` is required;
     `RetentionPeriodInDays` is optional). See the
-    [configuration reference](../sdk-reference/configuration/index.md) for the valid
-    ranges and defaults.
+    [configuration reference](../sdk-reference/configuration/index.md).
 1. The
     [AWSLambdaBasicDurableExecutionRolePolicy](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSLambdaBasicDurableExecutionRolePolicy.html)
     managed policy on the execution role, which grants the checkpoint permissions.
