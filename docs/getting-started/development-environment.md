@@ -51,7 +51,10 @@ full workflow.
 
 Write your durable function handler and add the SDK to your project. Bundle the SDK with
 your function code so you control the exact version, rather than relying on the Lambda
-runtime-provided copy. The Lambda runtime-provided SDK version updates lag behind our aws-durable-execution-sdk-\* package updates, it can unclear what version of the SDK the runtime has and what features/bug-fixes are present. For the full handler code in each language, see the
+runtime-provided copy. The runtime-provided SDK lags behind the
+`aws-durable-execution-sdk-*` package releases, so it can be unclear which SDK version
+the runtime has and which features and bug fixes are present. For the full handler code
+in each language, see the
 [Quickstart](quickstart.md).
 
 === "TypeScript"
@@ -159,11 +162,12 @@ and [workflow patterns](../testing/workflow-patterns.md).
 
 ## Deploy
 
-You can only set the DurableConfig at function creation time, not at a later update. Every durable function needs three things, whichever tool you
-deploy with:
+You can only set the `DurableConfig` at function creation time, not on a later update.
+Every durable function needs three things, whichever tool you deploy with:
 
 1. A `DurableConfig` on the function (`ExecutionTimeout` is required;
-    `RetentionPeriodInDays` is optional). See the https://docs.aws.amazon.com/lambda/latest/dg/durable-configuration.html.
+    `RetentionPeriodInDays` is optional). See the
+    [durable configuration reference](https://docs.aws.amazon.com/lambda/latest/dg/durable-configuration.html).
 1. The
     [AWSLambdaBasicDurableExecutionRolePolicy](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSLambdaBasicDurableExecutionRolePolicy.html)
     managed policy on the execution role, which grants the checkpoint permissions.
