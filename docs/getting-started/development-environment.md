@@ -1,8 +1,12 @@
 # Development Environment
 
-This page covers how to set up your environment, wire up the local development loop,
-configure a durable function, deploy it with infrastructure as code, and use the AI
-agent (Kiro Power) that the team ships for building durable functions.
+This page covers the day-to-day workflow for building durable functions: scaffolding a
+project, writing and testing the function locally, and deploying it. It uses the
+[AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/) for the local
+development loop — `sam init` to start, `sam local invoke` to run, and `sam deploy` to
+ship — and the [AWS CDK](https://docs.aws.amazon.com/cdk/) when you productionize the
+surrounding infrastructure. It also covers the AI agent (Kiro Power) the team ships for
+building durable functions.
 
 If you just want to deploy your first function with the AWS CLI, start with the
 [Quickstart](quickstart.md). This page is about the day-to-day workflow after that.
@@ -43,19 +47,33 @@ full workflow.
 - An AWS account and the [AWS CLI](https://docs.aws.amazon.com/cli/) (2.33.22 or later)
     configured with credentials. Verify with `aws sts get-caller-identity`.
 - A language runtime (see the tabs below).
-- One way to deploy: the [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/)
-    (1.153.1 or later), the [AWS CDK](https://docs.aws.amazon.com/cdk/) (2.237.1 or
-    later), or direct AWS CLI access.
+- The [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/) (1.153.1
+    or later), used throughout this guide to scaffold, test, and deploy. The
+    [AWS CDK](https://docs.aws.amazon.com/cdk/) (2.237.1 or later) is recommended once you
+    productionize the surrounding infrastructure. Direct AWS CLI access also works.
 
 ## 1. Write Function
 
-Write your durable function handler and add the SDK to your project. Bundle the SDK with
-your function code so you control the exact version, rather than relying on the Lambda
-runtime-provided copy. The Lambda runtime-provided SDK lags behind the public
-`aws-durable-execution-sdk-*` version releases on public package indices (e.g. NPM, PyPI, Maven, Nuget, ...). It can be unclear which SDK version
-the runtime provides, which features or bug fixes are present. For the full handler code
-in each language, see the
-[Quickstart](quickstart.md).
+Scaffold a new durable application with `sam init`. Its AWS Quick Start templates include
+durable-function starters for TypeScript, Python, and Java that generate the handler, a
+`template.yaml` with `DurableConfig` already set, a `tests` folder, and the SDK
+dependency:
+
+```console
+sam init
+```
+
+Choose **AWS Quick Start Templates**, pick the durable function template, then select your
+runtime. See
+[Create your application in AWS SAM](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/using-sam-cli-init.html)
+for the interactive flow, and the [Quickstart](quickstart.md) for the full handler code in
+each language.
+
+Bundle the SDK with your function code so you control the exact version, rather than
+relying on the Lambda runtime-provided copy. The Lambda runtime-provided SDK lags behind
+the public `aws-durable-execution-sdk-*` version releases on public package indices (e.g.
+NPM, PyPI, Maven, Nuget, ...). It can be unclear which SDK version the runtime provides,
+which features or bug fixes are present. To add or pin the SDK manually:
 
 === "TypeScript"
 
@@ -174,12 +192,14 @@ Every durable function needs three things, whichever tool you deploy with:
 1. A qualified ARN (a published version or an alias) to invoke. Durable execution is not
     supported on an unqualified function name.
 
-For anything beyond a first experiment, we recommend you deploy with SAM or CDK whilst storing your function
-configuration, IAM role, version, alias and any related infrastructure in source control. This allows you to iterate quickly whilst reducing the additional work you'll have to do to take your work to production. Tune `DurableConfig`
-per environment: short timeouts and retention in development, longer values in
-production.
+Deploy with SAM while you iterate: it keeps your function configuration, IAM role,
+version, and alias in source control with minimal ceremony, and pairs with the
+`sam local invoke` / `sam deploy` loop. When you productionize — composing the function
+with the rest of your infrastructure (queues, tables, alarms, multi-environment stages) —
+AWS CDK gives you a typed, programmable app. Tune `DurableConfig` per environment: short
+timeouts and retention in development, longer values in production.
 
-=== "SAM"
+=== "SAM (iterate)"
 
     `template.yaml`:
 
@@ -216,7 +236,7 @@ production.
     `AutoPublishAlias` gives you the qualified ARN (the `prod` alias) that durable
     invocation requires.
 
-=== "CDK"
+=== "CDK (productionize)"
 
     ```typescript
     import * as cdk from 'aws-cdk-lib';
