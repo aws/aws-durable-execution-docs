@@ -1,6 +1,6 @@
 # Development Environment
 
-This page covers how to set up your environment, wire up the inner development loop,
+This page covers how to set up your environment, wire up the local development loop,
 configure a durable function, deploy it with infrastructure as code, and use the AI
 agent (Kiro Power) that the team ships for building durable functions.
 
@@ -11,7 +11,7 @@ If you just want to deploy your first function with the AWS CLI, start with the
 
 You develop durable functions in a tight inner loop: write the function, write tests,
 and run them locally before you deploy. Once deployed, you run the same tests against
-the live function to validate packaging and runtime configuration.
+the deployed function to validate packaging and runtime configuration.
 
 ```mermaid
 flowchart LR
@@ -34,7 +34,7 @@ flowchart LR
     style prod fill:#fff3e0
 ```
 
-The local runner replays your handler in-process, so you catch determinism bugs in
+The local runner replays your handler in-process, so you catch bugs in
 milliseconds instead of waiting on a deploy. See [Testing](../testing/index.md) for the
 full workflow.
 
@@ -50,8 +50,8 @@ full workflow.
 ## Write Function
 
 Write your durable function handler and add the SDK to your project. Bundle the SDK with
-your function code so you control the exact version, rather than relying on the
-runtime-provided copy. For the full handler code in each language, see the
+your function code so you control the exact version, rather than relying on the Lambda 
+runtime-provided copy. The Lambda runtime-provided SDK version updates lag behind our aws-durable-execution-sdk-* package updates, it can unclear what version of the SDK the runtime has and what features/bug-fixes are present. For the full handler code in each language, see the
 [Quickstart](quickstart.md).
 
 === "TypeScript"
@@ -143,20 +143,18 @@ and [workflow patterns](../testing/workflow-patterns.md).
 
 ## Deploy
 
-Durable execution must be enabled when the function is created — it cannot be added to an
-existing function later. Every durable function needs three things, whichever tool you
+You can only set the DurableConfig at function creation time, not at a later update. Every durable function needs three things, whichever tool you
 deploy with:
 
 1. A `DurableConfig` on the function (`ExecutionTimeout` is required;
-    `RetentionPeriodInDays` is optional). See the
-    [configuration reference](../sdk-reference/configuration/index.md).
+    `RetentionPeriodInDays` is optional). See the https://docs.aws.amazon.com/lambda/latest/dg/durable-configuration.html.
 1. The
     [AWSLambdaBasicDurableExecutionRolePolicy](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSLambdaBasicDurableExecutionRolePolicy.html)
     managed policy on the execution role, which grants the checkpoint permissions.
 1. A qualified ARN (a published version or an alias) to invoke. Durable execution is not
     supported on an unqualified function name.
 
-For anything beyond a first experiment, deploy with SAM or CDK so your function
+For anything beyond a first experiment, we recommend you deploy with SAM or CDK so your function
 configuration, IAM role, version, and alias live in source control. Tune `DurableConfig`
 per environment: short timeouts and retention in development, longer values in
 production.
@@ -235,15 +233,14 @@ production.
     cdk deploy
     ```
 
-You can also use plain CloudFormation (`AWS::Lambda::Function` with a `DurableConfig`
+You can also use CloudFormation (`AWS::Lambda::Function` with a `DurableConfig`
 property). For durable invokes, callbacks, multi-environment stages, and log-group
 management, see the deployment guidance in the
 [Kiro Power](#agentic-development-with-kiro) below.
 
 ## Test in Cloud
 
-After deploying, validate the real packaging and runtime configuration — not just the
-in-process handler.
+After deploying, validate using Lambda in the cloud.
 
 - Run your test suite against the deployed function with the
     [Cloud Runner](../testing/cloud-runner.md).
@@ -261,8 +258,8 @@ in-process handler.
 
 ## Agentic development with Kiro
 
-The team ships a [Kiro](https://kiro.dev) Power,
-**AWS Lambda durable functions**, that teaches an AI coding assistant the replay model,
+The [Kiro](https://kiro.dev) Power for
+**AWS Lambda durable functions** helps your AI coding assistant understand the replay model,
 step and wait patterns, error handling, testing, and IaC for durable functions. It is
 the fastest way to write correct durable functions with an agent, because it front-loads
 the determinism rules that are easy to get wrong.
