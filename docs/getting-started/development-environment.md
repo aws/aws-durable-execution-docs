@@ -17,15 +17,15 @@ the live function to validate packaging and runtime configuration.
 flowchart LR
     subgraph dev["Development (Local)"]
         direction LR
-        A["1. Write Function"]
-        B["2. Write Tests"]
-        C["3. Run Tests"]
+        A["Install the SDK"]
+        B["Write and test locally"]
+        C["Configure your function"]
     end
 
     subgraph prod["Production (AWS)"]
         direction LR
-        D["4. Deploy"]
-        E["5. Test in Cloud"]
+        D["Deploy with infrastructure as code"]
+        E["Test against the cloud"]
     end
 
     A --> B --> C --> D --> E
