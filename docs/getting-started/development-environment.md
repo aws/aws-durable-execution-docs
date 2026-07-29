@@ -17,15 +17,15 @@ the deployed function to validate packaging and runtime configuration.
 flowchart LR
     subgraph dev["Development (Local)"]
         direction LR
-        A["Write Function"]
-        B["Write Tests"]
-        C["Run Tests"]
+        A["1. Write Function"]
+        B["2. Write Tests"]
+        C["3. Run Tests"]
     end
 
     subgraph prod["Production (AWS)"]
         direction LR
-        D["Deploy"]
-        E["Test in Cloud"]
+        D["4. Deploy"]
+        E["5. Test in Cloud"]
     end
 
     A --> B --> C --> D --> E
@@ -47,7 +47,7 @@ full workflow.
     (1.153.1 or later), the [AWS CDK](https://docs.aws.amazon.com/cdk/) (2.237.1 or
     later), or direct AWS CLI access.
 
-## Write Function
+## 1. Write Function
 
 Write your durable function handler and add the SDK to your project. Bundle the SDK with
 your function code so you control the exact version, rather than relying on the Lambda
@@ -94,7 +94,7 @@ in each language, see the
     dotnet add package Amazon.Lambda.DurableExecution
     ```
 
-## Write Tests
+## 2. Write Tests
 
 Drive your handler with the testing SDK. The runner executes the handler through the
 same replay-and-checkpoint loop the Lambda service uses, so local behavior matches the
@@ -127,7 +127,7 @@ A minimal test creates a runner with your handler, runs it, and asserts on the r
     --8<-- "examples/csharp/testing/authoring/minimal-test.cs"
     ```
 
-## Run Tests
+## 3. Run Tests
 
 Run the suite with your language's test runner:
 
@@ -160,7 +160,7 @@ replay behavior. The [Testing](../testing/index.md) section covers installing th
 SDK, [authoring tests](../testing/authoring.md), [assertions](../testing/assertions.md),
 and [workflow patterns](../testing/workflow-patterns.md).
 
-## Deploy
+## 4. Deploy
 
 You can only set the `DurableConfig` at function creation time, not on a later update.
 Every durable function needs three things, whichever tool you deploy with:
@@ -258,7 +258,7 @@ property). For durable invokes, callbacks, multi-environment stages, and log-gro
 management, see the deployment guidance in the
 [Kiro Power](#agentic-development-with-kiro) below.
 
-## Test in Cloud
+## 5. Test in Cloud
 
 After deploying, validate using Lambda in the cloud.
 
