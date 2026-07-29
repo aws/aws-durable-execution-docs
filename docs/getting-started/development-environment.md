@@ -174,8 +174,8 @@ Every durable function needs three things, whichever tool you deploy with:
 1. A qualified ARN (a published version or an alias) to invoke. Durable execution is not
     supported on an unqualified function name.
 
-For anything beyond a first experiment, we recommend you deploy with SAM or CDK so your function
-configuration, IAM role, version, and alias live in source control. Tune `DurableConfig`
+For anything beyond a first experiment, we recommend you deploy with SAM or CDK whilst storing your function
+configuration, IAM role, version, alias and any related infrastructure in source control. This allows you to iterate quickly whilst reducing the additional work you'll have to do to take your work to production. Tune `DurableConfig`
 per environment: short timeouts and retention in development, longer values in
 production.
 
