@@ -270,7 +270,7 @@ its own operation config, such as a step's retry policy.
     @dataclass
     class DagConfig:
         max_concurrency: int | None = None
-        completion_config: CompletionConfig | None = None
+        completion_config: CompletionConfig | DagCustomCompletionConfig | None = None
         default_trigger_rule: TriggerRule = TriggerRule.ALL_SUCCESS
         serdes: SerDes | None = None
     ```
@@ -292,13 +292,57 @@ its own operation config, such as a step's retry policy.
     `maxConcurrency` must be at least 1, and the builder throws
     `IllegalArgumentException` otherwise. `DagCompletionConfig` is a sealed
     interface with static factories: `allCompleted()`, `allSuccessful()`,
-    `firstSuccessful()`, `minSuccessful(n)`, `toleratedFailureCount(n)`, and
-    `toleratedFailurePercentage(p)`.
+    `firstSuccessful()`, `minSuccessful(n)`, `toleratedFailureCount(n)`,
+    `toleratedFailurePercentage(p)`, and `custom(shouldComplete)` (see
+    [Custom completion predicate](#custom-completion-predicate)).
 
 `maxConcurrency` defaults to 40. `completionConfig` defaults to draining the
 whole reachable graph, so every task that can run does run. Set a completion
 config to finish early, for example once a number of tasks succeed or once
 failures exceed a tolerance.
+
+#### Custom completion predicate
+
+The threshold options above only ever see aggregate counts. A custom
+predicate can also inspect individual tasks' *results*, which the thresholds
+cannot: stopping the moment a specific task's result matches a condition, not
+just once enough tasks have succeeded or failed.
+
+=== "TypeScript"
+
+    ```typescript
+    completionConfig: {
+      shouldComplete: (status: DagCompletionStatus) => CompletionDecision;
+    }
+    ```
+
+=== "Python"
+
+    ```python
+    DagCustomCompletionConfig(
+        should_complete: Callable[[DagCompletionStatus], DagCompletionDecision],
+    )
+    ```
+
+=== "Java"
+
+    ```java
+    DagCompletionConfig.custom(
+        Function<DagCompletionStatus, DagCompletionDecision> shouldComplete)
+    ```
+
+The predicate runs after every task settlement. It receives a snapshot —
+success/failure/skipped/total counts, plus every task's status and result so
+far, in registration order — and returns either "keep scheduling" or
+"complete now" with an outcome. Completing as a failure ends the DAG with a
+dedicated `CUSTOM_COMPLETION_FAILED` reason, distinct from
+`COMPLETED_WITH_FAILURES`, since no individual task has to fail for the
+predicate to end the DAG as a failure. `throwIfError()` (`throw_if_error()`
+in Python) raises in this case too, not only when a task's own `failureCount`
+is greater than zero.
+
+A custom predicate and the threshold options are mutually exclusive on one
+`completionConfig`.
 
 ### DagResult
 
@@ -375,7 +419,10 @@ timestamps. Statuses are `SUCCEEDED`, `FAILED`, `SKIPPED`, and `STARTED`, where
 either `TRIGGER_RULE` or `RUN_IF_PREDICATE`.
 
 `completionReason` is `ALL_COMPLETED`, `COMPLETED_WITH_FAILURES`,
-`MIN_SUCCESSFUL_REACHED`, or `FAILURE_TOLERANCE_EXCEEDED`.
+`MIN_SUCCESSFUL_REACHED`, `FAILURE_TOLERANCE_EXCEEDED`,
+`CUSTOM_COMPLETION_SUCCEEDED`, or `CUSTOM_COMPLETION_FAILED` — the last two
+only when `completionConfig` uses a [custom predicate](#custom-completion-predicate)
+rather than a threshold.
 
 ## Declare dependencies
 
