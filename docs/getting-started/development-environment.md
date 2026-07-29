@@ -3,8 +3,8 @@
 This page covers the day-to-day workflow for building durable functions: scaffolding a
 project, writing and testing the function locally, and deploying it. It uses the
 [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/) for the local
-development loop — `sam init` to start, `sam local invoke` to run, and `sam deploy` to
-ship — and the [AWS CDK](https://docs.aws.amazon.com/cdk/) when you productionize the
+development loop (`sam init` to start, `sam local invoke` to run, and `sam deploy` to
+ship) and the [AWS CDK](https://docs.aws.amazon.com/cdk/) when you productionize the
 surrounding infrastructure. It also covers the AI agent (Kiro Power) the team ships for
 building durable functions.
 
@@ -193,12 +193,12 @@ Every durable function needs three things, whichever tool you deploy with:
     supported on an unqualified function name.
 
 Deploy with SAM while you iterate: it declares your function configuration, IAM role,
-version, and alias in a single `template.yaml` — one place you can check into source
-control — and pairs with the `sam local invoke` / `sam deploy` loop. When you
-productionize — composing the function with the rest of your infrastructure (queues,
-tables, alarms, multi-environment stages) — AWS CDK gives you a typed, programmable app.
-Tune `DurableConfig` per environment: short timeouts and retention in development, longer
-values in production.
+version, and alias in a single `template.yaml`, one place you can check into source
+control, and pairs with the `sam local invoke` / `sam deploy` loop. When you productionize
+(composing the function with the rest of your infrastructure, such as queues, tables,
+alarms, and multi-environment stages), AWS CDK gives you a typed, programmable app. Tune
+`DurableConfig` per environment: short timeouts and retention in development, longer values
+in production.
 
 === "SAM (iterate)"
 
@@ -290,7 +290,7 @@ After deploying, validate using Lambda in the cloud.
     [SAM CLI](../testing/sam-cli.md):
 
     ```console
-    # Local container invoke — no deployment needed
+    # Local container invoke (no deployment needed)
     sam local invoke MyDurableFunction --durable-execution-name my-test
 
     # Remote invoke against a deployed function
