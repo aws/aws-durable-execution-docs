@@ -192,12 +192,13 @@ Every durable function needs three things, whichever tool you deploy with:
 1. A qualified ARN (a published version or an alias) to invoke. Durable execution is not
     supported on an unqualified function name.
 
-Deploy with SAM while you iterate: it keeps your function configuration, IAM role,
-version, and alias in source control with minimal ceremony, and pairs with the
-`sam local invoke` / `sam deploy` loop. When you productionize — composing the function
-with the rest of your infrastructure (queues, tables, alarms, multi-environment stages) —
-AWS CDK gives you a typed, programmable app. Tune `DurableConfig` per environment: short
-timeouts and retention in development, longer values in production.
+Deploy with SAM while you iterate: it declares your function configuration, IAM role,
+version, and alias in a single `template.yaml` — one place you can check into source
+control — and pairs with the `sam local invoke` / `sam deploy` loop. When you
+productionize — composing the function with the rest of your infrastructure (queues,
+tables, alarms, multi-environment stages) — AWS CDK gives you a typed, programmable app.
+Tune `DurableConfig` per environment: short timeouts and retention in development, longer
+values in production.
 
 === "SAM (iterate)"
 
