@@ -96,6 +96,34 @@ through the same replay-and-checkpoint loop the Lambda service uses, so local be
 matches the cloud. TypeScript, Java, and C# ship a `LocalDurableTestRunner`; Python uses
 `DurableFunctionTestRunner`.
 
+A minimal test creates a runner with your handler, runs it, and asserts on the result:
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/testing/authoring/minimal-test.ts"
+    ```
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/testing/authoring/minimal-test.py"
+    ```
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/testing/authoring/minimal-test.java"
+    ```
+
+=== "C#"
+
+    ```csharp
+    --8<-- "examples/csharp/testing/authoring/minimal-test.cs"
+    ```
+
+Run the suite with your language's test runner:
+
 ```console
 # TypeScript / Jest
 npm test
