@@ -50,8 +50,8 @@ full workflow.
 ## Write Function
 
 Write your durable function handler and add the SDK to your project. Bundle the SDK with
-your function code so you control the exact version, rather than relying on the Lambda 
-runtime-provided copy. The Lambda runtime-provided SDK version updates lag behind our aws-durable-execution-sdk-* package updates, it can unclear what version of the SDK the runtime has and what features/bug-fixes are present. For the full handler code in each language, see the
+your function code so you control the exact version, rather than relying on the Lambda
+runtime-provided copy. The Lambda runtime-provided SDK version updates lag behind our aws-durable-execution-sdk-\* package updates, it can unclear what version of the SDK the runtime has and what features/bug-fixes are present. For the full handler code in each language, see the
 [Quickstart](quickstart.md).
 
 === "TypeScript"
@@ -128,13 +128,29 @@ A minimal test creates a runner with your handler, runs it, and asserts on the r
 
 Run the suite with your language's test runner:
 
-```console
-# TypeScript / Jest
-npm test
+=== "TypeScript"
 
-# Python / pytest
-pytest
-```
+    ```console
+    npm test
+    ```
+
+=== "Python"
+
+    ```console
+    pytest
+    ```
+
+=== "Java"
+
+    ```console
+    mvn test
+    ```
+
+=== "C#"
+
+    ```console
+    dotnet test
+    ```
 
 Get operations by name (never by index) and invoke the runner more than once to assert
 replay behavior. The [Testing](../testing/index.md) section covers installing the testing
