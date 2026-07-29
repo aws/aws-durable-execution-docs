@@ -13,7 +13,7 @@ If you just want to deploy your first function with the AWS CLI, start with the
 
 ## Development workflow
 
-You develop durable functions in a tight inner loop: write the function, write tests,
+You develop durable functions in a tight local loop: write the function, write tests,
 and run them locally before you deploy. Once deployed, you run the same tests against
 the deployed function to validate packaging and runtime configuration.
 
@@ -273,7 +273,7 @@ timeouts and retention in development, longer values in production.
     cdk deploy
     ```
 
-You can also use CloudFormation (`AWS::Lambda::Function` with a `DurableConfig`
+You can also use CloudFormation directly (`AWS::Lambda::Function` with a `DurableConfig`
 property). For durable invokes, callbacks, multi-environment stages, and log-group
 management, see the deployment guidance in the
 [Kiro Power](#agentic-development-with-kiro) below.
