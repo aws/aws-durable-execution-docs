@@ -51,9 +51,9 @@ full workflow.
 
 Write your durable function handler and add the SDK to your project. Bundle the SDK with
 your function code so you control the exact version, rather than relying on the Lambda
-runtime-provided copy. The runtime-provided SDK lags behind the
-`aws-durable-execution-sdk-*` package releases, so it can be unclear which SDK version
-the runtime has and which features and bug fixes are present. For the full handler code
+runtime-provided copy. The Lambda runtime-provided SDK lags behind the public
+`aws-durable-execution-sdk-*` version releases on public package indices (e.g. NPM, PyPI, Maven, Nuget, ...). It can be unclear which SDK version
+the runtime provides, which features or bug fixes are present. For the full handler code
 in each language, see the
 [Quickstart](quickstart.md).
 
@@ -285,7 +285,7 @@ the fastest way to write correct durable functions with an agent, because it fro
 the determinism rules that are easy to get wrong.
 
 Install it from [kiro.dev/powers](https://kiro.dev/powers) or from your IDE, then
-describe what you want to build:
+build workflows from natural language prompts:
 
 ```
 Help me create a durable Lambda function that processes orders with retries
@@ -296,15 +296,10 @@ strategies, error handling, tests with the local runner, and deployment. Mention
 keywords such as `durable`, `workflow`, `saga`, `agentic`, `human-in-the-loop`, or
 `callback` activates the Power automatically.
 
-Durable functions are themselves a strong fit for **agentic** workloads: a GenAI loop
-that calls tools, waits on human approval, and runs for hours or days survives
-interruption and resumes from the last checkpoint. The Power includes patterns for
-GenAI agent loops and human-in-the-loop approvals.
-
 If you use another AI assistant, the same guidance is available as Markdown steering
 files in the
 [aws-lambda-durable-functions-power](https://github.com/aws/aws-durable-execution-docs/tree/main/aws-lambda-durable-functions-power)
-directory of this repository — load them as context to get the same replay-model and
+directory of this repository. You can load these files as context to get the same replay-model and
 deployment rules.
 
 ## Next steps
