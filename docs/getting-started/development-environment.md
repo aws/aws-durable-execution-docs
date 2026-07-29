@@ -17,15 +17,15 @@ the live function to validate packaging and runtime configuration.
 flowchart LR
     subgraph dev["Development (Local)"]
         direction LR
-        A["Install the SDK"]
-        B["Write and test locally"]
-        C["Configure your function"]
+        A["Write Function"]
+        B["Write Tests"]
+        C["Run Tests"]
     end
 
     subgraph prod["Production (AWS)"]
         direction LR
-        D["Deploy with infrastructure as code"]
-        E["Test against the cloud"]
+        D["Deploy"]
+        E["Test in Cloud"]
     end
 
     A --> B --> C --> D --> E
@@ -47,10 +47,12 @@ full workflow.
     (1.153.1 or later), the [AWS CDK](https://docs.aws.amazon.com/cdk/) (2.237.1 or
     later), or direct AWS CLI access.
 
-## Install the SDK
+## Write Function
 
-Add the SDK to your project. Bundle it with your function code so you control the exact
-version, rather than relying on the runtime-provided copy.
+Write your durable function handler and add the SDK to your project. Bundle the SDK with
+your function code so you control the exact version, rather than relying on the
+runtime-provided copy. For the full handler code in each language, see the
+[Quickstart](quickstart.md).
 
 === "TypeScript"
 
@@ -89,11 +91,11 @@ version, rather than relying on the runtime-provided copy.
     dotnet add package Amazon.Lambda.DurableExecution
     ```
 
-## Write and test locally
+## Write Tests
 
-Write your handler, then drive it with the testing SDK. The runner executes the handler
-through the same replay-and-checkpoint loop the Lambda service uses, so local behavior
-matches the cloud. TypeScript, Java, and C# ship a `LocalDurableTestRunner`; Python uses
+Drive your handler with the testing SDK. The runner executes the handler through the
+same replay-and-checkpoint loop the Lambda service uses, so local behavior matches the
+cloud. TypeScript, Java, and C# ship a `LocalDurableTestRunner`; Python uses
 `DurableFunctionTestRunner`.
 
 A minimal test creates a runner with your handler, runs it, and asserts on the result:
@@ -122,6 +124,8 @@ A minimal test creates a runner with your handler, runs it, and asserts on the r
     --8<-- "examples/csharp/testing/authoring/minimal-test.cs"
     ```
 
+## Run Tests
+
 Run the suite with your language's test runner:
 
 ```console
@@ -137,9 +141,11 @@ replay behavior. The [Testing](../testing/index.md) section covers installing th
 SDK, [authoring tests](../testing/authoring.md), [assertions](../testing/assertions.md),
 and [workflow patterns](../testing/workflow-patterns.md).
 
-## Configure your function
+## Deploy
 
-Every durable function needs three things, whichever tool you deploy with:
+Durable execution must be enabled when the function is created — it cannot be added to an
+existing function later. Every durable function needs three things, whichever tool you
+deploy with:
 
 1. A `DurableConfig` on the function (`ExecutionTimeout` is required;
     `RetentionPeriodInDays` is optional). See the
@@ -150,14 +156,10 @@ Every durable function needs three things, whichever tool you deploy with:
 1. A qualified ARN (a published version or an alias) to invoke. Durable execution is not
     supported on an unqualified function name.
 
-Durable execution must be enabled when the function is created — it cannot be added to an
-existing function later. Tune `DurableConfig` per environment: short timeouts and
-retention in development, longer values in production.
-
-## Deploy with infrastructure as code
-
 For anything beyond a first experiment, deploy with SAM or CDK so your function
-configuration, IAM role, version, and alias live in source control.
+configuration, IAM role, version, and alias live in source control. Tune `DurableConfig`
+per environment: short timeouts and retention in development, longer values in
+production.
 
 === "SAM"
 
@@ -238,7 +240,7 @@ property). For durable invokes, callbacks, multi-environment stages, and log-gro
 management, see the deployment guidance in the
 [Kiro Power](#agentic-development-with-kiro) below.
 
-## Test against the cloud
+## Test in Cloud
 
 After deploying, validate the real packaging and runtime configuration — not just the
 in-process handler.
