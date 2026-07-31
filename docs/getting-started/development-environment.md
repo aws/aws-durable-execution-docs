@@ -5,8 +5,8 @@ project, writing and testing the function locally, and deploying it. It uses the
 [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/) for the local
 development loop (`sam init` to start, `sam local invoke` to run, and `sam deploy` to
 ship) and the [AWS CDK](https://docs.aws.amazon.com/cdk/) when you productionize the
-surrounding infrastructure. It also covers the AI agent (Kiro Power) the team ships for
-building durable functions.
+surrounding infrastructure. It also covers the AI agent tooling (the Agent Toolkit for
+AWS) the team ships for building durable functions.
 
 If you just want to deploy your first function with the AWS CLI, start with the
 [Quickstart](quickstart.md). This page is about the day-to-day workflow after that.
@@ -241,13 +241,29 @@ replay behavior. The [Testing](../testing/index.md) section covers installing th
 SDK, [authoring tests](../testing/authoring.md), [assertions](../testing/assertions.md),
 and [workflow patterns](../testing/workflow-patterns.md).
 
+### Invoke locally with the SAM CLI
+
+The test runner exercises your handler in-process. To run the packaged function in a
+local container that matches the Lambda runtime, build it first, then invoke it with the
+[SAM CLI](../testing/sam-cli.md). This needs no deployment and no AWS credentials:
+
+```console
+sam build
+sam local invoke MyDurableFunction --durable-execution-name my-test
+```
+
 ## 4. Deploy
 
-You can only set the `DurableConfig` at function creation time, not on a later update.
+You set the `DurableConfig` when the function is created. Adding it to an existing
+function triggers a resource replacement, which only succeeds when the function name is
+not explicitly set in the template; changing values inside an existing `DurableConfig`
+does not. See
+[Lambda with durable configuration](https://github.com/aws/aws-cdk/tree/main/packages/aws-cdk-lib/aws-lambda#lambda-with-durable-configuration)
+in the CDK docs for details.
 Every durable function needs three things, whichever tool you deploy with:
 
 1. A `DurableConfig` on the function (`ExecutionTimeout` is required;
-    `RetentionPeriodInDays` is optional). See the
+    `RetentionPeriodInDays` is optional and defaults to 14 days). See the
     [durable configuration reference](https://docs.aws.amazon.com/lambda/latest/dg/durable-configuration.html).
 1. The
     [AWSLambdaBasicDurableExecutionRolePolicy](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSLambdaBasicDurableExecutionRolePolicy.html)
@@ -255,11 +271,12 @@ Every durable function needs three things, whichever tool you deploy with:
 1. A qualified ARN (a published version or an alias) to invoke. Durable execution is not
     supported on an unqualified function name.
 
-Deploy with SAM while you iterate: it declares your function configuration, IAM role,
-version, and alias in a single `template.yaml`, one place you can check into source
-control, and pairs with the `sam local invoke` / `sam deploy` loop. When you productionize
-(composing the function with the rest of your infrastructure, such as queues, tables,
-alarms, and multi-environment stages), AWS CDK gives you a typed, programmable app. Tune
+Both SAM and CDK can deploy durable functions to production. SAM is great for iterating
+on a single function: it declares your function configuration, IAM role, version, and
+alias in a single `template.yaml`, one place you can check into source control, and pairs
+with the `sam local invoke` / `sam deploy` loop. For more complex systems (composing the
+function with the rest of your infrastructure, such as queues, tables, alarms, and
+multi-environment stages), AWS CDK gives you a typed, programmable app. Tune
 `DurableConfig` per environment: short timeouts and retention in development, longer values
 in production.
 
@@ -374,7 +391,7 @@ in production.
 You can also use CloudFormation directly (`AWS::Lambda::Function` with a `DurableConfig`
 property). For durable invokes, callbacks, multi-environment stages, and log-group
 management, see the deployment guidance in the
-[Kiro Power](#agentic-development-with-kiro) below.
+[Agent Toolkit](#agentic-development-with-kiro) below.
 
 ## 5. Test in Cloud
 
@@ -383,42 +400,41 @@ After deploying, validate using Lambda in the cloud.
 - Run your test suite against the deployed function with the
     [Cloud Runner](../testing/cloud-runner.md).
 
-- Invoke locally in a container, or against the deployed function, with the
-    [SAM CLI](../testing/sam-cli.md):
+- Invoke the deployed function with the [SAM CLI](../testing/sam-cli.md):
 
     ```console
-    # Local container invoke (no deployment needed)
-    sam local invoke MyDurableFunction --durable-execution-name my-test
-
-    # Remote invoke against a deployed function
     sam remote invoke MyDurableFunction --stack-name my-stack --event '{"name": "world"}'
     ```
 
 ## Agentic development with Kiro
 
-The [Kiro](https://kiro.dev) Power for
-**AWS Lambda durable functions** helps your AI coding assistant understand the replay model,
-step and wait patterns, error handling, testing, and IaC for durable functions. It is
-the fastest way to write correct durable functions with an agent, because it front-loads
-the determinism rules that are easy to get wrong.
+The [Agent Toolkit for AWS](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/what-is-agent-toolkit.html)
+ships a **Lambda durable functions** skill that teaches your AI coding assistant the
+replay model, step and wait patterns, error handling, testing, and IaC for durable
+functions. It is the fastest way to write correct durable functions with an agent,
+because it front-loads the determinism rules that are easy to get wrong.
 
-Install it from [kiro.dev/powers](https://kiro.dev/powers) or from your IDE, then
-build workflows from natural language prompts:
+Install it by following the
+[agent setup guide](https://docs.aws.amazon.com/lambda/latest/dg/agent-setup-guide.html),
+which covers Kiro, Claude Code, Cursor, GitHub Copilot, Codex, and other agents. Once
+installed, build workflows from natural language prompts:
 
 ```
 Help me create a durable Lambda function that processes orders with retries
 ```
 
-Kiro loads the relevant guidance and walks through the handler, steps with retry
+The agent loads the relevant guidance and walks through the handler, steps with retry
 strategies, error handling, tests with the local runner, and deployment. Mentioning
 keywords such as `durable`, `workflow`, `saga`, `agentic`, `human-in-the-loop`, or
-`callback` activates the Power automatically.
+`callback` activates the durable functions skill.
 
-If you use another AI assistant, the same guidance is available as Markdown steering
-files in the
-[aws-lambda-durable-functions-power](https://github.com/aws/aws-durable-execution-docs/tree/main/aws-lambda-durable-functions-power)
-directory of this repository. You can load these files as context to get the same replay-model and
-deployment rules.
+For any agent that supports the open
+[agent skills](https://agentskills.io/specification) format, you can add the durable
+functions skill directly:
+
+```console
+npx skills add https://github.com/aws/agent-toolkit-for-aws/tree/main/skills/specialized-skills/serverless-skills/aws-lambda-durable-functions --yes --global
+```
 
 ## Next steps
 
