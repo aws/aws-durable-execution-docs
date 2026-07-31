@@ -122,11 +122,41 @@ cloud. TypeScript, Java, and C# ship a `LocalDurableTestRunner`; Python uses
 `DurableFunctionTestRunner`.
 
 The runner ships in a separate, dev-only testing package. Install it before you write
-tests (see [Authoring tests](../testing/authoring.md) for the package name for each
-language). In TypeScript the testing package's peer range can lag the runtime SDK, so if
-`npm install --save-dev @aws/durable-execution-sdk-js-testing` reports an `ERESOLVE`
-error, pin the runtime SDK to a version the peer range allows (for example
-`npm install @aws/durable-execution-sdk-js@2.1.0`).
+tests (see [Authoring tests](../testing/authoring.md) for the full testing workflow):
+
+=== "TypeScript"
+
+    ```console
+    npm install --save-dev @aws/durable-execution-sdk-js-testing
+    ```
+
+    The testing package's peer range can lag the runtime SDK. If `npm install` reports an
+    `ERESOLVE` error, pin the runtime SDK to a version the peer range allows (for example
+    `npm install @aws/durable-execution-sdk-js@2.1.0`).
+
+=== "Python"
+
+    ```console
+    pip install aws-durable-execution-sdk-python-testing
+    ```
+
+=== "Java"
+
+    Add the testing dependency to your `pom.xml` with `test` scope:
+
+    ```xml
+    <dependency>
+        <groupId>software.amazon.lambda</groupId>
+        <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
+        <scope>test</scope>
+    </dependency>
+    ```
+
+=== "C#"
+
+    ```console
+    dotnet add package Amazon.Lambda.DurableExecution.Testing
+    ```
 
 A minimal test creates a runner with your handler, runs it, and asserts on the result:
 
@@ -154,9 +184,31 @@ A minimal test creates a runner with your handler, runs it, and asserts on the r
     --8<-- "examples/csharp/testing/authoring/minimal-test.cs"
     ```
 
-To drive an input-based handler, pass an event to the runner. In TypeScript this is
-`run({ payload: { ... } })`; see [Authoring tests](../testing/authoring.md) for the form
-each language uses.
+To drive an input-based handler, pass an event to the runner:
+
+=== "TypeScript"
+
+    ```typescript
+    await runner.run({ payload: { orderId: "A-1" } });
+    ```
+
+=== "Python"
+
+    ```python
+    runner.run(input='{"orderId": "A-1"}')
+    ```
+
+=== "Java"
+
+    ```java
+    runner.runUntilComplete(input);
+    ```
+
+=== "C#"
+
+    ```csharp
+    await runner.RunAsync(input);
+    ```
 
 ## 3. Run Tests
 
@@ -250,21 +302,39 @@ in production.
     `AutoPublishAlias` gives you the qualified ARN (the `prod` alias) that durable
     invocation requires.
 
-    For a TypeScript handler, add an esbuild build method so `sam build` transpiles it
-    (the snippet above ships the handler as-is, which only works for plain JavaScript):
+    `sam build` prepares your handler before packaging. What it needs depends on the
+    language:
 
-    ```yaml
-    DurableFunction:
-      Type: AWS::Serverless::Function
-      # Properties as above
-      Metadata:
-        BuildMethod: esbuild
-        BuildProperties:
-          Format: cjs
-          Target: node22
-          EntryPoints:
-            - index.ts
-    ```
+    === "TypeScript"
+
+        Add an esbuild build method so `sam build` transpiles TypeScript. Without it, SAM
+        ships the `.ts` source, which only works for plain JavaScript:
+
+        ```yaml
+        DurableFunction:
+          Type: AWS::Serverless::Function
+          # Properties as above
+          Metadata:
+            BuildMethod: esbuild
+            BuildProperties:
+              Format: cjs
+              Target: node22
+              EntryPoints:
+                - index.ts
+        ```
+
+    === "Python"
+
+        No build method is required. `sam build` installs dependencies from
+        `requirements.txt` and packages the source.
+
+    === "Java"
+
+        `sam build` builds with Maven or Gradle from your `pom.xml` or `build.gradle`.
+
+    === "C#"
+
+        `sam build` builds with the .NET CLI.
 
 === "CDK (productionize)"
 
