@@ -48,7 +48,9 @@ full workflow.
     configured with credentials. Verify with `aws sts get-caller-identity`.
 - A language runtime (see the tabs below).
 - The [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/) (1.153.1
-    or later), used throughout this guide to scaffold, test, and deploy. The
+    or later), used throughout this guide to scaffold, test, and deploy. Version 1.153.1
+    is the minimum that recognizes the `DurableConfig` property. Earlier versions fail at
+    `sam validate` and `sam build` with "property DurableConfig not defined". The
     [AWS CDK](https://docs.aws.amazon.com/cdk/) (2.237.1 or later) is recommended once you
     productionize the surrounding infrastructure. Direct AWS CLI access also works.
 
@@ -119,6 +121,13 @@ same replay-and-checkpoint loop the Lambda service uses, so local behavior match
 cloud. TypeScript, Java, and C# ship a `LocalDurableTestRunner`; Python uses
 `DurableFunctionTestRunner`.
 
+The runner ships in a separate, dev-only testing package. Install it before you write
+tests (see [Authoring tests](../testing/authoring.md) for the package name for each
+language). In TypeScript the testing package's peer range can lag the runtime SDK, so if
+`npm install --save-dev @aws/durable-execution-sdk-js-testing` reports an `ERESOLVE`
+error, pin the runtime SDK to a version the peer range allows (for example
+`npm install @aws/durable-execution-sdk-js@2.1.0`).
+
 A minimal test creates a runner with your handler, runs it, and asserts on the result:
 
 === "TypeScript"
@@ -144,6 +153,10 @@ A minimal test creates a runner with your handler, runs it, and asserts on the r
     ```csharp
     --8<-- "examples/csharp/testing/authoring/minimal-test.cs"
     ```
+
+To drive an input-based handler, pass an event to the runner. In TypeScript this is
+`run({ payload: { ... } })`; see [Authoring tests](../testing/authoring.md) for the form
+each language uses.
 
 ## 3. Run Tests
 
@@ -236,6 +249,22 @@ in production.
 
     `AutoPublishAlias` gives you the qualified ARN (the `prod` alias) that durable
     invocation requires.
+
+    For a TypeScript handler, add an esbuild build method so `sam build` transpiles it
+    (the snippet above ships the handler as-is, which only works for plain JavaScript):
+
+    ```yaml
+    DurableFunction:
+      Type: AWS::Serverless::Function
+      # Properties as above
+      Metadata:
+        BuildMethod: esbuild
+        BuildProperties:
+          Format: cjs
+          Target: node22
+          EntryPoints:
+            - index.ts
+    ```
 
 === "CDK (productionize)"
 
