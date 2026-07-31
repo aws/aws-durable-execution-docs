@@ -99,61 +99,19 @@ logical root.
 === "TypeScript"
 
     ```typescript
-    import { withDurableExecution } from "@aws/durable-execution-sdk-js";
-    import { ExecutionOtelPlugin } from "@aws/durable-execution-sdk-js-otel";
-
-    export const handler = withDurableExecution(
-      async (event, context) => {
-        const data = await context.step("fetch-data", async () => fetch(event.id));
-        await context.wait("cooldown", { seconds: 5 });
-        return await context.step("process", async () => transform(data));
-      },
-      { plugins: [new ExecutionOtelPlugin()] },
-    );
+    --8<-- "examples/typescript/sdk-reference/observability/opentelemetry/execution-plugin.ts"
     ```
 
 === "Python"
 
     ```python
-    from aws_durable_execution_sdk_python import DurableContext, durable_execution
-    from aws_durable_execution_sdk_python_otel import ExecutionOtelPlugin
-
-
-    @durable_execution(plugins=[ExecutionOtelPlugin()])
-    def handler(event: dict, context: DurableContext) -> dict:
-        data = context.step(lambda ctx: fetch(event["id"]), name="fetch-data")
-        context.wait(duration=Duration.from_seconds(5))
-        return context.step(lambda ctx: transform(data), name="process")
+    --8<-- "examples/python/sdk-reference/observability/opentelemetry/execution-plugin.py"
     ```
 
 === "Java"
 
     ```java
-    import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
-    import io.opentelemetry.sdk.trace.SdkTracerProvider;
-    import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
-    import software.amazon.lambda.durable.DurableConfig;
-    import software.amazon.lambda.durable.DurableContext;
-    import software.amazon.lambda.durable.DurableHandler;
-    import software.amazon.lambda.durable.otel.ExecutionOtelPlugin;
-
-    public class ExampleHandler extends DurableHandler<Event, String> {
-        @Override
-        protected DurableConfig createConfiguration() {
-            var plugin = new ExecutionOtelPlugin(
-                    SdkTracerProvider.builder()
-                            .addSpanProcessor(
-                                    SimpleSpanProcessor.create(OtlpGrpcSpanExporter.getDefault())));
-            return DurableConfig.builder().withPlugins(plugin).build();
-        }
-
-        @Override
-        protected String handleRequest(Event event, DurableContext context) {
-            var data = context.step("fetch-data", String.class, ctx -> fetch(event.id()));
-            context.wait("cooldown", Duration.ofSeconds(5));
-            return context.step("process", String.class, ctx -> transform(data));
-        }
-    }
+    --8<-- "examples/java/sdk-reference/observability/opentelemetry/execution-plugin.java"
     ```
 
 The trace you see groups every invocation of the execution under one `Workflow`
@@ -184,55 +142,19 @@ when you delegate span creation to the ADOT layer.
 === "TypeScript"
 
     ```typescript
-    import { withDurableExecution } from "@aws/durable-execution-sdk-js";
-    import { InvocationOtelPlugin } from "@aws/durable-execution-sdk-js-otel";
-
-    export const handler = withDurableExecution(
-      async (event, context) => {
-        return await context.step("process", async () => "done");
-      },
-      { plugins: [new InvocationOtelPlugin()] },
-    );
+    --8<-- "examples/typescript/sdk-reference/observability/opentelemetry/invocation-plugin.ts"
     ```
 
 === "Python"
 
     ```python
-    from aws_durable_execution_sdk_python import DurableContext, durable_execution
-    from aws_durable_execution_sdk_python_otel import InvocationOtelPlugin
-
-
-    @durable_execution(plugins=[InvocationOtelPlugin()])
-    def handler(event: dict, context: DurableContext) -> str:
-        return context.step(lambda ctx: "done", name="process")
+    --8<-- "examples/python/sdk-reference/observability/opentelemetry/invocation-plugin.py"
     ```
 
 === "Java"
 
     ```java
-    import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
-    import io.opentelemetry.sdk.trace.SdkTracerProvider;
-    import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
-    import software.amazon.lambda.durable.DurableConfig;
-    import software.amazon.lambda.durable.DurableContext;
-    import software.amazon.lambda.durable.DurableHandler;
-    import software.amazon.lambda.durable.otel.InvocationOtelPlugin;
-
-    public class ExampleHandler extends DurableHandler<Object, String> {
-        @Override
-        protected DurableConfig createConfiguration() {
-            var plugin = new InvocationOtelPlugin(
-                    SdkTracerProvider.builder()
-                            .addSpanProcessor(
-                                    SimpleSpanProcessor.create(OtlpGrpcSpanExporter.getDefault())));
-            return DurableConfig.builder().withPlugins(plugin).build();
-        }
-
-        @Override
-        protected String handleRequest(Object event, DurableContext context) {
-            return context.step("process", String.class, ctx -> "done");
-        }
-    }
+    --8<-- "examples/java/sdk-reference/observability/opentelemetry/invocation-plugin.java"
     ```
 
 The trace you see roots at the invocation span:
@@ -264,8 +186,7 @@ wait-for-condition operation, so retries appear as sibling spans.
 | Attempt    | `durable.execution.arn`, `durable.operation.id`, `durable.operation.type`, `durable.operation.name`, `durable.attempt.number`, `durable.attempt.outcome`     |
 
 `durable.operation.type` is one of `STEP`, `WAIT`, `CONTEXT`, `CHAINED_INVOKE`,
-or `CALLBACK`. The plugin also attaches standard FaaS resource attributes, such
-as the function name and region, from the Lambda environment.
+or `CALLBACK`.
 
 === "Java"
 
