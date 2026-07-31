@@ -72,10 +72,8 @@ for the interactive flow, and the [Quickstart](quickstart.md) for the full handl
 each language.
 
 Bundle the SDK with your function code so you control the exact version, rather than
-relying on the Lambda runtime-provided copy. The Lambda runtime-provided SDK lags behind
-the public `aws-durable-execution-sdk-*` version releases on public package indices (e.g.
-NPM, PyPI, Maven, Nuget, ...). It can be unclear which SDK version the runtime provides,
-which features or bug fixes are present. To add or pin the SDK manually:
+relying on the Lambda runtime-provided copy. This gives you control over which version of the
+SDK is being deployed in your function code, rather than relying on which is being bundled in the lambda runtime.
 
 === "TypeScript"
 
