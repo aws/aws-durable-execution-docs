@@ -10,7 +10,6 @@ multiple programming languages.
 ```
 docs/                                    # Documentation source files
 examples/                                # Code source files for code-blocks in docs/
-aws-lambda-durable-functions-power/      # Kiro power for AI assistance
 ```
 
 ## Documentation source
@@ -42,20 +41,6 @@ zensical serve
 For the full authoring workflow, please see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 For writing style and Markdown formatting syntax, please see the [Authoring Guide](authoring-guide.md).
-
-## Kiro Power
-
-This repository includes a [Kiro power](https://kiro.dev/powers/) that provides
-AI-assisted guidance for building durable functions. The power includes:
-
-- Replay model rules and best practices
-- Step operation patterns
-- Error handling strategies
-- Testing patterns
-- Deployment templates
-
-See [aws-lambda-durable-functions-power/](aws-lambda-durable-functions-power/)
-for details.
 
 ## Resources
 
