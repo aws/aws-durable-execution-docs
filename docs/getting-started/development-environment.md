@@ -351,7 +351,7 @@ in production.
 
         `sam build` builds with the .NET CLI.
 
-=== "CDK (productionize)"
+=== "CDK"
 
     ```typescript
     import * as cdk from 'aws-cdk-lib';
