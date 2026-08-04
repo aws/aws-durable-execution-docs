@@ -71,12 +71,12 @@ disconnected trace.
     <dependency>
         <groupId>io.opentelemetry</groupId>
         <artifactId>opentelemetry-sdk</artifactId>
-        <version>1.63.0</version>
+        <version>some version</version>
     </dependency>
     <dependency>
         <groupId>io.opentelemetry</groupId>
         <artifactId>opentelemetry-exporter-otlp</artifactId>
-        <version>1.63.0</version>
+        <version>some version</version>
     </dependency>
     ```
 
@@ -195,7 +195,8 @@ currently visualize them.
 | ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Trace root             | Synthetic `Workflow` span                                         | Invocation span (`Workflow` root with the community collector)                   |
 | Root span export       | Only when the execution completes                                 | Each invocation span exports when that invocation ends                           |
-| In-progress visibility | None until the execution finishes                                 | Each invocation appears as it completes                                          |
+| Operation span         | Exported in its entirety, once when complete                      | May be duplicated under multiple invocations spans                               |
+| In-progress visibility | Fragmented until the execution finishes                           | Each invocation appears as it completes                                          |
 | Best for               | Short executions                                                  | Long-running executions, or watching one in progress                             |
 | Platform compatibility | A long-open root span can exceed some platforms' ingestion limits | Invocation spans stay within the 15-minute Lambda limit, so they render reliably |
 
