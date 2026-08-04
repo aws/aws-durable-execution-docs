@@ -434,7 +434,7 @@ each Lambda invocation.
     - **exporterConfig** OTLP `endpoint` and `headers`, used only when the plugin
         creates its own provider.
     - **propagators** Replaces the default `[AWSXRay, W3CTraceContext]`
-        propagators. W3CTraceContext currently does no work in Lambda.
+        propagators. W3CTraceContext currently does not work in Lambda.
     - **enableHttpInstrumentation** Registers HTTP instrumentation. Defaults to
         `true`.
     - **instrumentationName** Instrumentation scope name. Defaults to
