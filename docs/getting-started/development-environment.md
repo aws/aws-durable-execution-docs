@@ -420,7 +420,7 @@ After deploying, validate using Lambda in the cloud.
     sam remote invoke MyDurableFunction --stack-name my-stack --event '{"name": "world"}'
 
     # Print the deployed execution's checkpoint and operation history
-    sam remote execution history <execution-id>
+    sam remote execution history <execution-arn>
 
     # Resolve a pending callback (pass the result the waiting execution expects)
     sam remote callback succeed <callback-id> --result '"approved"'
