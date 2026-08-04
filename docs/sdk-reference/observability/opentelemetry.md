@@ -373,7 +373,7 @@ without first sending them to Cloudwatch or X-Ray.
     ```
 
     ```java
-    var exporter = OtlpGrpcSpanExporter.getDefault();
+    var exporter = OtlpHttpSpanExporter.getDefault();
     var plugin = new ExecutionOtelPlugin(
             SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exporter)));
     ```
