@@ -403,6 +403,8 @@ without first sending them to CloudWatch or X-Ray.
         `aws-durable-execution-sdk-js`.
     - **workflowSpanName** Name of the `Workflow` root span. Defaults to
         `Workflow`.
+    - **enrichLogger** Adds `traceId`, `spanId`, and `otelTraceSampled` to each
+        durable log record through `enrichLogContext()`. Defaults to `true`.
 
     Control sampling with the `OTEL_DURABLE_SAMPLING_RATIO` environment variable,
     from `0.0` to `1.0`. All invocations of one execution are sampled or dropped
@@ -463,8 +465,10 @@ for the SDK logger.
 
 === "TypeScript"
 
-    The plugin enriches log context with `traceId` and `spanId` through the
-    plugin log hook described in [Logging from a plugin](plugins.md#logging-from-a-plugin).
+    With `enrichLogger` enabled (the default), the plugin adds `traceId`,
+    `spanId`, and `otelTraceSampled` to each durable log record through the
+    `enrichLogContext()` hook described in
+    [Logging from a plugin](plugins.md#logging-from-a-plugin).
 
 === "Python"
 
