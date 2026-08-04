@@ -1,14 +1,14 @@
 # OpenTelemetry
 
 The OpenTelemetry plugin instruments a durable execution and emits distributed
-traces to any OTLP backend, such as Amazon CloudWatch or AWS X-Ray. It builds on
+traces to any OTLP backend, such as Amazon CloudWatch. It builds on
 the [plugin interface](plugins.md): you register it in your handler
 configuration, and it opens spans at the invocation, operation, and attempt
 boundaries as the execution runs.
 
 A durable execution runs across many Lambda invocations. The plugin derives
-deterministic trace and span IDs from the execution ARN, and from the X-Ray
-trace header when one is present, so the spans from every invocation join a
+deterministic trace and span IDs from the execution ARN, and from the
+`_X_AMZN_TRACE_ID` trace header when one is present, so the spans from every invocation join a
 single trace. Without deterministic IDs, each invocation would produce its own
 disconnected trace.
 
@@ -199,8 +199,8 @@ no attempt span, since attempt spans apply only to steps and wait-for-conditions
 
 The AWS Distro for OpenTelemetry (ADOT) Lambda layer bundles OpenTelemetry
 auto-instrumentation and a collector extension. The collector listens on
-`localhost:4318` and forwards spans to X-Ray and CloudWatch. Add the layer,
-enable X-Ray active tracing so the runtime populates the `_X_AMZN_TRACE_ID`
+`localhost:4318` and forwards spans to CloudWatch. Add the layer,
+enable active tracing so the runtime populates the `_X_AMZN_TRACE_ID`
 header the plugin reads, and grant the function's role the
 `AWSXRayDaemonWriteAccess` managed policy.
 
@@ -325,7 +325,7 @@ service:
 
 Routing spans through a collector also lets you export to a third-party platform
 such as Datadog, Honeycomb, or Grafana by changing the collector's exporter,
-without first sending them to CloudWatch or X-Ray.
+without first sending them to CloudWatch.
 
 === "TypeScript"
 
