@@ -21,9 +21,8 @@ disconnected trace.
 
 !!! note "C# support"
 
-    The .NET plugin ships when the AWS Lambda Durable Execution SDK for C#
-    becomes generally available. Until then, this page covers TypeScript,
-    Python, and Java.
+    The OpenTelemetry plugin for C# is a work in progress. Until it ships, this
+    page covers TypeScript, Python, and Java.
 
 ## Install the plugin
 
