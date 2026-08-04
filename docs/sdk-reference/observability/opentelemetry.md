@@ -51,8 +51,9 @@ disconnected trace.
 ## The two plugins
 
 The package ships two plugins. Both correlate a whole durable execution into a
-single trace with deterministic IDs. They differ in where they root the trace
-and when they export the root span. You register exactly one of them.
+single trace with deterministic IDs, and both emit a `Workflow` root span for the
+execution. They differ in where they root the invocation view and when they
+export the root span. You register exactly one of them.
 
 ### ExecutionOtelPlugin
 
@@ -100,11 +101,13 @@ which invocation ran each operation even though the operations root under the
 
 ### InvocationOtelPlugin
 
-`InvocationOtelPlugin` is lighter. It roots each trace at the invocation span and
-attaches operation spans directly to it. With the community collector layer it
-also opens a `Workflow` root span, exported only on terminal status.
-Choose this plugin when you want per-invocation traces, or
-when you delegate span creation to the ADOT layer.
+`InvocationOtelPlugin` keeps the trace invocation-rooted. It opens a parentless
+`Workflow` root span in both provider modes, keyed to a deterministic ID from the
+execution ARN and ended only at the terminal invocation. The invocation span is
+not a child of that `Workflow` span. Each invocation span roots its own operation
+and attempt spans, and those spans carry a link to the `Workflow` span for
+execution-scoped correlation. Choose this plugin when you want per-invocation
+traces that still correlate to one workflow.
 
 === "TypeScript"
 
@@ -124,20 +127,24 @@ when you delegate span creation to the ADOT layer.
     --8<-- "examples/java/sdk-reference/observability/opentelemetry/invocation-plugin.java"
     ```
 
-The trace you see roots at the invocation span:
+The `Workflow` span is a parentless root that operation and attempt spans link
+to. The invocation span roots the per-invocation view separately:
 
 ```text
-Workflow                          (community collector only; terminal status)
-└── Invocation                    (trace root; one span per Lambda invocation)
-    ├── Operation: fetch-data  (STEP)
-    │   └── Attempt: fetch-data attempt 1
-    ├── Operation: cooldown    (WAIT)
-    └── Operation: process     (STEP)
+Workflow                          (parentless root; deterministic ID; ended at terminal invocation)
+
+Invocation                        (per-invocation root; not nested under Workflow)
+├── Operation: fetch-data  (STEP)      -> link to Workflow
+│   └── Attempt: fetch-data attempt 1  -> link to Workflow
+├── Operation: cooldown    (WAIT)      -> link to Workflow
+└── Operation: process     (STEP)      -> link to Workflow
 ```
 
-Operations that resume in a later invocation link back to the original
-operation's deterministic span ID, so a retry or a resumed wait relates to its
-first appearance.
+An operation that completes in a later invocation, such as an invoke, wait, or
+callback, can appear as more than one span across invocations. Each later span
+carries a link back to the first span for that operation, so a retry or a resumed
+wait relates to its first appearance. CloudWatch does not yet visualize these
+links.
 
 ### Choosing a plugin
 
@@ -153,43 +160,38 @@ the ingestion limits of some observability platforms.
 Lambda invocation lasts at most 15 minutes, so spans stay within platform limits
 and appear as the execution runs. This renders reliably across most platforms
 and shows how operations are processed across invocations. Prefer it for
-long-running executions, or when you want to view an execution in progress. Operations
-which complete between Lambda invocations such as invoke, wait or callback may appear to be split
-into multiple spans, spanning multiple invocations. The plugin provides a Link from the subsequent
-spans linking to the first such operation span. Note that Cloudwatch doesn't implement Links and doesn't
-currently visualize them.
+long-running executions, or when you want to view an execution in progress.
 
-Note that for both plugins, observability platform quotas/limitations will apply.
+For both plugins, your observability platform's quotas and limits apply.
 
 | Consideration          | ExecutionOtelPlugin                                               | InvocationOtelPlugin                                                             |
 | ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| Trace root             | Synthetic `Workflow` span                                         | Invocation span (`Workflow` root with the community collector)                   |
+| Trace root             | Synthetic `Workflow` span                                         | Invocation span; a `Workflow` span is also emitted and linked from operations    |
 | Root span export       | Only when the execution completes                                 | Each invocation span exports when that invocation ends                           |
-| Operation span         | Exported in its entirety, once when complete                      | May be duplicated under multiple invocations spans                               |
+| Operation span         | Exported once, in its entirety, when complete                     | Can appear under multiple invocation spans                                       |
 | In-progress visibility | Fragmented until the execution finishes                           | Each invocation appears as it completes                                          |
 | Better for             | Short executions                                                  | Longer-running executions, or watching one in progress                           |
 | Platform compatibility | A long-open root span can exceed some platforms' ingestion limits | Invocation spans stay within the 15-minute Lambda limit, so they render reliably |
 
 ## Span structure and attributes
 
-Both plugins open three levels of spans. An invocation span covers one Lambda
-invocation. Operation spans nest one per durable operation, such as a step, wait,
-or child invoke. Attempt spans nest one per try under a step or
-wait-for-condition operation, so retries appear as sibling spans.
+Both plugins emit a `Workflow` root span for the whole execution. Beneath it
+(ExecutionOtelPlugin) or linked to it (InvocationOtelPlugin) sit three levels of
+spans. An invocation span covers one Lambda invocation. Operation spans nest one
+per durable operation, such as a step, wait, or child invoke. Attempt spans nest
+one per try under a step or wait-for-condition operation, so retries appear as
+sibling spans.
 
 | Span       | Attributes                                                                                                                                                   |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Workflow   | `durable.execution.arn`, `durable.execution.status`                                                                                                          |
 | Invocation | `durable.execution.arn`, `durable.invocation.status`, `durable.invocation.first`                                                                             |
 | Operation  | `durable.execution.arn`, `durable.operation.id`, `durable.operation.type`, `durable.operation.name`, `durable.operation.subtype`, `durable.operation.status` |
 | Attempt    | `durable.execution.arn`, `durable.operation.id`, `durable.operation.type`, `durable.operation.name`, `durable.attempt.number`, `durable.attempt.outcome`     |
 
 `durable.operation.type` is one of `STEP`, `WAIT`, `CONTEXT`, `CHAINED_INVOKE`,
-or `CALLBACK`.
-
-=== "Java"
-
-    Attempt spans are not opened for `CONTEXT` operations, so a child context
-    contributes an operation span but no attempt span.
+or `CALLBACK`. A `CONTEXT` operation (a child context) gets an operation span but
+no attempt span, since attempt spans apply only to steps and wait-for-conditions.
 
 ## Deploy with the ADOT layer
 
@@ -205,7 +207,9 @@ header the plugin reads, and grant the function's role the
     Set `AWS_LAMBDA_EXEC_WRAPPER` to `/opt/otel-instrument` to activate the
     layer's instrumentation, and construct the plugin with
     `useDefaultTracerProvider: true` so it uses the layer's global tracer
-    provider.
+    provider. Find the current ADOT JavaScript layer ARN for your region and
+    architecture in the
+    [ADOT Lambda layer documentation](https://aws-otel.github.io/docs/getting-started/lambda/lambda-js).
 
     ```yaml
     MyFunction:
@@ -214,7 +218,7 @@ header the plugin reads, and grant the function's role the
         Runtime: nodejs22.x
         Handler: index.handler
         Layers:
-          - !Sub arn:aws:lambda:${AWS::Region}:615299751070:layer:AWSOpenTelemetryDistroJs:7
+          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<adot-js-layer>:<version>
         Environment:
           Variables:
             AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
@@ -264,7 +268,9 @@ header the plugin reads, and grant the function's role the
     `OTEL_JAVAAGENT_EXTENSIONS` (the path to the bundled plugin jar) so its SPI
     installs deterministic ID generation into the agent's provider. Then
     construct either plugin with the no-arg constructor, which reads the agent's
-    global provider.
+    global provider. Find the current ADOT Java layer ARN for your region and
+    architecture in the
+    [ADOT Lambda layer documentation](https://aws-otel.github.io/docs/getting-started/lambda/lambda-java).
 
     ```yaml
     MyFunction:
@@ -273,7 +279,7 @@ header the plugin reads, and grant the function's role the
         Runtime: java17
         Handler: com.example.ExampleHandler
         Layers:
-          - !Sub arn:aws:lambda:${AWS::Region}:901920570463:layer:aws-otel-java-agent-amd64-ver-1-32-0:6
+          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<adot-java-layer>:<version>
         Environment:
           Variables:
             AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
@@ -292,10 +298,10 @@ header the plugin reads, and grant the function's role the
 **With ExecutionOtelPlugin,** you get one `Workflow`-rooted trace per execution.
 The plugin exports the `Workflow` span only on terminal status.
 
-**With InvocationOtelPlugin,** you get per-invocation traces correlated across
-invocations by deterministic span IDs. In TypeScript, this plugin can delegate
-span creation to the ADOT layer's ambient invocation span; Python and Java open
-their own spans through the layer's provider.
+**With InvocationOtelPlugin,** you get per-invocation traces that correlate to
+one `Workflow` span through links. The plugin always creates its own invocation
+span; under the ADOT layer it parents that span to the layer's ambient Lambda
+span.
 
 ## Deploy with the community collector layer
 
@@ -325,7 +331,7 @@ service:
 
 Routing spans through a collector also lets you export to a third-party platform
 such as Datadog, Honeycomb, or Grafana by changing the collector's exporter,
-without first sending them to Cloudwatch or X-Ray.
+without first sending them to CloudWatch or X-Ray.
 
 === "TypeScript"
 
@@ -384,10 +390,11 @@ without first sending them to Cloudwatch or X-Ray.
 The plugin exports the `Workflow` span only on terminal status, so intermediate
 invocations do not emit incomplete workflow spans.
 
-**With InvocationOtelPlugin,** the plugin opens a synthetic `Workflow` root span
-with a deterministic ID and an invocation span as its child. It exports the
-`Workflow` span only on terminal status. Invocation spans are exporteed at the end of
-each Lambda invocation.
+**With InvocationOtelPlugin,** the plugin opens the parentless `Workflow` root
+span with a deterministic ID and exports it only on terminal status. The
+invocation span is not a child of the `Workflow` span; it roots the per-invocation
+view and links to the `Workflow` span. The plugin exports each invocation span at
+the end of its Lambda invocation.
 
 ## Configuration
 
@@ -435,6 +442,8 @@ each Lambda invocation.
         `aws-durable-execution-sdk-python`.
     - **enrich_logger** Installs a root-logger filter that stamps trace context
         onto log records. Defaults to `True`.
+    - **workflow_span_name** Name of the `Workflow` root span. Defaults to
+        `Workflow`.
 
     Control sampling through the ADOT layer with `OTEL_TRACES_SAMPLER` and
     `OTEL_TRACES_SAMPLER_ARG`.
