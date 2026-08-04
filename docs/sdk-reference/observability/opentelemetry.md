@@ -134,7 +134,7 @@ which invocation ran each operation even though the operations root under the
 
 `InvocationOtelPlugin` is lighter. It roots each trace at the invocation span and
 attaches operation spans directly to it. With the community collector layer it
-also opens a `Workflow` root span, exported only on terminal status. 
+also opens a `Workflow` root span, exported only on terminal status.
 Choose this plugin when you want per-invocation traces, or
 when you delegate span creation to the ADOT layer.
 
