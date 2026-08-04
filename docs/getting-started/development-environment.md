@@ -283,122 +283,82 @@ Every durable function needs three things, whichever tool you deploy with:
 1. A qualified ARN (a published version or an alias) to invoke. Durable execution is not
     supported on an unqualified function name.
 
-Both SAM and CDK can deploy durable functions to production. SAM is great for iterating
-on a single function: it declares your function configuration, IAM role, version, and
-alias in a single `template.yaml`, one place you can check into source control, and pairs
-with the `sam local invoke` / `sam deploy` loop. For more complex systems (composing the
-function with the rest of your infrastructure, such as queues, tables, alarms, and
-multi-environment stages), AWS CDK gives you a typed, programmable app. Tune
-`DurableConfig` per environment: short timeouts and retention in development, longer values
-in production.
+This guide deploys with SAM. SAM is great for iterating on a single function: it declares
+your function configuration, IAM role, version, and alias in a single `template.yaml`
+(one place you can check into source control) and pairs with the `sam local invoke` /
+`sam deploy` loop. For committing and composing more complex infrastructure beyond a
+single Lambda function (queues, tables, alarms, multi-environment stages), use the
+[AWS CDK](https://docs.aws.amazon.com/cdk/) instead. Tune `DurableConfig` per environment:
+short timeouts and retention in development, longer values in production.
 
-=== "SAM (iterate)"
+`template.yaml`:
 
-    `template.yaml`:
+```yaml
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  DurableFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs22.x
+      Handler: index.handler
+      CodeUri: ./src
+      DurableConfig:
+        ExecutionTimeout: 3600
+        RetentionPeriodInDays: 7
+      Policies:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
+      AutoPublishAlias: prod
+
+Outputs:
+  AliasArn:
+    Value: !Ref DurableFunction.Alias
+```
+
+Deploy:
+
+```console
+sam build
+sam deploy --guided
+```
+
+`AutoPublishAlias` gives you the qualified ARN (the `prod` alias) that durable
+invocation requires.
+
+`sam build` prepares your handler before packaging. What it needs depends on the
+language:
+
+=== "TypeScript"
+
+    Add an esbuild build method so `sam build` transpiles TypeScript. Without it, SAM
+    ships the `.ts` source, which only works for plain JavaScript:
 
     ```yaml
-    AWSTemplateFormatVersion: '2010-09-09'
-    Transform: AWS::Serverless-2016-10-31
-
-    Resources:
-      DurableFunction:
-        Type: AWS::Serverless::Function
-        Properties:
-          Runtime: nodejs22.x
-          Handler: index.handler
-          CodeUri: ./src
-          DurableConfig:
-            ExecutionTimeout: 3600
-            RetentionPeriodInDays: 7
-          Policies:
-            - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
-          AutoPublishAlias: prod
-
-    Outputs:
-      AliasArn:
-        Value: !Ref DurableFunction.Alias
+    DurableFunction:
+      Type: AWS::Serverless::Function
+      # Properties as above
+      Metadata:
+        BuildMethod: esbuild
+        BuildProperties:
+          Format: cjs
+          Target: node22
+          EntryPoints:
+            - index.ts
     ```
 
-    Deploy:
+=== "Python"
 
-    ```console
-    sam build
-    sam deploy --guided
-    ```
+    No build method is required. `sam build` installs dependencies from
+    `requirements.txt` and packages the source.
 
-    `AutoPublishAlias` gives you the qualified ARN (the `prod` alias) that durable
-    invocation requires.
+=== "Java"
 
-    `sam build` prepares your handler before packaging. What it needs depends on the
-    language:
+    `sam build` builds with Maven or Gradle from your `pom.xml` or `build.gradle`.
 
-    === "TypeScript"
+=== "C#"
 
-        Add an esbuild build method so `sam build` transpiles TypeScript. Without it, SAM
-        ships the `.ts` source, which only works for plain JavaScript:
-
-        ```yaml
-        DurableFunction:
-          Type: AWS::Serverless::Function
-          # Properties as above
-          Metadata:
-            BuildMethod: esbuild
-            BuildProperties:
-              Format: cjs
-              Target: node22
-              EntryPoints:
-                - index.ts
-        ```
-
-    === "Python"
-
-        No build method is required. `sam build` installs dependencies from
-        `requirements.txt` and packages the source.
-
-    === "Java"
-
-        `sam build` builds with Maven or Gradle from your `pom.xml` or `build.gradle`.
-
-    === "C#"
-
-        `sam build` builds with the .NET CLI.
-
-=== "CDK"
-
-    ```typescript
-    import * as cdk from 'aws-cdk-lib';
-    import * as lambda from 'aws-cdk-lib/aws-lambda';
-
-    export class DurableFunctionStack extends cdk.Stack {
-      constructor(scope: cdk.App, id: string, props?: cdk.StackProps) {
-        super(scope, id, props);
-
-        const fn = new lambda.Function(this, 'DurableFunction', {
-          runtime: lambda.Runtime.NODEJS_22_X,
-          handler: 'index.handler',
-          code: lambda.Code.fromAsset('lambda'),
-          durableConfig: {
-            executionTimeout: cdk.Duration.hours(1),
-            retentionPeriod: cdk.Duration.days(7),
-          },
-        });
-
-        // CDK adds the checkpoint permissions automatically when durableConfig is set.
-        const alias = new lambda.Alias(this, 'ProdAlias', {
-          aliasName: 'prod',
-          version: fn.currentVersion,
-        });
-
-        new cdk.CfnOutput(this, 'AliasArn', { value: alias.functionArn });
-      }
-    }
-    ```
-
-    Deploy:
-
-    ```console
-    cdk deploy
-    ```
+    `sam build` builds with the .NET CLI.
 
 You can also use CloudFormation directly (`AWS::Lambda::Function` with a `DurableConfig`
 property). For durable invokes, callbacks, multi-environment stages, and log-group
