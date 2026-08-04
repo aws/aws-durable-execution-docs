@@ -128,16 +128,22 @@ traces that still correlate to one workflow.
     ```
 
 The `Workflow` span is a parentless root that operation and attempt spans link
-to. The invocation span roots the per-invocation view separately:
+to. Each Lambda invocation roots its own view. The example above suspends at the
+`cooldown` wait, so it runs across two invocations, and the wait produces a span
+in each:
 
 ```text
-Workflow                          (parentless root; deterministic ID; ended at terminal invocation)
+Workflow                              (parentless root; deterministic ID; ended at the terminal invocation)
 
-Invocation                        (per-invocation root; not nested under Workflow)
+Invocation #1                         (per-invocation root; not nested under Workflow)
 ├── Operation: fetch-data  (STEP)      -> link to Workflow
 │   └── Attempt: fetch-data attempt 1  -> link to Workflow
-├── Operation: cooldown    (WAIT)      -> link to Workflow
+└── Operation: cooldown    (WAIT)      -> link to Workflow      (wait starts; execution suspends)
+
+Invocation #2                         (per-invocation root; resumes after the wait)
+├── Operation: cooldown    (WAIT)      -> link to the first cooldown span, and to Workflow
 └── Operation: process     (STEP)      -> link to Workflow
+    └── Attempt: process attempt 1     -> link to Workflow
 ```
 
 An operation that completes in a later invocation, such as an invoke, wait, or
@@ -209,7 +215,7 @@ header the plugin reads, and grant the function's role the
     `useDefaultTracerProvider: true` so it uses the layer's global tracer
     provider. Find the current ADOT JavaScript layer ARN for your region and
     architecture in the
-    [ADOT Lambda layer documentation](https://aws-otel.github.io/docs/getting-started/lambda/lambda-js).
+    [ADOT Lambda layer documentation](https://aws-otel.github.io/docs/getting-started/lambda#adot-lambda-layer-arns).
 
     ```yaml
     MyFunction:
@@ -238,7 +244,7 @@ header the plugin reads, and grant the function's role the
 
     Set `AWS_LAMBDA_EXEC_WRAPPER` to `/opt/otel-instrument`. Find the current
     layer ARN for your region and architecture in the
-    [ADOT Lambda layer documentation](https://aws-otel.github.io/docs/getting-started/lambda/lambda-python).
+    [ADOT Lambda layer documentation](https://aws-otel.github.io/docs/getting-started/lambda#adot-lambda-layer-arns).
 
     ```yaml
     MyFunction:
@@ -270,7 +276,7 @@ header the plugin reads, and grant the function's role the
     construct either plugin with the no-arg constructor, which reads the agent's
     global provider. Find the current ADOT Java layer ARN for your region and
     architecture in the
-    [ADOT Lambda layer documentation](https://aws-otel.github.io/docs/getting-started/lambda/lambda-java).
+    [ADOT Lambda layer documentation](https://aws-otel.github.io/docs/getting-started/lambda#adot-lambda-layer-arns).
 
     ```yaml
     MyFunction:
@@ -300,8 +306,8 @@ The plugin exports the `Workflow` span only on terminal status.
 
 **With InvocationOtelPlugin,** you get per-invocation traces that correlate to
 one `Workflow` span through links. The plugin always creates its own invocation
-span; under the ADOT layer it parents that span to the layer's ambient Lambda
-span.
+span; with `useDefaultTracerProvider: true` it parents that span to the layer's
+ambient Lambda span.
 
 ## Deploy with the community collector layer
 
@@ -335,8 +341,8 @@ without first sending them to CloudWatch or X-Ray.
 
 === "TypeScript"
 
-    Construct either plugin with no provider option. It auto-creates a provider
-    that exports to `localhost:4318`.
+    Construct either plugin with `useDefaultTracerProvider: false` (the default),
+    so it auto-creates a provider that exports to `localhost:4318`.
 
     ```yaml
     Layers:
@@ -347,8 +353,8 @@ without first sending them to CloudWatch or X-Ray.
     ```
 
     ```typescript
-    new ExecutionOtelPlugin();   // auto-creates a provider
-    new InvocationOtelPlugin();  // auto-creates a provider
+    new ExecutionOtelPlugin({ useDefaultTracerProvider: false });
+    new InvocationOtelPlugin({ useDefaultTracerProvider: false });
     ```
 
 === "Python"
