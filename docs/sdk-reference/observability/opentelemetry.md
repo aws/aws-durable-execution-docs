@@ -7,8 +7,8 @@ configuration, and it opens spans at the invocation, operation, and attempt
 boundaries as the execution runs.
 
 A durable execution runs across many Lambda invocations. The plugin derives
-deterministic trace and span IDs from the execution ARN, and from the
-`_X_AMZN_TRACE_ID` trace header when one is present, so the spans from every invocation join a
+deterministic trace and span IDs from the execution ARN, and from the X-Ray
+trace header when one is present, so the spans from every invocation join a
 single trace. Without deterministic IDs, each invocation would produce its own
 disconnected trace.
 
