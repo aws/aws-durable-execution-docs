@@ -86,13 +86,14 @@ The trace you see groups every invocation of the execution under one `Workflow`
 root:
 
 ```text
-Workflow                          (root, exported on terminal status)
-├── Invocation                    (one span per Lambda invocation)
-├── Operation: fetch-data  (STEP)
-│   └── Attempt: fetch-data attempt 1
-├── Operation: cooldown    (WAIT)
-└── Operation: process     (STEP)
-    └── Attempt: process attempt 1
+Workflow                              (root, exported on terminal status)
+├── Invocation #1
+├── Invocation #2
+├── Operation: fetch-data  (STEP)      -> link to Invocation #1
+│   └── Attempt: fetch-data attempt 1  -> link to Invocation #1
+├── Operation: cooldown    (WAIT)      -> link to Invocation #2
+└── Operation: process     (STEP)      -> link to Invocation #2
+    └── Attempt: process attempt 1     -> link to Invocation #2
 ```
 
 Operation spans link to the invocation span that produced them, so you can tell
@@ -253,7 +254,7 @@ header the plugin reads, and grant the function's role the
         Runtime: python3.12
         Handler: index.handler
         Layers:
-          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:aws-otel-python-amd64-ver-<version>
+          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<adot-python-layer>:<version>
         Environment:
           Variables:
             AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
@@ -300,14 +301,6 @@ header the plugin reads, and grant the function's role the
     new ExecutionOtelPlugin();   // uses the agent's global provider
     new InvocationOtelPlugin();  // uses the agent's global provider
     ```
-
-**With ExecutionOtelPlugin,** you get one `Workflow`-rooted trace per execution.
-The plugin exports the `Workflow` span only on terminal status.
-
-**With InvocationOtelPlugin,** you get per-invocation traces that correlate to
-one `Workflow` span through links. The plugin always creates its own invocation
-span; with `useDefaultTracerProvider: true` it parents that span to the layer's
-ambient Lambda span.
 
 ## Deploy with the community collector layer
 
@@ -391,16 +384,6 @@ without first sending them to CloudWatch or X-Ray.
     var plugin = new ExecutionOtelPlugin(
             SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exporter)));
     ```
-
-**With ExecutionOtelPlugin,** you get one `Workflow`-rooted trace per execution.
-The plugin exports the `Workflow` span only on terminal status, so intermediate
-invocations do not emit incomplete workflow spans.
-
-**With InvocationOtelPlugin,** the plugin opens the parentless `Workflow` root
-span with a deterministic ID and exports it only on terminal status. The
-invocation span is not a child of the `Workflow` span; it roots the per-invocation
-view and links to the `Workflow` span. The plugin exports each invocation span at
-the end of its Lambda invocation.
 
 ## Configuration
 
