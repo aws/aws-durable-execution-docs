@@ -134,8 +134,8 @@ which invocation ran each operation even though the operations root under the
 
 `InvocationOtelPlugin` is lighter. It roots each trace at the invocation span and
 attaches operation spans directly to it. With the community collector layer it
-also opens a `Workflow` root span, exported only on terminal status, so you still
-get one unified trace. Choose this plugin when you want per-invocation traces, or
+also opens a `Workflow` root span, exported only on terminal status. 
+Choose this plugin when you want per-invocation traces, or
 when you delegate span creation to the ADOT layer.
 
 === "TypeScript"
@@ -185,7 +185,11 @@ the ingestion limits of some observability platforms.
 Lambda invocation lasts at most 15 minutes, so spans stay within platform limits
 and appear as the execution runs. This renders reliably across most platforms
 and shows how operations are processed across invocations. Prefer it for
-long-running executions, or when you want to view an execution in progress.
+long-running executions, or when you want to view an execution in progress. Operations
+which complete between Lambda invocations such as invoke, wait or callback may appear to be split
+into multiple spans, spanning multiple invocations. The plugin provides a Link from the subsequent
+spans linking to the first such operation span. Note that Cloudwatch doesn't implement Links and doesn't
+currently visualize them.
 
 | Consideration          | ExecutionOtelPlugin                                               | InvocationOtelPlugin                                                             |
 | ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
@@ -325,7 +329,7 @@ their own spans through the layer's provider.
 ## Deploy with the community collector layer
 
 The OpenTelemetry community collector layer runs a collector extension only,
-without auto-instrumentation, so it is smaller than the ADOT layer. The plugin
+without auto-instrumentation. The plugin
 creates its own tracer provider and exports spans to the collector on
 `localhost:4318`. Do not set `AWS_LAMBDA_EXEC_WRAPPER` with this layer.
 
@@ -350,7 +354,7 @@ service:
 
 Routing spans through a collector also lets you export to a third-party platform
 such as Datadog, Honeycomb, or Grafana by changing the collector's exporter,
-without first sending them to X-Ray.
+without first sending them to Cloudwatch or X-Ray.
 
 === "TypeScript"
 
@@ -411,8 +415,8 @@ invocations do not emit incomplete workflow spans.
 
 **With InvocationOtelPlugin,** the plugin opens a synthetic `Workflow` root span
 with a deterministic ID and an invocation span as its child. It exports the
-`Workflow` span only on terminal status, so you still get one clean trace across
-invocations.
+`Workflow` span only on terminal status. Invocation spans are exporteed at the end of
+each Lambda invocation.
 
 ## Configuration
 
@@ -426,11 +430,11 @@ invocations.
         the ADOT layer's. Defaults to `false`.
     - **contextExtractor** Extracts upstream trace context. Defaults to
         `xRayContextExtractor`. Use `w3cClientContextExtractor` for W3C
-        `traceparent` propagation.
+        `traceparent` propagation. `w3cClientContextExtractor` currently does no work in Lambda.
     - **exporterConfig** OTLP `endpoint` and `headers`, used only when the plugin
         creates its own provider.
     - **propagators** Replaces the default `[AWSXRay, W3CTraceContext]`
-        propagators.
+        propagators. W3CTraceContext currently does no work in Lambda.
     - **enableHttpInstrumentation** Registers HTTP instrumentation. Defaults to
         `true`.
     - **instrumentationName** Instrumentation scope name. Defaults to
@@ -454,7 +458,8 @@ invocations.
     - **trace_provider** A tracer provider to use. Defaults to the globally
         configured provider.
     - **context_extractor** Defaults to `xray_context_extractor`. Use
-        `w3c_client_context_extractor` for W3C `traceparent` propagation.
+        `w3c_client_context_extractor` for W3C `traceparent` propagation. W3C
+        `traceparent` propagation is currently not working in Lambda.
     - **instrument_name** Instrumentation scope name. Defaults to
         `aws-durable-execution-sdk-python`.
     - **enrich_logger** Installs a root-logger filter that stamps trace context
