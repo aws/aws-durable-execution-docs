@@ -261,11 +261,12 @@ header the plugin reads, and grant the function's role the
 
 === "Java"
 
-    Add the layer for its collector, but do not set `AWS_LAMBDA_EXEC_WRAPPER`.
-    The Java plugin always builds its own tracer provider from the builder you
-    pass, and the wrapper would attach a second, competing provider that splits
-    the trace into disconnected service nodes on the X-Ray map. Point the
-    plugin's exporter at the layer's collector on `localhost:4318`.
+    Set `AWS_LAMBDA_EXEC_WRAPPER` to `/opt/otel-instrument` to activate the ADOT
+    Java agent, and register the plugin jar as an agent extension through
+    `OTEL_JAVAAGENT_EXTENSIONS` (the path to the bundled plugin jar) so its SPI
+    installs deterministic ID generation into the agent's provider. Then
+    construct either plugin with the no-arg constructor, which reads the agent's
+    global provider.
 
     ```yaml
     MyFunction:
@@ -275,22 +276,28 @@ header the plugin reads, and grant the function's role the
         Handler: com.example.ExampleHandler
         Layers:
           - !Sub arn:aws:lambda:${AWS::Region}:901920570463:layer:aws-otel-java-agent-amd64-ver-1-32-0:6
+        Environment:
+          Variables:
+            AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
+            OTEL_JAVAAGENT_EXTENSIONS: /opt/otel-plugin-extension.jar
         Tracing: Active
         Policies:
           - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
           - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
     ```
 
-**With ExecutionOtelPlugin,** the plugin still opens the `Workflow` root span and
-exports it on terminal status. When it uses the ADOT layer's global provider, it
-does not open its own invocation span. It links operations to the layer's
-ambient invocation span instead.
+    ```java
+    new ExecutionOtelPlugin();   // uses the agent's global provider
+    new InvocationOtelPlugin();  // uses the agent's global provider
+    ```
 
-**With InvocationOtelPlugin,** the plugin delegates span creation to the ADOT
-layer's provider and does not open its own `Workflow` or invocation span.
-Operations attach to the layer's ambient invocation span, so you get
-per-invocation traces correlated by deterministic span IDs rather than one
-`Workflow`-rooted trace.
+**With ExecutionOtelPlugin,** you get one `Workflow`-rooted trace per execution.
+The plugin exports the `Workflow` span only on terminal status.
+
+**With InvocationOtelPlugin,** you get per-invocation traces correlated across
+invocations by deterministic span IDs. In TypeScript, this plugin can delegate
+span creation to the ADOT layer's ambient invocation span; Python and Java open
+their own spans through the layer's provider.
 
 ## Deploy with the community collector layer
 
@@ -357,9 +364,9 @@ without first sending them to X-Ray.
 
 === "Java"
 
-    Both plugins already build their own provider from the builder you pass, so
-    add an OTLP exporter pointed at `localhost:4318`. This is the same wiring
-    shown in [The two plugins](#the-two-plugins).
+    Do not set `AWS_LAMBDA_EXEC_WRAPPER`. Construct either plugin with a builder
+    that adds an OTLP exporter pointed at `localhost:4318`, so the plugin owns
+    its provider instead of reading the agent's.
 
     ```yaml
     Layers:
@@ -367,6 +374,12 @@ without first sending them to X-Ray.
     Environment:
       Variables:
         OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
+    ```
+
+    ```java
+    var exporter = OtlpGrpcSpanExporter.getDefault();
+    var plugin = new ExecutionOtelPlugin(
+            SdkTracerProvider.builder().addSpanProcessor(SimpleSpanProcessor.create(exporter)));
     ```
 
 **With ExecutionOtelPlugin,** you get one `Workflow`-rooted trace per execution.
@@ -429,15 +442,20 @@ invocations.
 
 === "Java"
 
-    Each plugin's constructor takes the tracer provider builder and three
-    optional arguments.
+    Each plugin has a no-arg constructor that uses the ADOT Java agent's global
+    provider, plus builder constructors for supplying your own provider. The
+    no-arg form requires the ADOT agent and the plugin jar registered through
+    `OTEL_JAVAAGENT_EXTENSIONS`.
 
     ```java
+    new InvocationOtelPlugin();
     new InvocationOtelPlugin(tracerProviderBuilder);
     new InvocationOtelPlugin(tracerProviderBuilder, contextExtractor);
     new InvocationOtelPlugin(tracerProviderBuilder, contextExtractor, enableMdc);
     new InvocationOtelPlugin(tracerProviderBuilder, contextExtractor, enableMdc, workflowSpanName);
     ```
+
+    `ExecutionOtelPlugin` offers the same no-arg and builder constructors.
 
     - **contextExtractor** Defaults to `XRayContextExtractor`.
     - **enableMdc** Injects `traceId`, `spanId`, and `traceSampled` into the SLF4J

@@ -1,6 +1,3 @@
-import io.opentelemetry.exporter.otlp.trace.OtlpGrpcSpanExporter;
-import io.opentelemetry.sdk.trace.SdkTracerProvider;
-import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import java.time.Duration;
 import java.util.Map;
 import software.amazon.lambda.durable.DurableConfig;
@@ -11,11 +8,7 @@ import software.amazon.lambda.durable.otel.ExecutionOtelPlugin;
 public class ExecutionOtelExample extends DurableHandler<Map<String, String>, String> {
     @Override
     protected DurableConfig createConfiguration() {
-        var plugin = new ExecutionOtelPlugin(
-                SdkTracerProvider.builder()
-                        .addSpanProcessor(
-                                SimpleSpanProcessor.create(OtlpGrpcSpanExporter.getDefault())));
-        return DurableConfig.builder().withPlugins(plugin).build();
+        return DurableConfig.builder().withPlugins(new ExecutionOtelPlugin()).build();
     }
 
     @Override
