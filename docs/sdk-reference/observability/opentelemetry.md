@@ -452,7 +452,7 @@ without first sending them to CloudWatch or X-Ray.
     `ExecutionOtelPlugin` offers the same no-arg and builder constructors.
 
     - **contextExtractor** Defaults to `XRayContextExtractor`.
-    - **enableMdc** Injects `traceId`, `spanId`, and `traceSampled` into the SLF4J
+    - **enableMdc** Injects `traceId`, `spanId`, and `otelTraceSampled` into the SLF4J
         MDC. Defaults to `true`.
     - **workflowSpanName** Name of the `Workflow` root span. Defaults to
         `Workflow`.
@@ -479,7 +479,7 @@ for the SDK logger.
 === "Java"
 
     With `enableMdc=true` (the default), the plugin puts `traceId`, `spanId`, and
-    `traceSampled` into the SLF4J MDC. Configure your logging framework to include
+    `otelTraceSampled` into the SLF4J MDC. Configure your logging framework to include
     MDC fields in its output.
 
 ## Verify
