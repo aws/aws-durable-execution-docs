@@ -60,9 +60,11 @@ export the root span. You register exactly one of them.
 `ExecutionOtelPlugin` opens a synthetic `Workflow` span as the trace root. Every
 invocation span and operation span nests under it. The plugin exports the
 `Workflow` span only when the execution reaches a terminal status, so an
-execution that is still running does not leave a dangling root span. Choose this
-plugin when you want one unified trace per execution, with the workflow as the
-logical root.
+execution that is still running does not leave a dangling root span, but you also
+cannot watch the trace in progress, and a span held open for hours can exceed the
+ingestion limits of some observability platforms. Choose this plugin for short
+executions, or when you want one unified trace per execution with the workflow as
+the logical root.
 
 === "TypeScript"
 
@@ -107,8 +109,13 @@ which invocation ran each operation even though the operations root under the
 execution ARN and ended only at the terminal invocation. The invocation span is
 not a child of that `Workflow` span. Each invocation span roots its own operation
 and attempt spans, and those spans carry a link to the `Workflow` span for
-execution-scoped correlation. Choose this plugin when you want per-invocation
-traces that still correlate to one workflow.
+execution-scoped correlation.
+
+The plugin exports each invocation span as that invocation ends. A Lambda
+invocation lasts at most 15 minutes, so spans stay within platform limits and
+appear as the execution runs, which renders reliably across most platforms.
+Choose this plugin for long-running executions, or when you want per-invocation
+traces that still correlate to one workflow and to view an execution in progress.
 
 === "TypeScript"
 
@@ -155,21 +162,9 @@ links.
 
 ### Choosing a plugin
 
-Choose based on how long your executions run and where you send traces.
-
-`ExecutionOtelPlugin` exports the `Workflow` root span only when the execution
-reaches a terminal status. For a short execution this gives one clean trace. For
-a long-running execution, the root span stays open until the execution finishes,
-so you cannot watch the trace in progress, and a span open for hours can exceed
-the ingestion limits of some observability platforms.
-
-`InvocationOtelPlugin` exports each invocation span as that invocation ends. A
-Lambda invocation lasts at most 15 minutes, so spans stay within platform limits
-and appear as the execution runs. This renders reliably across most platforms
-and shows how operations are processed across invocations. Prefer it for
-long-running executions, or when you want to view an execution in progress.
-
-For both plugins, your observability platform's quotas and limits apply.
+The `ExecutionOtelPlugin` and `InvocationOtelPlugin` sections above cover when to
+choose each. This table summarizes the differences. For both plugins, your
+observability platform's quotas and limits apply.
 
 | Consideration          | ExecutionOtelPlugin                                               | InvocationOtelPlugin                                                             |
 | ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
