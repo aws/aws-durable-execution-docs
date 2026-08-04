@@ -217,7 +217,7 @@ header the plugin reads, and grant the function's role the
     MyFunction:
       Type: AWS::Serverless::Function
       Properties:
-        Runtime: nodejs22.x
+        Runtime: nodejs24.x
         Handler: index.handler
         Layers:
           - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<adot-js-layer>:<version>
@@ -246,7 +246,7 @@ header the plugin reads, and grant the function's role the
     MyFunction:
       Type: AWS::Serverless::Function
       Properties:
-        Runtime: python3.12
+        Runtime: python3.14
         Handler: index.handler
         Layers:
           - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<adot-python-layer>:<version>
@@ -278,7 +278,7 @@ header the plugin reads, and grant the function's role the
     MyFunction:
       Type: AWS::Serverless::Function
       Properties:
-        Runtime: java17
+        Runtime: java21
         Handler: com.example.ExampleHandler
         Layers:
           - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<adot-java-layer>:<version>
