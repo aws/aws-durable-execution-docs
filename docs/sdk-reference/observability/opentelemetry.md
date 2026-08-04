@@ -325,7 +325,8 @@ service:
 
 Routing spans through a collector also lets you export to a third-party platform
 such as Datadog, Honeycomb, or Grafana by changing the collector's exporter,
-without first sending them to CloudWatch.
+without first sending them to CloudWatch. Check https://github.com/open-telemetry/opentelemetry-lambda/releases
+for the most recent Collector layer releases.
 
 === "TypeScript"
 
@@ -334,7 +335,7 @@ without first sending them to CloudWatch.
 
     ```yaml
     Layers:
-      - !Sub arn:aws:lambda:${AWS::Region}:184161586896:layer:opentelemetry-nodejs-0_22_0:1
+      - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<collector-layer>:<version>
     Environment:
       Variables:
         OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
@@ -354,7 +355,7 @@ without first sending them to CloudWatch.
 
     ```yaml
     Layers:
-      - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<collector-layer>
+      - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<collector-layer>:<version>
     Environment:
       Variables:
         OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
@@ -368,7 +369,7 @@ without first sending them to CloudWatch.
 
     ```yaml
     Layers:
-      - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<collector-layer>
+      - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<collector-layer>:<version>
     Environment:
       Variables:
         OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
