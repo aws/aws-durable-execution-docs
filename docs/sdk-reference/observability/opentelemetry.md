@@ -487,7 +487,7 @@ for the SDK logger.
 Invoke a durable function that includes a wait or a resume, so the execution runs
 across more than one invocation. In the CloudWatch console, open Traces and
 confirm the invocation and operation spans appear under one trace ID. Check that
-your log entries carry `traceId` and `spanId` matching those spans.
+your log entries carry `traceId`, `spanId`, and `otelTraceSampled` matching those spans.
 
 When you use the community collector layer, enable CloudWatch Transaction Search
 in your account for traces to appear. If no traces show up, the collector layer
