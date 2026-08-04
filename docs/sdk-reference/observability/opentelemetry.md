@@ -32,28 +32,11 @@ disconnected trace.
     npm install @aws/durable-execution-sdk-js-otel
     ```
 
-    When a plugin creates its own tracer provider, install the OpenTelemetry
-    packages it configures:
-
-    ```bash
-    npm install @opentelemetry/sdk-trace-node \
-                @opentelemetry/exporter-trace-otlp-http \
-                @opentelemetry/propagator-aws-xray \
-                @opentelemetry/instrumentation-http \
-                @opentelemetry/resources
-    ```
-
-    When a plugin uses the ADOT layer's global tracer provider, the layer
-    supplies these packages and you only need `@opentelemetry/api`.
-
 === "Python"
 
     ```bash
     pip install aws-durable-execution-sdk-python-otel
     ```
-
-    The package depends on `opentelemetry-api`, `opentelemetry-sdk`, and
-    `opentelemetry-exporter-otlp`.
 
 === "Java"
 
@@ -62,21 +45,6 @@ disconnected trace.
         <groupId>software.amazon.lambda.durable</groupId>
         <artifactId>aws-durable-execution-sdk-java-plugin-otel</artifactId>
         <version>${durable.sdk.version}</version>
-    </dependency>
-    ```
-
-    Add the OpenTelemetry SDK and an exporter:
-
-    ```xml
-    <dependency>
-        <groupId>io.opentelemetry</groupId>
-        <artifactId>opentelemetry-sdk</artifactId>
-        <version>some version</version>
-    </dependency>
-    <dependency>
-        <groupId>io.opentelemetry</groupId>
-        <artifactId>opentelemetry-exporter-otlp</artifactId>
-        <version>some version</version>
     </dependency>
     ```
 
