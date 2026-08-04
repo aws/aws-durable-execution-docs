@@ -278,7 +278,7 @@ header the plugin reads, and grant the function's role the
     MyFunction:
       Type: AWS::Serverless::Function
       Properties:
-        Runtime: java21
+        Runtime: java25
         Handler: com.example.ExampleHandler
         Layers:
           - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<adot-java-layer>:<version>
