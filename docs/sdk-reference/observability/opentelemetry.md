@@ -159,13 +159,15 @@ into multiple spans, spanning multiple invocations. The plugin provides a Link f
 spans linking to the first such operation span. Note that Cloudwatch doesn't implement Links and doesn't
 currently visualize them.
 
+Note that for both plugins, observability platform quotas/limitations will apply.
+
 | Consideration          | ExecutionOtelPlugin                                               | InvocationOtelPlugin                                                             |
 | ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
 | Trace root             | Synthetic `Workflow` span                                         | Invocation span (`Workflow` root with the community collector)                   |
 | Root span export       | Only when the execution completes                                 | Each invocation span exports when that invocation ends                           |
 | Operation span         | Exported in its entirety, once when complete                      | May be duplicated under multiple invocations spans                               |
 | In-progress visibility | Fragmented until the execution finishes                           | Each invocation appears as it completes                                          |
-| Best for               | Short executions                                                  | Long-running executions, or watching one in progress                             |
+| Better for             | Short executions                                                  | Longer-running executions, or watching one in progress                           |
 | Platform compatibility | A long-open root span can exceed some platforms' ingestion limits | Invocation spans stay within the 15-minute Lambda limit, so they render reliably |
 
 ## Span structure and attributes
