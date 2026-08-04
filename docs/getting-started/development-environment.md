@@ -5,8 +5,8 @@ project, writing and testing the function locally, and deploying it. It uses the
 [AWS SAM CLI](https://docs.aws.amazon.com/serverless-application-model/) for the local
 development loop (`sam init` to start, `sam local invoke` to run, and `sam deploy` to
 ship) and the [AWS CDK](https://docs.aws.amazon.com/cdk/) when you productionize the
-surrounding infrastructure. It also covers the AI agent tooling (the Agent Toolkit for
-AWS) the team ships for building durable functions.
+surrounding infrastructure. It also covers the AI agent tooling (the [Agent Toolkit for
+AWS](https://docs.aws.amazon.com/agent-toolkit/latest/userguide/what-is-agent-toolkit.html)) the team ships for building durable functions.
 
 If you just want to deploy your first function with the AWS CLI, start with the
 [Quickstart](quickstart.md). This page is about the day-to-day workflow after that.
