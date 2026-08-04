@@ -171,6 +171,30 @@ Operations that resume in a later invocation link back to the original
 operation's deterministic span ID, so a retry or a resumed wait relates to its
 first appearance.
 
+### Choosing a plugin
+
+Choose based on how long your executions run and where you send traces.
+
+`ExecutionOtelPlugin` exports the `Workflow` root span only when the execution
+reaches a terminal status. For a short execution this gives one clean trace. For
+a long-running execution, the root span stays open until the execution finishes,
+so you cannot watch the trace in progress, and a span open for hours can exceed
+the ingestion limits of some observability platforms.
+
+`InvocationOtelPlugin` exports each invocation span as that invocation ends. A
+Lambda invocation lasts at most 15 minutes, so spans stay within platform limits
+and appear as the execution runs. This renders reliably across most platforms
+and shows how operations are processed across invocations. Prefer it for
+long-running executions, or when you want to view an execution in progress.
+
+| Consideration          | ExecutionOtelPlugin                                               | InvocationOtelPlugin                                                             |
+| ---------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| Trace root             | Synthetic `Workflow` span                                         | Invocation span (`Workflow` root with the community collector)                   |
+| Root span export       | Only when the execution completes                                 | Each invocation span exports when that invocation ends                           |
+| In-progress visibility | None until the execution finishes                                 | Each invocation appears as it completes                                          |
+| Best for               | Short executions                                                  | Long-running executions, or watching one in progress                             |
+| Platform compatibility | A long-open root span can exceed some platforms' ingestion limits | Invocation spans stay within the 15-minute Lambda limit, so they render reliably |
+
 ## Span structure and attributes
 
 Both plugins open three levels of spans. An invocation span covers one Lambda
