@@ -471,10 +471,15 @@ CI.
 
 === "Python"
 
-    Set the `DURABLE_EXECUTION_TIME_SCALE` environment variable to a float that multiplies
-    `context.wait()` durations. Step retry delays use the configured
-    `next_attempt_delay_seconds` at real wall-clock time and the scale does not apply to
-    them.
+    Pass `skip_time=True` to `DurableFunctionTestRunner`. The runner uses a virtual clock
+    that skips modeled delays instantly. Both `context.wait()` durations and step retry
+    delays complete in zero wall-clock time. `skip_time` defaults to `True`.
+
+    ```python
+    runner = DurableFunctionTestRunner(handler=handler, skip_time=True)
+    ```
+
+    Set `skip_time=False` to assert on real wait durations.
 
 === "Java"
 
@@ -549,8 +554,15 @@ See [Authoring: Skip time in tests](authoring.md#skip-time-in-tests) for an over
 
 === "Python"
 
-    Not applicable. Configure with the `DURABLE_EXECUTION_TIME_SCALE` environment variable
-    and the `poll_interval` constructor argument.
+    ```python
+    DurableFunctionTestRunner(handler, skip_time=True, poll_interval=1.0)
+    ```
+
+    **Fields:**
+
+    - `skip_time` (optional) Use a virtual clock that skips modeled delays instantly.
+        Defaults to `True`.
+    - `poll_interval` (optional) Seconds between internal polling cycles. Defaults to `1.0`.
 
 === "Java"
 

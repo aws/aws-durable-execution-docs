@@ -152,16 +152,15 @@ runner collapses these delays so tests finish in milliseconds.
 
 === "Python"
 
-    Set the `DURABLE_EXECUTION_TIME_SCALE` environment variable to a float that multiplies
-    `context.wait()` durations. Set it to `0` for instant waits, or to a small fraction such
-    as `0.01` to run waits at 100x speed. Step retry delays use the configured
-    `next_attempt_delay_seconds` at real wall-clock time, and the scale does not apply to
-    them. Keep retry delays short in tests, or configure a retry strategy with a low
-    `initial_delay_seconds`.
+    Pass `skip_time=True` to `DurableFunctionTestRunner` (the default). The runner uses a
+    virtual clock that advances instantly through modeled delays. Both `context.wait()`
+    durations and step retry delays complete in zero wall-clock time.
 
-    ```bash
-    DURABLE_EXECUTION_TIME_SCALE=0 pytest tests/my_wait_tests.py
+    ```python
+    runner = DurableFunctionTestRunner(handler=handler, skip_time=True)
     ```
+
+    Set `skip_time=False` to assert on real wait durations.
 
 === "Java"
 
