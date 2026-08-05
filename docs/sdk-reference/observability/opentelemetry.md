@@ -12,6 +12,9 @@ trace header when one is present, so the spans from every invocation join a
 single trace. Without deterministic IDs, each invocation would produce its own
 disconnected trace.
 
+Some names on this page keep the X-Ray label (for example the X-Ray trace
+header and the `awsxray` collector exporter), but your spans land in CloudWatch.
+
 !!! note "Experimental feature"
 
     The OpenTelemetry plugin is experimental and may change in a future
@@ -322,9 +325,6 @@ service:
       receivers: [otlp]
       exporters: [awsxray]
 ```
-
-The collector's AWS trace exporter is named `awsxray`, but the spans land in
-CloudWatch.
 
 Routing spans through a collector also lets you export to a third-party platform
 such as Datadog, Honeycomb, or Grafana by changing the collector's exporter,
