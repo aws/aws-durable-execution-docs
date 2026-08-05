@@ -323,6 +323,9 @@ service:
       exporters: [awsxray]
 ```
 
+The collector's AWS trace exporter is named `awsxray`, but the spans land in
+CloudWatch.
+
 Routing spans through a collector also lets you export to a third-party platform
 such as Datadog, Honeycomb, or Grafana by changing the collector's exporter,
 without first sending them to CloudWatch. Check https://github.com/open-telemetry/opentelemetry-lambda/releases
