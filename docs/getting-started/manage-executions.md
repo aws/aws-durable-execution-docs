@@ -40,7 +40,7 @@ already running.
 ### What stopping does
 
 `StopDurableExecution` stops the **durable execution**. Once stopped, the execution no
-longer accepts checkpoints. Any operation that was in progress stays in the `STARTED`
+longer accepts checkpoints, nor will it start new lambda invocations. Any operation that was in progress stays in the `STARTED`
 state, and no further terminal checkpoints (`SUCCEEDED` or `FAILED`) are recorded for it.
 
 Stopping the execution does **not** stop the **Lambda invocation** that is currently
