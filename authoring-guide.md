@@ -63,7 +63,7 @@ for C#). The Python testing SDK lives in a separate repo:
 ## Writing Style
 
 Voice, grammar, sentence construction, terminology, and the revise-don't-append
-rule live in the [style guide](STYLE_GUIDE.md). Read it before you write. In
+rule live in the [style guide](style-guide.md). Read it before you write. In
 short: active voice, short sentences, prose instead of listicles, no em-dash,
 and no marketing language.
 
@@ -367,7 +367,7 @@ graph LR
 
 ## Checklist Before Committing
 
-Run the [style guide checklist](STYLE_GUIDE.md#checklist) for writing and
+Run the [style guide checklist](style-guide.md#checklist) for writing and
 grammar. The items below cover authoring mechanics.
 
 - [ ] All prose is language-neutral (no Python-only concepts described as universal)
