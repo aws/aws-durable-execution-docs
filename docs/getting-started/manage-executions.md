@@ -33,6 +33,37 @@ aws lambda stop-durable-execution \
   --durable-execution-arn <execution-arn>
 ```
 
+Stopping an execution affects the durable execution and the running Lambda invocation
+differently. Understanding the distinction helps you predict what happens to code that is
+already running.
+
+### What stopping does
+
+`StopDurableExecution` stops the **durable execution**. Once stopped, the execution no
+longer accepts checkpoints, nor does it start new Lambda invocations. Any operation that
+was in progress stays in the `STARTED` state, and no further terminal checkpoints
+(`SUCCEEDED` or `FAILED`) are recorded for it.
+
+Stopping the execution does **not** stop the **Lambda invocation** that is currently
+running. Lambda has no mechanism to interrupt a function that is already executing, so any
+code that is mid-flight (for example, inside a [step](../sdk-reference/operations/step.md)
+or a [child context](../sdk-reference/operations/child-context.md)) keeps running.
+
+### What happens to running code
+
+If your function is actively running when the execution is stopped, it continues until it
+reaches the next checkpoint. At that point the SDK detects that the execution has been
+stopped, raises an invocation error, and ends the current invocation. In practice this is
+usually at the end of the current block of code, when the SDK tries to checkpoint that
+block's result.
+
+!!! note
+
+    Because the invocation runs until its next checkpoint, work that is already underway
+    is not rolled back or cancelled. Side effects performed before the next checkpoint (for
+    example, an external API call inside a step) still take effect. Design long-running or
+    side-effecting steps with this in mind if you expect executions to be stopped.
+
 ## Update function code
 
 After updating your code, publish a new version and point your alias to it.
