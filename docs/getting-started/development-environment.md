@@ -255,7 +255,7 @@ sam build
 sam local invoke MyDurableFunction --durable-execution-name my-test
 
 # Print the execution's checkpoint and operation history (steps, waits, callbacks)
-sam local execution history <execution-id>
+sam local execution history <EXECUTION_ID>
 
 # Resolve a pending callback so an execution waiting on it resumes
 sam local callback succeed <callback-id>
@@ -420,7 +420,7 @@ After deploying, validate using Lambda in the cloud.
     sam remote invoke MyDurableFunction --stack-name my-stack --event '{"name": "world"}'
 
     # Print the deployed execution's checkpoint and operation history
-    sam remote execution history <execution-arn>
+    sam remote execution history <DURABLE_EXECUTION_ARN>
 
     # Resolve a pending callback (pass the result the waiting execution expects)
     sam remote callback succeed <callback-id> --result '"approved"'

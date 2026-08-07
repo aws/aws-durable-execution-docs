@@ -23,7 +23,7 @@ SAM CLI drives the replay loop locally. After the function runs, inspect the exe
 history:
 
 ```bash
-sam local execution history <execution-id>
+sam local execution history <EXECUTION_ID>
 ```
 
 For functions that wait for an external callback, start the function in one terminal,
@@ -53,7 +53,7 @@ sam remote invoke MyDurableFunction --stack-name my-stack --event '{"name": "wor
 Inspect the execution history of a deployed execution:
 
 ```bash
-sam remote execution history <execution-id>
+sam remote execution history <DURABLE_EXECUTION_ARN>
 ```
 
 For deployed functions that wait for a callback, resolve it from the CLI:
