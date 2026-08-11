@@ -5,8 +5,9 @@
 Map executes a function for each item in a collection concurrently. It manages
 concurrency, collects results as items complete, and checkpoints the outcome.
 
-Each item runs in its own [child context](child-context.md) and checkpoints its result
-independently as it completes.
+Each item runs in its own [child context](child-context.md). The default nested mode
+checkpoints that context and its result. Flat mode omits the per-item context checkpoint to
+reduce operation overhead.
 
 Use map to apply the same operation to every item in a collection. Use
 [parallel](parallel.md) instead to execute different operations concurrently.
@@ -208,6 +209,7 @@ Use map to apply the same operation to every item in a collection. Use
       completionConfig?: CompletionConfig;
       serdes?: Serdes<BatchResult<TResult>>;
       itemSerdes?: Serdes<TResult>;
+      summaryGenerator?: (result: BatchResult<TResult>) => string;
       nesting?: NestingType;
     }
     ```
@@ -220,19 +222,23 @@ Use map to apply the same operation to every item in a collection. Use
     - `completionConfig` (optional) When to stop. Default: wait for all items.
     - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
     - `itemSerdes` (optional) Custom `Serdes` for individual item results.
-    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. `FLAT`
-        reduces operation overhead by ~30% at the cost of lower observability.
+    - `summaryGenerator` (optional) A function invoked when the serialized `BatchResult`
+        exceeds 256KB. See [Checkpointing](#checkpointing).
+    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
 
 === "Python"
 
     ```python
     @dataclass(frozen=True)
-    class MapConfig:
+    class MapConfig(Generic[T]):
         max_concurrency: int | None = None
         completion_config: CompletionConfig = CompletionConfig()
         serdes: SerDes | None = None
         item_serdes: SerDes | None = None
         summary_generator: SummaryGenerator | None = None
+        nesting_type: NestingType = NestingType.NESTED
+        item_namer: Callable[[T, int], str] | None = None
     ```
 
     **Parameters:**
@@ -244,6 +250,10 @@ Use map to apply the same operation to every item in a collection. Use
     - `item_serdes` (optional) Custom `SerDes` for individual item results.
     - `summary_generator` (optional) A callable invoked when the serialized `BatchResult`
         exceeds 256KB. See [Checkpointing](#checkpointing).
+    - `nesting_type` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
+    - `item_namer` (optional) A deterministic callable that returns a custom name for each
+        item from the item and its zero-based index.
 
 === "Java"
 
@@ -252,6 +262,8 @@ Use map to apply the same operation to every item in a collection. Use
         .maxConcurrency(Integer)       // optional
         .completionConfig(CompletionConfig)  // optional
         .serDes(SerDes)                // optional
+        .nestingType(NestingType)      // optional
+        .itemNamer(BiFunction<Object, Integer, String>)  // optional
         .build()
     ```
 
@@ -261,6 +273,11 @@ Use map to apply the same operation to every item in a collection. Use
     - `completionConfig` (optional) When to stop. Default:
         `CompletionConfig.allCompleted()`.
     - `serDes` (optional) Custom `SerDes` for item results and the overall result.
+    - `nestingType` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
+    - `itemNamer` (optional) A function that returns a custom name for each item from the
+        item and its zero-based index. Java does not support `itemNamer` with
+        `NestingType.FLAT`.
 
 === "C#"
 
@@ -280,9 +297,8 @@ Use map to apply the same operation to every item in a collection. Use
         unlimited; must be at least 1 when set.
     - `CompletionConfig` (optional) When to stop. Default: `CompletionConfig.AllCompleted()`.
         Every item runs regardless of per-item failures.
-    - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`.
-        `Flat` records per-item results inline on the map operation instead of emitting a
-        per-item `CONTEXT` checkpoint.
+    - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`. See
+        [Nesting](#nesting).
     - `ItemNamer` (optional) A function that returns a custom name for each item, given the
         item and its zero-based index. Used in logs and traces. When `null` (default),
         items are named by index.
@@ -660,6 +676,22 @@ Configure map behavior using `MapConfig`:
     --8<-- "examples/csharp/operations/map/map-config.cs"
     ```
 
+## Nesting
+
+Nested mode is the default. The SDK records each item context as a separate `CONTEXT`
+operation and checkpoints the item result there. Each item appears separately in the
+execution history.
+
+In flat mode, the SDK uses a virtual context for each item and omits the per-item
+`CONTEXT` operation. Durable operations inside the map function still checkpoint and
+appear as children of the map operation. The SDK records the item outcome with the parent
+map operation.
+
+Use flat mode for maps with many items when each item performs few durable operations and
+you do not need each item represented separately in the execution history. Flat mode
+removes one checkpointed operation per item while preserving checkpoints for durable
+operations inside each item.
+
 ## Completion strategies
 
 `CompletionConfig` controls when the map operation completes. When the operation reaches
@@ -835,9 +867,14 @@ propagating it immediately. Other items continue running.
 
 ## Checkpointing
 
-Each item checkpoints its result on completion. Items that have not completed when the
-map operation reaches its completion criteria remain with status `STARTED` and will
-receive no further checkpoint updates.
+Checkpoint behavior depends on the nesting type. In nested mode, each item checkpoints
+its result in a per-item `CONTEXT` operation. In flat mode, the SDK omits that context
+checkpoint and records the item outcome with the parent map operation. Durable operations
+inside an item still checkpoint in both modes.
+
+Items that have not completed when the map operation reaches its completion criteria
+receive no further checkpoint updates. The language-specific details below describe
+nested mode.
 
 === "TypeScript"
 
@@ -909,11 +946,11 @@ receive no further checkpoint updates.
 
 === "C#"
 
-    The `IBatchResult` is reconstructed from the per-item child-context checkpoints. The
-    aggregate is never stored as a single serialized blob. On replay, the SDK reassembles the
-    `IBatchResult` from those individual checkpoints without re-executing completed items.
+    In nested mode, the SDK reconstructs `IBatchResult` from the per-item child-context
+    checkpoints without re-executing completed items. In flat mode, the SDK records item
+    results and errors inline on the parent map operation instead.
 
-    Each item's result is serialized with the `ILambdaSerializer` registered on
+    The SDK serializes results with the `ILambdaSerializer` registered on
     `ILambdaContext.Serializer`; there is no per-item summary generator to configure.
 
 ## Nesting map operations

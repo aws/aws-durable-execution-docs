@@ -5,8 +5,9 @@
 Parallel executes multiple operations concurrently. It manages concurrency, collects
 results as branches complete, and checkpoints the outcome.
 
-Each branch runs in its own [child context](child-context.md) and checkpoints its result
-independently as it completes.
+Each branch runs in its own [child context](child-context.md). The default nested mode
+checkpoints that context and its result. Flat mode omits the per-branch context checkpoint
+to reduce operation overhead.
 
 Use parallel to execute independent tasks concurrently. Use [map](map.md) instead to
 execute the same operation concurrently for each item in a collection.
@@ -218,6 +219,7 @@ execute the same operation concurrently for each item in a collection.
       completionConfig?: CompletionConfig;
       serdes?: Serdes<BatchResult<TResult>>;
       itemSerdes?: Serdes<TResult>;
+      summaryGenerator?: (result: BatchResult<TResult>) => string;
       nesting?: NestingType;
     }
     ```
@@ -228,8 +230,10 @@ execute the same operation concurrently for each item in a collection.
     - `completionConfig` (optional) When to stop. Default: wait for all branches.
     - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
     - `itemSerdes` (optional) Custom `Serdes` for individual branch results.
-    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. `FLAT`
-        reduces operation overhead by ~30% at the cost of lower observability.
+    - `summaryGenerator` (optional) A function invoked when the serialized `BatchResult`
+        exceeds 256KB. See [Checkpointing](#checkpointing).
+    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
 
 === "Python"
 
@@ -241,6 +245,7 @@ execute the same operation concurrently for each item in a collection.
         serdes: SerDes | None = None
         item_serdes: SerDes | None = None
         summary_generator: SummaryGenerator | None = None
+        nesting_type: NestingType = NestingType.NESTED
     ```
 
     **Parameters:**
@@ -252,6 +257,8 @@ execute the same operation concurrently for each item in a collection.
     - `item_serdes` (optional) Custom `SerDes` for individual branch results.
     - `summary_generator` (optional) A callable invoked when the serialized `BatchResult`
         exceeds 256KB. See [Checkpointing](#checkpointing).
+    - `nesting_type` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
 
 === "Java"
 
@@ -259,6 +266,7 @@ execute the same operation concurrently for each item in a collection.
     ParallelConfig.builder()
         .maxConcurrency(Integer)      // optional
         .completionConfig(CompletionConfig)  // optional
+        .nestingType(NestingType)     // optional
         .build()
     ```
 
@@ -267,6 +275,8 @@ execute the same operation concurrently for each item in a collection.
     - `maxConcurrency` (optional) Maximum branches running at once. Default: unlimited.
     - `completionConfig` (optional) When to stop. Default:
         `CompletionConfig.allCompleted()`.
+    - `nestingType` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
 
 === "C#"
 
@@ -285,13 +295,11 @@ execute the same operation concurrently for each item in a collection.
         unlimited. Must be at least 1 when set.
     - `CompletionConfig` (optional) When to stop. Default:
         `CompletionConfig.AllSuccessful()`.
-    - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`.
-        `Flat` records per-branch results inline on the parallel operation instead of
-        emitting a per-branch `CONTEXT` checkpoint.
+    - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`. See
+        [Nesting](#nesting).
 
-    The `IBatchResult` is reconstructed from per-branch checkpoints, which are serialized
-    with the `ILambdaSerializer` registered on `ILambdaContext.Serializer`; there is no
-    per-operation serializer slot.
+    The SDK serializes results with the `ILambdaSerializer` registered on
+    `ILambdaContext.Serializer`; there is no per-operation serializer slot.
 
 ### CompletionConfig
 
@@ -714,6 +722,22 @@ Configure parallel behavior using `ParallelConfig`:
     --8<-- "examples/csharp/operations/parallel/parallel-config.cs"
     ```
 
+## Nesting
+
+Nested mode is the default. The SDK records each branch context as a separate `CONTEXT`
+operation and checkpoints the branch result there. Each branch appears separately in the
+execution history.
+
+In flat mode, the SDK uses a virtual context for each branch and omits the per-branch
+`CONTEXT` operation. Durable operations inside the branch still checkpoint and appear as
+children of the parallel operation. The SDK records the branch outcome with the parent
+parallel operation.
+
+Use flat mode for parallel operations with many branches when each branch performs few
+durable operations and you do not need each branch represented separately in the
+execution history. Flat mode removes one checkpointed operation per branch while
+preserving checkpoints for durable operations inside each branch.
+
 ## Completion strategies
 
 `CompletionConfig` controls when the parallel operation completes. When the operation
@@ -901,9 +925,14 @@ propagating it immediately. Other branches continue running.
 
 ## Checkpointing
 
-Each branch checkpoints its result on completion. Branches that have not completed yet
-when the parallel operation reaches its completion criteria remain with status `STARTED`
-and will receive no further checkpoint updates.
+Checkpoint behavior depends on the nesting type. In nested mode, each branch checkpoints
+its result in a per-branch `CONTEXT` operation. In flat mode, the SDK omits that context
+checkpoint and records the branch outcome with the parent parallel operation. Durable
+operations inside a branch still checkpoint in both modes.
+
+Branches that have not completed when the parallel operation reaches its completion
+criteria receive no further checkpoint updates. The language-specific details below
+describe nested mode.
 
 === "TypeScript"
 
@@ -973,10 +1002,10 @@ and will receive no further checkpoint updates.
 
 === "C#"
 
-    Each branch checkpoints its result as it completes. The `IBatchResult` is reconstructed
-    from those per-branch checkpoints rather than stored as a single aggregate blob, so the
-    SDK reassembles it on replay from the individual branch results. Per-branch payloads are
-    serialized with the `ILambdaSerializer` registered on `ILambdaContext.Serializer`.
+    In nested mode, the SDK reconstructs `IBatchResult` from per-branch checkpoints.
+    In flat mode, the SDK records branch results and errors inline on the parent parallel
+    operation instead. The SDK serializes results with the `ILambdaSerializer` registered
+    on `ILambdaContext.Serializer`.
 
 ## Nesting parallel operations
 

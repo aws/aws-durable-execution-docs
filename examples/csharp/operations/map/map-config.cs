@@ -17,6 +17,7 @@ public class MapConfigExample
         {
             MaxConcurrency = 5,
             CompletionConfig = new CompletionConfig { ToleratedFailureCount = 2 },
+            NestingType = NestingType.Flat,
         };
 
         IBatchResult<string> result = await ctx.MapAsync(
