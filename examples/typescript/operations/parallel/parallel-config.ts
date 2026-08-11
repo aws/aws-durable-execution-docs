@@ -1,6 +1,7 @@
 import {
   BatchResult,
   DurableContext,
+  NestingType,
   withDurableExecution,
 } from "@aws/durable-execution-sdk-js";
 
@@ -16,6 +17,7 @@ export const handler = withDurableExecution(
       {
         maxConcurrency: 2,
         completionConfig: { minSuccessful: 1 },
+        nesting: NestingType.FLAT,
       },
     );
 

@@ -13,6 +13,7 @@ public class ParallelConfigExample
         {
             MaxConcurrency = 2,
             CompletionConfig = CompletionConfig.FirstSuccessful(),
+            NestingType = NestingType.Flat,
         };
 
         IBatchResult<string> result = await ctx.ParallelAsync(

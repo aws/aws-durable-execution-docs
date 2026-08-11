@@ -3,7 +3,11 @@ from aws_durable_execution_sdk_python import (
     DurableContext,
     durable_execution,
 )
-from aws_durable_execution_sdk_python.config import CompletionConfig, ParallelConfig
+from aws_durable_execution_sdk_python.config import (
+    CompletionConfig,
+    NestingType,
+    ParallelConfig,
+)
 
 
 def try_primary(ctx: DurableContext) -> str:
@@ -23,6 +27,7 @@ def handler(event: dict, context: DurableContext) -> str | None:
     config = ParallelConfig(
         max_concurrency=2,
         completion_config=CompletionConfig.first_successful(),
+        nesting_type=NestingType.FLAT,
     )
     result: BatchResult[str] = context.parallel(
         [try_primary, try_secondary, try_cache],
