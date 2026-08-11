@@ -90,7 +90,10 @@ nav = [
     ]},
     { "Language Guides" = [
       { "Language Guides" = "sdk-reference/languages/index.md" },
-      { "TypeScript" = "sdk-reference/languages/typescript/index.md" },
+      { "TypeScript" = [
+        { "TypeScript" = "sdk-reference/languages/typescript/index.md" },
+        { "JavaScript Runtimes" = "sdk-reference/languages/typescript/runtimes.md" },
+      ]},
       { "Python" = "sdk-reference/languages/python/index.md" },
       { "Java" = "sdk-reference/languages/java/index.md" },
       { "C#" = "sdk-reference/languages/csharp/index.md" },
