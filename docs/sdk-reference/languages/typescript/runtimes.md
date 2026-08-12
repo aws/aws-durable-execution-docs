@@ -285,6 +285,29 @@ banner: {
 }
 ```
 
+Deno is also strict about builtin specifiers. The SDK imports a few builtins
+unprefixed, and Deno rejects those with `Import "crypto" not a dependency`,
+asking for `node:crypto`. If you leave builtins external, rewrite the bare
+specifiers as you bundle:
+
+```typescript
+const BUILTINS = ["crypto", "events", "util", "path", "url", "fs"];
+
+const prefixBuiltins = {
+  name: "prefix-node-builtins",
+  setup(build) {
+    const filter = new RegExp(`^(${BUILTINS.join("|")})$`);
+    build.onResolve({ filter }, (args) => ({
+      path: `node:${args.path}`,
+      external: true,
+    }));
+  },
+};
+```
+
+Node.js, Bun, and LLRT accept either form, so the prefixed one is safe
+everywhere.
+
 Add the banner even if you only target Bun. Bun defines `__filename` in ESM as a
 Node compatibility convenience, so it hides the second error, and the same
 bundle still fails on Deno and on Node. Neither problem appears when you run
@@ -338,25 +361,47 @@ Artifact size matters as much as the runtime. The Bun and Deno images are around
 
 ### Replay cost
 
-A durable execution replays. Every time it resumes, your handler runs from the
-top while completed operations return their checkpointed results. That work
-scales with the number of operations, and a runtime without a JIT compiler pays
-more for it. Running `context.map` over a growing item count, measuring CPU time
-in process:
+A durable execution is not one long invocation. When it suspends, at a wait, a
+retry backoff, or a callback, Lambda ends the invocation. When it resumes, Lambda
+invokes the handler again from the top. Your code runs from the beginning, and
+the SDK intercepts every operation that already completed and returns its
+checkpointed result instead of executing it again.
 
-| Items | Operations | Node.js | LLRT |
-|---|---|---|---|
-| 25 | 54 | 34 ms | 26 ms |
-| 250 | 504 | 56 ms | 55 ms |
-| 1000 | 2004 | 100 ms | 163 ms |
-| 2000 | 4004 | 188 ms | 381 ms |
+That catch-up work is replay, and it is not free. Each resume re-runs your
+control flow, computes the identifier for every completed operation, finds it in
+the restored execution state, and deserializes its result. The cost grows with
+the number of completed operations, and a durable function pays it on every
+resume, in billed duration. A workflow that suspends ten times pays it ten times.
 
-LLRT leads below roughly 500 operations and falls behind above it, reaching
-twice the CPU time at 4004 operations. Compute inside a step body widens the gap
-further. LLRT wins on fixed costs instead, booting in 10 ms against 30 ms to
-40 ms for Node.js, and a durable function pays those fixed costs on every
-resume. Bun and Deno did not run this benchmark. Both compile with a JIT, so
-this pattern should not apply to them.
+How the numbers below were produced. A fixture maps over a growing number of
+items, then waits, which suspends the execution. The first invocation performs
+the map for real, and the invocation after the wait rebuilds state for every
+operation the map produced while doing no useful work, which isolates replay.
+Both figures are CPU inside the handler, measured by the fixture against an
+in-memory stand-in for the service, so no network time is included. Each runtime
+runs the artifact you would deploy: a bundle for Node.js, Bun, and Deno, and
+precompiled bytecode for LLRT. Each cell is the median of five runs.
+
+| Operations | Node.js | Bun | Deno | LLRT |
+|---|---|---|---|---|
+| 54 | 35 ms | 40 ms | 34 ms | 27 ms |
+| 504 | 57 ms | 54 ms | 50 ms | 58 ms |
+| 2004 | 124 ms | 81 ms | 91 ms | 186 ms |
+| 4004 | 188 ms | 124 ms | 144 ms | 395 ms |
+
+Isolating the replay invocation alone at 4004 operations: 9 ms on Node.js, 5 ms
+on Bun, 7 ms on Deno, and 20 ms on LLRT.
+
+Two things follow. Bun and Deno replay faster than the managed Node.js runtime
+once histories grow, by roughly a third and a quarter at 4004 operations. And
+LLRT leads below about 500 operations, then falls behind, reaching twice the CPU
+time of Node.js at 4004 operations. LLRT has no JIT compiler, and replay is a
+hot, repetitive loop over history, which is what a JIT optimizes. Compute inside
+a step body widens the gap further.
+
+LLRT wins on fixed cost instead, and a durable function pays fixed cost on every
+resume too, which is why it still suits short workflows: it starts in 29 ms
+against 276 ms.
 
 ## Choose a runtime
 
@@ -365,21 +410,22 @@ this pattern should not apply to them.
 | Deployment | zip or container | container | container | container |
 | SDK version | any | any | any | 2.3.0 or later |
 | You maintain | nothing | bootstrap, image, patching | bootstrap, image, patching | image, patching |
-| Replay performance | best | not measured | not measured | degrades past ~500 operations |
+| Replay CPU, 4004 operations | 188 ms | 124 ms | 144 ms | 395 ms |
 | Peak memory | 102 MB | 204 MB | 118 MB | 31 MB |
 | Cold init | 276 ms | 385 ms | 462 ms | 29 ms |
 | Log fidelity | full | full | full | degraded |
 | `LocalDurableTestRunner` | works | works | works | needs `worker_threads` |
-| Bundling effort | lowest | low | banner required | different externals |
+| Bundling effort | lowest | low | banner and builtin prefixes | different externals |
 
 Choose the managed Node.js runtime unless something specific rules it out. It
-needs no bootstrap, no image, and no runtime patching, and it replays fastest as
-operation counts grow.
+needs no bootstrap, no image, and no runtime patching. Bun and Deno replay
+somewhat faster once histories grow large, which is rarely worth taking on a
+runtime you maintain yourself.
 
 Choose Bun or Deno when your team already runs them or wants their tooling. The
 SDK needs no changes, the testing SDK works, and you take on a bootstrap, an
-image, and runtime patching. Deno uses less memory. Bun takes less care to
-bundle for.
+image, and runtime patching. Both replay faster than the managed runtime on long
+histories. Deno uses less memory. Bun takes less care to bundle for.
 
 Choose LLRT for small durable functions, in the low hundreds of operations, with
 steps that wait on I/O. It starts an order of magnitude faster than the managed
