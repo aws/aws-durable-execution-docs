@@ -32,18 +32,18 @@ functionality degrades. You supply a container image and a Runtime API loop.
 Deno builds on V8, adds a permissions model, and runs TypeScript directly. Like
 Bun, it runs the Durable Execution SDK unmodified, and it used half the memory
 Bun did in testing. It takes the most care to bundle for, because the CommonJS
-interop banner described below is mandatory rather than optional.
+interop banner and the builtin prefixes described below are both mandatory.
 
 ### LLRT
 
 [LLRT](https://github.com/awslabs/llrt) is an experimental runtime from AWS Labs.
-It builds on QuickJS and compiles the AWS SDK into its binary. It started in
-29 ms and used 31 MB of memory in testing, against 276 ms and 102 MB for the
-managed Node.js runtime. It has no JIT compiler, so replay cost grows faster with
-the number of operations than it does on the other runtimes, and it lacks
-`AsyncLocalStorage`, which costs some log fidelity. Use it for small durable
-functions that spend their time waiting on I/O. Avoid it for large `map`
-fan-outs.
+It builds on QuickJS and compiles the AWS SDK into its binary. It starts an order
+of magnitude faster than the managed Node.js runtime and uses a third of the
+memory, which matters because a durable execution pays startup cost on every
+resume. It has no JIT compiler, so replay cost grows faster with the number of
+operations than it does on the other runtimes, and it lacks `AsyncLocalStorage`,
+which costs some log fidelity. Use it for small durable functions that spend
+their time waiting on I/O. Avoid it for large `map` fan-outs.
 
 LLRT needs `@aws/durable-execution-sdk-js` 2.3.0 or later, which detects the two
 Node APIs LLRT does not provide and falls back. On earlier versions, importing
@@ -70,8 +70,9 @@ minutes.
 
 ## Deploy with the AWS CDK
 
-`aws-cdk-lib` supports durable functions through a `durableConfig` property on
-`Function`, `NodejsFunction`, and `DockerImageFunction`:
+`aws-cdk-lib` 2.232.0 and later support durable functions through a
+`durableConfig` property on `Function`, `NodejsFunction`, and
+`DockerImageFunction`:
 
 ```typescript
 durableConfig: {
@@ -87,6 +88,7 @@ Each example below builds the same role:
 
 ```typescript
 import * as iam from "aws-cdk-lib/aws-iam";
+import { Construct } from "constructs";
 
 function durableRole(scope: Construct, id: string): iam.Role {
   return new iam.Role(scope, id, {
@@ -103,6 +105,7 @@ function durableRole(scope: Construct, id: string): iam.Role {
 ### Managed Node.js
 
 ```typescript
+import * as path from "node:path";
 import { Duration } from "aws-cdk-lib";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import { NodejsFunction, OutputFormat } from "aws-cdk-lib/aws-lambda-nodejs";
@@ -128,10 +131,15 @@ new NodejsFunction(this, "OrderWorkflow", {
 The CDK is the same for all three. Only the Dockerfile changes.
 
 ```typescript
+import * as path from "node:path";
+import { Duration } from "aws-cdk-lib";
+import { Platform } from "aws-cdk-lib/aws-ecr-assets";
+import * as lambda from "aws-cdk-lib/aws-lambda";
+
 new lambda.DockerImageFunction(this, "OrderWorkflow", {
   code: lambda.DockerImageCode.fromImageAsset(path.join(__dirname, "image"), {
     file: "Dockerfile.bun", // or Dockerfile.deno, or Dockerfile.llrt
-    platform: cdk.aws_ecr_assets.Platform.LINUX_ARM64,
+    platform: Platform.LINUX_ARM64,
   }),
   architecture: lambda.Architecture.ARM_64,
   memorySize: 512,
@@ -149,9 +157,9 @@ For the AWS CLI equivalent, see
 
 ### Older versions of the CDK
 
-Versions of `aws-cdk-lib` that predate `durableConfig` have no support at either
-the L1 or the L2 level. Override the property on the underlying `CfnFunction`
-instead. The result is the same CloudFormation:
+`aws-cdk-lib` 2.231.1 and earlier have no support at either the L1 or the L2
+level, because both landed together in 2.232.0. Override the property on the
+underlying `CfnFunction` instead. The result is the same CloudFormation:
 
 ```typescript
 const fn = new lambda.Function(this, "OrderWorkflow", {
@@ -182,60 +190,110 @@ posts the result back. One file serves both, since it needs only `fetch` and
 `process.env`. The loop needs nothing specific to durable functions. The LLRT
 binary already contains one.
 
+??? note "bootstrap.mjs, the Runtime API loop for Bun and Deno"
+
+    ```javascript
+    const BASE = `http://${process.env.AWS_LAMBDA_RUNTIME_API}/2018-06-01/runtime`;
+
+    const post = (path, body) =>
+      fetch(`${BASE}/${path}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body ?? null),
+      });
+
+    let handler;
+    try {
+      ({ handler } = await import("./handler.mjs"));
+    } catch (error) {
+      // Report an init failure, then exit so Lambda does not wait on a broken sandbox.
+      await post("init/error", {
+        errorType: error?.name ?? "InitError",
+        errorMessage: String(error?.message ?? error),
+      });
+      process.exit(1);
+    }
+
+    while (true) {
+      const next = await fetch(`${BASE}/invocation/next`);
+      const requestId = next.headers.get("lambda-runtime-aws-request-id");
+      const deadlineMs = Number(next.headers.get("lambda-runtime-deadline-ms") ?? 0);
+      const event = await next.json();
+
+      // The SDK reads awsRequestId and getRemainingTimeInMillis from the context.
+      const context = {
+        awsRequestId: requestId,
+        invokedFunctionArn: next.headers.get("lambda-runtime-invoked-function-arn") ?? "",
+        functionName: process.env.AWS_LAMBDA_FUNCTION_NAME ?? "",
+        functionVersion: process.env.AWS_LAMBDA_FUNCTION_VERSION ?? "",
+        getRemainingTimeInMillis: () => Math.max(0, deadlineMs - Date.now()),
+      };
+
+      try {
+        const result = await handler(event, context);
+        await post(`invocation/${requestId}/response`, result);
+      } catch (error) {
+        await post(`invocation/${requestId}/error`, {
+          errorType: error?.name ?? "Error",
+          errorMessage: String(error?.message ?? error),
+          stackTrace: String(error?.stack ?? "").split("\n"),
+        });
+      }
+    }
+    ```
+
+Place `bootstrap.mjs` and the bundled `handler.mjs` in the build context next to
+the Dockerfile.
+
 === "Bun"
 
-````
-```dockerfile
-FROM --platform=linux/arm64 oven/bun:1.3.14-slim
-WORKDIR /var/task/
-COPY handler.mjs bootstrap.mjs ./
-CMD ["bun", "/var/task/bootstrap.mjs"]
-```
-````
+    ```dockerfile
+    FROM --platform=linux/arm64 oven/bun:1.3.14-slim
+    WORKDIR /var/task/
+    COPY handler.mjs bootstrap.mjs ./
+    CMD ["bun", "/var/task/bootstrap.mjs"]
+    ```
 
 === "Deno"
 
-````
-```dockerfile
-FROM --platform=linux/arm64 denoland/deno:2.9.5
-WORKDIR /var/task/
-COPY handler.mjs bootstrap.mjs ./
-CMD ["deno", "run", "-A", "/var/task/bootstrap.mjs"]
-```
-````
+    `-A` grants the network and environment access the loop needs.
+
+    ```dockerfile
+    FROM --platform=linux/arm64 denoland/deno:2.9.5
+    WORKDIR /var/task/
+    COPY handler.mjs bootstrap.mjs ./
+    CMD ["deno", "run", "-A", "/var/task/bootstrap.mjs"]
+    ```
 
 === "LLRT"
 
-`````
-Use the CLI build (`llrt-linux-arm64-full-sdk.zip`) rather than
-`llrt-container-arm64-full-sdk`. Both run a Lambda function, but only the CLI
-build can precompile the handler:
+    Download `llrt-linux-arm64-full-sdk.zip` from the
+    [LLRT releases](https://github.com/awslabs/llrt/releases), verify it against the
+    published checksum, and unzip the `llrt` binary into the build context. Use this
+    CLI build rather than `llrt-container-arm64-full-sdk`: both run a Lambda
+    function, but only the CLI build can precompile the handler.
 
-````
-```dockerfile
-FROM --platform=linux/arm64 busybox
-WORKDIR /var/task/
-COPY llrt /usr/bin/llrt
-RUN chmod +x /usr/bin/llrt
-COPY handler.mjs ./
-RUN llrt compile handler.mjs handler.lrt && rm handler.mjs
-ENV LAMBDA_HANDLER="handler.handler"
-CMD ["llrt"]
-```
-````
+    ```dockerfile
+    FROM --platform=linux/arm64 busybox
+    WORKDIR /var/task/
+    COPY llrt /usr/bin/llrt
+    RUN chmod +x /usr/bin/llrt
+    COPY handler.mjs ./
+    RUN llrt compile handler.mjs handler.lrt && rm handler.mjs
+    ENV LAMBDA_HANDLER="handler.handler"
+    CMD ["llrt"]
+    ```
 
-Verify the LLRT binary against a published checksum before you copy it into
-the image. Drop the `RUN llrt compile` line to ship plain JavaScript, which
-also lets you use the container build.
-`````
+    LLRT supplies its own Runtime API loop, so this image needs no
+    `bootstrap.mjs`. Drop the `RUN llrt compile` line to ship plain JavaScript,
+    which also lets you use the container build.
 
 ### Precompile the handler for LLRT
 
 `llrt compile` parses the handler and generates bytecode at build time, then
 compresses it. The runtime loads bytecode instead of parsing JavaScript, which
-removed 9 ms from a 36 ms cold init in testing, around a quarter. It does not
-change invocation duration, because QuickJS interprets the same bytecode either
-way.
+removed about a quarter of cold init in testing. It does not change invocation
+duration, because QuickJS interprets the same bytecode either way.
 
 `LAMBDA_HANDLER` needs no change. LLRT resolves `.lrt` ahead of `.js`, `.mjs`,
 and `.cjs`, so `handler.handler` finds `handler.lrt`.
@@ -250,12 +308,12 @@ runs the function satisfies both, which is what the Dockerfile above does.
 
 ## Bundle the handler
 
-| | Managed Node.js | Bun | Deno | LLRT |
-|---|---|---|---|---|
-| esbuild `platform` | `node` | `node` | `node` | `neutral` |
-| `@aws-sdk` | bundle | bundle | bundle | leave external |
-| CommonJS interop banner | not needed | advisable | required | not needed |
-| Runtime API loop | provided | you write it | you write it | provided |
+| Setting                 | Managed Node.js | Bun          | Deno         | LLRT           |
+| ----------------------- | --------------- | ------------ | ------------ | -------------- |
+| esbuild `platform`      | `node`          | `node`       | `node`       | `neutral`      |
+| `@aws-sdk`              | bundle          | bundle       | bundle       | leave external |
+| CommonJS interop banner | not needed      | advisable    | required     | not needed     |
+| Runtime API loop        | provided        | you write it | you write it | provided       |
 
 LLRT is the only runtime where you mark `@aws-sdk` external, because it compiles
 `@aws-sdk/client-lambda` into its binary. That client is what the SDK loads to
@@ -333,31 +391,55 @@ That last check guards against a determinism bug, so enable the
 `@aws/durable-execution-sdk-js-eslint-plugin`, which catches the same mistake at
 build time.
 
+One testing note. The [local test runner](../testing/runner.md) starts a
+checkpoint server in a `node:worker_threads` worker, which LLRT does not provide,
+so the runner cannot execute on LLRT itself. This does not affect your test
+suite: the runner runs on your development machine, so run it on Node.js while
+deploying on LLRT.
+
 ## Measured behavior
 
-Each runtime ran the same durable function on Lambda: arm64, 512 MB, in
-`us-east-1`. The function ran steps, a step that failed once and retried, a
-30 second wait, a child context, and a parallel block. Every runtime finished
-across three invocations and returned identical results.
+Each runtime ran the same durable function on Lambda: steps, a step that failed
+once and retried, a 30 second wait, a child context, and a parallel block. Every
+runtime finished across three invocations and returned identical results, which
+is the first thing to know: all four are functionally interchangeable here.
 
-Each figure below is the median of three cold starts, each on a fresh function
-version, after a discarded warm-up execution so that no measurement includes a
-first-ever image pull.
+On startup, LLRT leads by an order of magnitude and uses the least memory, and
+the managed Node.js runtime beats both container runtimes. Artifact size drives
+much of that: the Bun and Deno images are around 200 MB against LLRT's 17 MB.
 
-| | Artifact | Cold init | First invocation | Warm invocation | Peak memory |
-|---|---|---|---|---|---|
-| Managed Node.js 22 | 0.2 MB zip | 276 ms | 714 ms | 180 ms | 102 MB |
-| Bun | 202 MB image | 385 ms | 635 ms | 238 ms | 204 MB |
-| Deno | 195 MB image | 462 ms | 875 ms | 258 ms | 118 MB |
-| LLRT, bytecode | 17 MB image | 29 ms | 187 ms | 147 ms | 31 MB |
+??? info "Measured 2026-08-12 on arm64, 512 MB, us-east-1"
 
-LLRT starts an order of magnitude faster than the managed Node.js runtime and
-uses a third of the memory. It also wins both invocation columns here, which the
-next section qualifies: this function performs ten operations, well inside the
-range where LLRT leads.
+    Median of three cold starts, each on a fresh function version, after a
+    discarded warm-up execution so no measurement includes a first-ever image
+    pull. Versions: `@aws/durable-execution-sdk-js` 2.3.0, `nodejs22.x`,
+    `oven/bun:1.3.14-slim`, `denoland/deno:2.9.5`, LLRT `v0.8.1-beta` with a
+    precompiled handler.
 
-Artifact size matters as much as the runtime. The Bun and Deno images are around
-200 MB against LLRT's 17 MB, and their cold starts follow.
+    | Runtime            | Artifact     | Cold init | First invocation | Warm invocation | Peak memory |
+    | ------------------ | ------------ | --------- | ---------------- | --------------- | ----------- |
+    | Managed Node.js 22 | 0.2 MB zip   | 276 ms    | 714 ms           | 180 ms          | 102 MB      |
+    | Bun                | 202 MB image | 385 ms    | 635 ms           | 238 ms          | 204 MB      |
+    | Deno               | 195 MB image | 462 ms    | 875 ms           | 258 ms          | 118 MB      |
+    | LLRT, bytecode     | 17 MB image  | 29 ms     | 187 ms           | 147 ms          | 31 MB       |
+
+    Replay CPU inside the handler, by operation count. A fixture maps over a
+    growing number of items, then waits, which suspends the execution. The first
+    invocation performs the map for real, and the invocation after the wait
+    rebuilds state for every operation the map produced while doing no useful
+    work, which isolates replay. Measured against an in-memory stand-in for the
+    service, so no network time is included, and each runtime runs the artifact
+    you would deploy. Median of five runs.
+
+    | Operations | Node.js | Bun   | Deno   | LLRT   |
+    | ---------- | ------- | ----- | ------ | ------ |
+    | 54         | 33 ms   | 36 ms | 32 ms  | 26 ms  |
+    | 504        | 53 ms   | 49 ms | 46 ms  | 54 ms  |
+    | 2004       | 119 ms  | 75 ms | 86 ms  | 165 ms |
+    | 2804       | 143 ms  | 92 ms | 107 ms | 243 ms |
+
+    Isolating the replay invocation alone at 2804 operations: 5 ms on Node.js,
+    4 ms on Bun, 5 ms on Deno, and 12 ms on LLRT.
 
 ### Replay cost
 
@@ -373,49 +455,30 @@ the restored execution state, and deserializes its result. The cost grows with
 the number of completed operations, and a durable function pays it on every
 resume, in billed duration. A workflow that suspends ten times pays it ten times.
 
-How the numbers below were produced. A fixture maps over a growing number of
-items, then waits, which suspends the execution. The first invocation performs
-the map for real, and the invocation after the wait rebuilds state for every
-operation the map produced while doing no useful work, which isolates replay.
-Both figures are CPU inside the handler, measured by the fixture against an
-in-memory stand-in for the service, so no network time is included. Each runtime
-runs the artifact you would deploy: a bundle for Node.js, Bun, and Deno, and
-precompiled bytecode for LLRT. Each cell is the median of five runs.
+Two things follow from the measurements above. Bun and Deno replay faster than
+the managed Node.js runtime once histories grow, by roughly a third and a quarter.
+And LLRT leads while histories are small, then falls behind, reaching about 1.7
+times the CPU time of Node.js by 2800 operations. LLRT has no JIT compiler, and
+replay is a hot, repetitive loop over history, which is what a JIT optimizes.
+Compute inside a step body widens the gap further.
 
-| Operations | Node.js | Bun | Deno | LLRT |
-|---|---|---|---|---|
-| 54 | 35 ms | 40 ms | 34 ms | 27 ms |
-| 504 | 57 ms | 54 ms | 50 ms | 58 ms |
-| 2004 | 124 ms | 81 ms | 91 ms | 186 ms |
-| 4004 | 188 ms | 124 ms | 144 ms | 395 ms |
-
-Isolating the replay invocation alone at 4004 operations: 9 ms on Node.js, 5 ms
-on Bun, 7 ms on Deno, and 20 ms on LLRT.
-
-Two things follow. Bun and Deno replay faster than the managed Node.js runtime
-once histories grow, by roughly a third and a quarter at 4004 operations. And
-LLRT leads below about 500 operations, then falls behind, reaching twice the CPU
-time of Node.js at 4004 operations. LLRT has no JIT compiler, and replay is a
-hot, repetitive loop over history, which is what a JIT optimizes. Compute inside
-a step body widens the gap further.
-
-LLRT wins on fixed cost instead, and a durable function pays fixed cost on every
-resume too, which is why it still suits short workflows: it starts in 29 ms
-against 276 ms.
+Reducing the number of operations helps every runtime and helps LLRT most.
+Setting `nesting` to `NestingType.FLAT` on `map` and `parallel` skips the
+per-iteration `CONTEXT` operation, which halved the operation count and cut
+LLRT's replay CPU by nearly half in the same fixture.
 
 ## Choose a runtime
 
-| | Managed Node.js | Bun | Deno | LLRT |
-|---|---|---|---|---|
-| Deployment | zip or container | container | container | container |
-| SDK version | any | any | any | 2.3.0 or later |
-| You maintain | nothing | bootstrap, image, patching | bootstrap, image, patching | image, patching |
-| Replay CPU, 4004 operations | 188 ms | 124 ms | 144 ms | 395 ms |
-| Peak memory | 102 MB | 204 MB | 118 MB | 31 MB |
-| Cold init | 276 ms | 385 ms | 462 ms | 29 ms |
-| Log fidelity | full | full | full | degraded |
-| `LocalDurableTestRunner` | works | works | works | needs `worker_threads` |
-| Bundling effort | lowest | low | banner and builtin prefixes | different externals |
+| Runtime                 | Managed Node.js  | Bun                        | Deno                        | LLRT                |
+| ----------------------- | ---------------- | -------------------------- | --------------------------- | ------------------- |
+| Deployment              | zip or container | container                  | container                   | container           |
+| SDK version             | any              | any                        | any                         | 2.3.0 or later      |
+| You maintain            | nothing          | bootstrap, image, patching | bootstrap, image, patching  | image, patching     |
+| Startup                 | middle           | slower                     | slowest                     | fastest             |
+| Memory                  | middle           | highest                    | middle                      | lowest              |
+| Replay as history grows | baseline         | fastest                    | fast                        | slowest             |
+| Log fidelity            | full             | full                       | full                        | degraded            |
+| Bundling effort         | lowest           | low                        | banner and builtin prefixes | different externals |
 
 Choose the managed Node.js runtime unless something specific rules it out. It
 needs no bootstrap, no image, and no runtime patching. Bun and Deno replay
@@ -424,12 +487,11 @@ runtime you maintain yourself.
 
 Choose Bun or Deno when your team already runs them or wants their tooling. The
 SDK needs no changes, the testing SDK works, and you take on a bootstrap, an
-image, and runtime patching. Both replay faster than the managed runtime on long
-histories. Deno uses less memory. Bun takes less care to bundle for.
+image, and runtime patching. Deno uses less memory. Bun takes less care to
+bundle for.
 
 Choose LLRT for small durable functions, in the low hundreds of operations, with
-steps that wait on I/O. It starts an order of magnitude faster than the managed
-runtime and uses a third of the memory, which matters because a durable execution
-pays startup cost on every resume. Precompile the handler, accept the reduced log
-fidelity, enable the ESLint rule, and measure again as your workflows grow, since
-replay cost is where LLRT loses its lead.
+steps that wait on I/O, where its startup and memory advantages compound across
+resumes. Precompile the handler, accept the reduced log fidelity, enable the
+ESLint rule, and measure again as your workflows grow, since replay cost is where
+LLRT loses its lead.
