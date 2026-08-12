@@ -55,7 +55,7 @@ The execution role needs `lambda:CheckpointDurableExecution` and
 `lambda:GetDurableExecutionState`. Attach the
 [AWSLambdaBasicDurableExecutionRolePolicy](https://docs.aws.amazon.com/aws-managed-policy/latest/reference/AWSLambdaBasicDurableExecutionRolePolicy.html)
 managed policy, which grants both alongside CloudWatch Logs access. See
-[create the execution role](../../../getting-started/quickstart.md#create-the-execution-role)
+[create the execution role](../getting-started/quickstart.md#create-the-execution-role)
 for the full setup.
 
 If you write the policy yourself, scope `Resource` to a qualified ARN pattern
@@ -145,7 +145,7 @@ new lambda.DockerImageFunction(this, "OrderWorkflow", {
 ```
 
 For the AWS CLI equivalent, see
-[Quickstart for Container Image](../../../getting-started/quickstart-container-image.md).
+[Quickstart for Container Image](../getting-started/quickstart-container-image.md).
 
 ### Older versions of the CDK
 

@@ -60,6 +60,10 @@ nav = [
     { "Manage Executions" = "getting-started/manage-executions.md" },
     { "Development Environment" = "getting-started/development-environment.md" },
   ]},
+  { "Guides" = [
+    { "Guides" = "guides/index.md" },
+    { "JavaScript Runtimes" = "guides/javascript-runtimes.md" },
+  ]},
   { "SDK Reference" = [
     { "SDK Reference" = "sdk-reference/index.md" },
     { "Operations" = [
@@ -90,10 +94,7 @@ nav = [
     ]},
     { "Language Guides" = [
       { "Language Guides" = "sdk-reference/languages/index.md" },
-      { "TypeScript" = [
-        { "TypeScript" = "sdk-reference/languages/typescript/index.md" },
-        { "JavaScript Runtimes" = "sdk-reference/languages/typescript/runtimes.md" },
-      ]},
+      { "TypeScript" = "sdk-reference/languages/typescript/index.md" },
       { "Python" = "sdk-reference/languages/python/index.md" },
       { "Java" = "sdk-reference/languages/java/index.md" },
       { "C#" = "sdk-reference/languages/csharp/index.md" },
