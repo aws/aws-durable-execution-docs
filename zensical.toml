@@ -60,10 +60,6 @@ nav = [
     { "Manage Executions" = "getting-started/manage-executions.md" },
     { "Development Environment" = "getting-started/development-environment.md" },
   ]},
-  { "Guides" = [
-    { "Guides" = "guides/index.md" },
-    { "JavaScript Runtimes" = "guides/javascript-runtimes.md" },
-  ]},
   { "SDK Reference" = [
     { "SDK Reference" = "sdk-reference/index.md" },
     { "Operations" = [
@@ -121,6 +117,10 @@ nav = [
       { "Pause and Resume" = "patterns/best-practices/pause-resume.md" },
       { "Code Organization" = "patterns/best-practices/code-organization.md" },
     ]},
+  ]},
+  { "Guides" = [
+    { "Guides" = "guides/index.md" },
+    { "JavaScript Runtimes" = "guides/javascript-runtimes.md" },
   ]},
 ]
 
