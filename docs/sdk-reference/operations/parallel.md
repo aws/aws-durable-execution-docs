@@ -931,8 +931,8 @@ checkpoint and records the branch outcome with the parent parallel operation. Du
 operations inside a branch still checkpoint in both modes.
 
 Branches that have not completed when the parallel operation reaches its completion
-criteria receive no further checkpoint updates. The language-specific details below
-describe nested mode.
+criteria receive no further checkpoint updates. Unless noted otherwise, the
+language-specific details below describe nested mode.
 
 === "TypeScript"
 

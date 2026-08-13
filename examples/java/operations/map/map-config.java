@@ -27,7 +27,9 @@ public class MapConfigExample extends DurableHandler<List<String>, List<String>>
                 String.class,
                 (url, index, ctx) -> ctx.step("fetch-" + index, String.class, s -> {
                     var request = HttpRequest.newBuilder(URI.create(url)).build();
-                    return HTTP.send(request, HttpResponse.BodyHandlers.ofString()).body();
+                    return HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                            .join()
+                            .body();
                 }),
                 config);
 

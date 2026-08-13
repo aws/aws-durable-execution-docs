@@ -29,7 +29,7 @@ public class ParallelismExample
             async (itemCtx, item, index, items, ct) =>
                 await itemCtx.StepAsync(async (_, _) => Process(item), name: $"process-{index}"),
             name: "process-items",
-            config: new MapConfig { MaxConcurrency = 10 });
+            config: new MapConfig<string> { MaxConcurrency = 10 });
 
         return enrich.GetResults().Concat(processed.GetResults()).ToList();
     }
