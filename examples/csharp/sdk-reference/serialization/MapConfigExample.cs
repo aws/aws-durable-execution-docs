@@ -12,7 +12,7 @@ public class MapConfigExample
         // MapConfig has no serializer slot. Each item result is serialized with the
         // ILambdaSerializer registered on ILambdaContext.Serializer. To customize
         // serialization, register a custom ILambdaSerializer at the host boundary.
-        var config = new MapConfig
+        var config = new MapConfig<string>
         {
             MaxConcurrency = 3,
         };

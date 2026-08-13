@@ -110,7 +110,7 @@ Use map to apply the same operation to every item in a collection. Use
     - `func` A function called for each item. See [Map Function](#map-function).
     - `name` (optional) A name for the map operation. Omit it to infer one from the
         call site.
-    - `config` (optional) A `MapConfig` object.
+    - `config` (optional) A `MapConfig<TItem>` object.
     - `cancellationToken` (optional) A token linked with the SDK's workflow-shutdown
         signal, forwarded to `func`.
 
@@ -258,6 +258,7 @@ Use map to apply the same operation to every item in a collection. Use
         .serDes(SerDes)                // optional
         .nestingType(NestingType)      // optional
         .itemNamer(BiFunction<Object, Integer, String>)  // optional
+        .itemNamer(Class<I>, BiFunction<? super I, Integer, String>)  // optional
         .build()
     ```
 
@@ -270,18 +271,19 @@ Use map to apply the same operation to every item in a collection. Use
     - `nestingType` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
         [Nesting](#nesting).
     - `itemNamer` (optional) A function that returns a custom name for each item from the
-        item and its zero-based index. Java does not support `itemNamer` with
-        `NestingType.FLAT`.
+        item and its zero-based index. Pass the item type as the first argument to receive
+        the item strongly typed instead of as `Object`. Java does not support `itemNamer`
+        with `NestingType.FLAT`.
 
 === "C#"
 
     ```csharp
-    public sealed class MapConfig
+    public sealed class MapConfig<TItem>
     {
         public int? MaxConcurrency { get; set; }               // null = unlimited
-        public CompletionConfig CompletionConfig { get; set; } // default AllCompleted()
+        public CompletionConfig CompletionConfig { get; set; } // default AllSuccessful()
         public NestingType NestingType { get; set; }           // default Nested
-        public Func<object, int, string>? ItemNamer { get; set; }
+        public Func<TItem, int, string>? ItemNamer { get; set; }
     }
     ```
 
@@ -289,8 +291,9 @@ Use map to apply the same operation to every item in a collection. Use
 
     - `MaxConcurrency` (optional) Maximum items running at once. `null` (default) is
         unlimited; must be at least 1 when set.
-    - `CompletionConfig` (optional) When to stop. Default: `CompletionConfig.AllCompleted()`.
-        Every item runs regardless of per-item failures.
+    - `CompletionConfig` (optional) When to stop. Default: `CompletionConfig.AllSuccessful()`.
+        Any item failure completes the map with `FailureToleranceExceeded`. Set
+        `CompletionConfig.AllCompleted()` to run every item regardless of failures.
     - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`. See
         [Nesting](#nesting).
     - `ItemNamer` (optional) A function that returns a custom name for each item, given the
@@ -342,8 +345,8 @@ execution and the completion status of the result.
     Use the static factories or set the properties directly:
 
     ```csharp
-    CompletionConfig.AllCompleted()    // default for map: every item runs
-    CompletionConfig.AllSuccessful()   // ToleratedFailureCount = 0
+    CompletionConfig.AllSuccessful()   // default for map: ToleratedFailureCount = 0
+    CompletionConfig.AllCompleted()    // every item runs regardless of failures
     CompletionConfig.FirstSuccessful() // MinSuccessful = 1
 
     new CompletionConfig { MinSuccessful = count }
@@ -612,6 +615,14 @@ Name your map operations to make them easier to identify in logs and tests.
 
     Pass `name` as a keyword argument. Omit it or pass `None` to leave it unnamed.
 
+    Use `item_namer` in `MapConfig` to give each item a custom name:
+
+    ```python
+    config = MapConfig(item_namer=lambda order, index: f"order-{order['id']}")
+
+    context.map(orders, process_order, name="process-orders", config=config)
+    ```
+
 === "Java"
 
     ```java
@@ -620,6 +631,16 @@ Name your map operations to make them easier to identify in logs and tests.
 
     The name is always required in Java. The SDK derives each item's name from the operation
     name: `{name}-iteration-{index}`.
+
+    Use `itemNamer` in `MapConfig` to give each item a custom name:
+
+    ```java
+    var config = MapConfig.builder()
+            .itemNamer(Order.class, (order, index) -> "order-" + order.id())
+            .build();
+
+    context.map("process-orders", orders, ProcessedOrder.class, this::processOrder, config);
+    ```
 
 === "C#"
 
@@ -632,9 +653,9 @@ Name your map operations to make them easier to identify in logs and tests.
     Use `ItemNamer` in `MapConfig` to give each item a custom name:
 
     ```csharp
-    var config = new MapConfig
+    var config = new MapConfig<Order>
     {
-        ItemNamer = (item, index) => $"order-{((Order)item).Id}",
+        ItemNamer = (order, index) => $"order-{order.Id}",
     };
     ```
 
@@ -742,8 +763,8 @@ abandoned items, but cancellation is not guaranteed.
 
     | `CompletionConfig`                   | Early exit `CompletionReason` | Full completion `CompletionReason` |
     | ------------------------------------ | ----------------------------- | ---------------------------------- |
-    | `AllCompleted()` (default)           | n/a                           | `AllCompleted`                     |
-    | `AllSuccessful()`                    | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `AllSuccessful()` (default)          | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `AllCompleted()`                     | n/a                           | `AllCompleted`                     |
     | `FirstSuccessful()`                  | `MinSuccessfulReached`        | `AllCompleted`                     |
     | `MinSuccessful = N`                  | `MinSuccessfulReached`        | `AllCompleted`                     |
     | `ToleratedFailureCount = N`          | `FailureToleranceExceeded`    | `AllCompleted`                     |
@@ -832,8 +853,8 @@ checkpoint and records the item outcome with the parent map operation. Durable o
 inside an item still checkpoint in both modes.
 
 Items that have not completed when the map operation reaches its completion criteria
-receive no further checkpoint updates. The language-specific details below describe
-nested mode.
+receive no further checkpoint updates. Unless noted otherwise, the language-specific
+details below describe nested mode.
 
 === "TypeScript"
 

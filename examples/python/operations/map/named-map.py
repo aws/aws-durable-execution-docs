@@ -19,4 +19,4 @@ def handler(event: dict, context: DurableContext) -> list[str]:
         process_user,
         name="process-users",
     )
-    return result.to_dict()
+    return result.get_results()
