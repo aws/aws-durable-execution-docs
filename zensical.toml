@@ -83,6 +83,7 @@ nav = [
       { "Logging" = "sdk-reference/observability/logging.md" },
       { "Plugins" = "sdk-reference/observability/plugins.md" },
       { "OpenTelemetry" = "sdk-reference/observability/opentelemetry.md" },
+      { "OpenTelemetry trace models" = "sdk-reference/observability/opentelemetry-trace-models.md" },
     ]},
     { "Configuration" = [
       { "Configuration" = "sdk-reference/configuration/index.md" },

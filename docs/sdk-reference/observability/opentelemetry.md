@@ -58,6 +58,11 @@ single trace with deterministic IDs, and both emit a `Workflow` root span for th
 execution. They differ in where they root the invocation view and when they
 export the root span. You register exactly one of them.
 
+These views make an unavoidable tradeoff between root-span lifetime and
+operation continuity. See
+[OpenTelemetry trace model tradeoffs](opentelemetry-trace-models.md) for the
+design rationale.
+
 ### ExecutionOtelPlugin
 
 `ExecutionOtelPlugin` opens a synthetic `Workflow` span as the trace root. Every
@@ -501,6 +506,7 @@ sampling ratio is below `1.0`.
 
 ## See also
 
+- [OpenTelemetry trace model tradeoffs](opentelemetry-trace-models.md)
 - [Plugins](plugins.md)
 - [Logging](logging.md)
 - [Steps](../operations/step.md)
