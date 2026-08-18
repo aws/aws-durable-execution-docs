@@ -9,11 +9,18 @@ boundaries.
 A durable execution can run across many Lambda invocations. The plugin exposes
 two correlated views:
 
-- A durable `Workflow` trace uses stable, execution-scoped trace and span IDs.
-    Its root span is exported when the execution reaches a terminal status.
-- Each `Invocation` span belongs to the current Lambda or application trace.
-    With ADOT, it inherits the ambient Lambda trace. Without an ambient parent,
-    the configured provider generates a new invocation trace.
+- **Workflow view**: One execution-scoped `Workflow` trace uses stable trace and
+    span IDs across all Lambda invocations. With `ExecutionOtelPlugin`, it
+    contains the operation and attempt hierarchy. With `InvocationOtelPlugin`,
+    it acts as a correlation root that operation and attempt spans link to. The
+    `Workflow` root span is exported when the execution reaches a terminal
+    status.
+- **Invocation view**: Each Lambda invocation produces an `Invocation` span in
+    the current Lambda or application trace. With `InvocationOtelPlugin`, it
+    parents the operations and attempts from that invocation. With
+    `ExecutionOtelPlugin`, those spans remain in the Workflow view and link to
+    the `Invocation` span instead. The invocation view is exported when each
+    Lambda invocation ends.
 
 Span links connect the two views. The deterministic ID overrides are scoped to
 spans created by the plugin, so unrelated OpenTelemetry instrumentation
