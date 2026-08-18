@@ -359,13 +359,19 @@ spans when no SDK provider is registered. If TypeScript finds a registered
 tracer whose runtime ID generator is incompatible, it logs the problem once
 and continues without deterministic durable IDs.
 
-## Deploy with the community collector layer
+## Deploy with the community auto-instrumentation layer
 
-The OpenTelemetry community collector layer runs a collector extension without
-auto-instrumentation. Do not set `AWS_LAMBDA_EXEC_WRAPPER`. Configure an
-application-owned provider that exports OTLP HTTP spans to
-`http://localhost:4318/v1/traces`, and pass that provider to the plugin using the
-language-specific API below.
+Use the OpenTelemetry community language auto-instrumentation layer together
+with the community collector extension layer:
+
+- The language layer initializes auto-instrumentation and registers a global
+    OpenTelemetry provider. Set `AWS_LAMBDA_EXEC_WRAPPER` to
+    `/opt/otel-handler`.
+- The collector layer receives telemetry from that provider and exports it to
+    the configured backend.
+
+The no-arg plugin constructors use the global provider. You do not need to
+configure or pass a provider to the plugin.
 
 Include a `collector.yaml` in your function bundle and set
 `OPENTELEMETRY_COLLECTOR_CONFIG_URI` to its path:
@@ -386,7 +392,130 @@ service:
       exporters: [awsxray]
 ```
 
-Add the collector layer and configuration variable:
+Configure the language layer to export OTLP HTTP traces to the local collector.
+Disable metrics and log export if the collector configuration only defines a
+traces pipeline.
+
+Follow the
+[OpenTelemetry Lambda auto-instrumentation documentation](https://opentelemetry.io/docs/platforms/faas/lambda-auto-instrument/)
+to build or obtain the language layer. Follow the
+[collector extension documentation](https://github.com/open-telemetry/opentelemetry-lambda/tree/main/collector)
+to build and publish the collector layer in your AWS account.
+
+=== "TypeScript"
+
+    ```yaml
+    MyFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        Runtime: nodejs24.x
+        Handler: index.handler
+        Layers:
+          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-nodejs-layer>:<version>
+          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-collector-layer>:<version>
+        Environment:
+          Variables:
+            AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-handler
+            OTEL_TRACES_EXPORTER: otlp
+            OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+            OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://localhost:4318/v1/traces
+            OTEL_METRICS_EXPORTER: none
+            OTEL_LOGS_EXPORTER: none
+            OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
+        Tracing: Active
+        Policies:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
+          - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+    ```
+
+    ```typescript
+    new ExecutionOtelPlugin();
+    // or
+    new InvocationOtelPlugin();
+    ```
+
+=== "Python"
+
+    ```yaml
+    MyFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        Runtime: python3.14
+        Handler: index.handler
+        Layers:
+          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-python-layer>:<version>
+          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-collector-layer>:<version>
+        Environment:
+          Variables:
+            AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-handler
+            OTEL_TRACES_EXPORTER: otlp
+            OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+            OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://localhost:4318/v1/traces
+            OTEL_METRICS_EXPORTER: none
+            OTEL_LOGS_EXPORTER: none
+            OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
+        Tracing: Active
+        Policies:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
+          - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+    ```
+
+    ```python
+    ExecutionOtelPlugin()
+    # or
+    InvocationOtelPlugin()
+    ```
+
+=== "Java"
+
+    Use the community Java agent layer for auto-instrumentation. The agent must
+    also load the plugin JAR as an agent extension so its auto-configuration SPI
+    can scope deterministic ID generation to durable spans. Package the JAR in
+    a layer under `java/lib`, then point `OTEL_JAVAAGENT_EXTENSIONS` to the
+    deployed path.
+
+    ```yaml
+    MyFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        Runtime: java25
+        Handler: com.example.ExampleHandler
+        Layers:
+          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-java-agent-layer>:<version>
+          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-collector-layer>:<version>
+          - <otel-plugin-layer-arn>
+        Environment:
+          Variables:
+            AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-handler
+            OTEL_TRACES_EXPORTER: otlp
+            OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+            OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://localhost:4318/v1/traces
+            OTEL_METRICS_EXPORTER: none
+            OTEL_LOGS_EXPORTER: none
+            OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
+            OTEL_JAVAAGENT_EXTENSIONS: /opt/java/lib/aws-durable-execution-sdk-java-plugin-otel-<version>.jar
+        Tracing: Active
+        Policies:
+          - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
+          - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+    ```
+
+    ```java
+    new ExecutionOtelPlugin();
+    // or
+    new InvocationOtelPlugin();
+    ```
+
+    To load the plugin from the layer without registering it in handler code,
+    also set `DURABLE_EXECUTION_PLUGINS` to `otel-execution` or
+    `otel-invocation`.
+
+### Collector-only setup (advanced)
+
+Use the collector extension without a language auto-instrumentation layer when
+you need to configure the OpenTelemetry provider in application code. Add only
+the collector layer, leave `AWS_LAMBDA_EXEC_WRAPPER` unset, and pass the
+application-owned provider to the plugin.
 
 ```yaml
 Layers:
@@ -395,10 +524,6 @@ Environment:
   Variables:
     OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
 ```
-
-See the
-[OpenTelemetry Lambda releases](https://github.com/open-telemetry/opentelemetry-lambda/releases)
-for current collector layer releases.
 
 === "TypeScript"
 
