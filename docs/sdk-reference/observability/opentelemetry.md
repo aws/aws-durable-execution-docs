@@ -155,12 +155,10 @@ Lambda invocation
 The operation links identify which invocation ran each part of the workflow.
 The invocation spans are not children of `Workflow`.
 
-!!! note "TypeScript provider topology"
-
-    TypeScript keeps the workflow and invocation views in separate traces with
-    both global and application-owned providers. The `Invocation` span uses the
-    active OpenTelemetry parent when one exists, then the extracted upstream
-    parent, and otherwise becomes a root. It is not parented to `Workflow`.
+This topology is the same in all three SDKs with both global and
+application-owned providers. The `Invocation` span uses the active
+OpenTelemetry parent when one exists, then the extracted upstream parent, and
+otherwise becomes a root.
 
 ### InvocationOtelPlugin
 
@@ -213,9 +211,9 @@ Lambda invocation
 ```
 
 An operation that crosses an invocation boundary can produce more than one
-span. All SDKs correlate those spans through the `Workflow` span. TypeScript
-replay and continuation spans use new span IDs and do not synthesize links to
-earlier operation spans.
+span. In all three SDKs, replay and continuation spans use new span IDs and
+correlate through the `Workflow` span. They do not synthesize links to earlier
+operation spans.
 
 ### Choosing a plugin
 
@@ -357,13 +355,11 @@ provider option.
     also set `DURABLE_EXECUTION_PLUGINS` to `otel-execution` or
     `otel-invocation`.
 
-If the global SDK provider is not ready at plugin construction, the plugins
-retry provider resolution at invocation start. All three SDKs disable telemetry
-for that invocation when a compatible SDK provider is still unavailable, then
-retry on the next invocation. In TypeScript global-provider mode, the SDK tracer
-must support installation of the scoped deterministic ID wrapper. If it does
-not, the plugin logs a warning and disables telemetry for that invocation
-instead of emitting spans without deterministic durable IDs.
+When the plugins use the global provider, they resolve it at invocation start.
+If a usable SDK provider or the integration required for scoped deterministic
+IDs is unavailable, all three SDKs log a warning and disable telemetry for that
+invocation. They retry provider resolution on the next invocation instead of
+emitting spans without deterministic durable IDs.
 
 ## Deploy with the community auto-instrumentation layer
 
@@ -811,8 +807,8 @@ Search in your account for traces to appear.
 If no plugin spans appear:
 
 - Confirm a provider with a span processor and exporter is registered.
-- For TypeScript, check for a warning that the global provider does not expose a
-    compatible SDK tracer.
+- Check for a warning that the global SDK provider or its deterministic ID
+    integration was unavailable at invocation start.
 - With ADOT, confirm `AWS_LAMBDA_EXEC_WRAPPER` and active tracing are enabled.
 - With the community collector, confirm the layer and
     `OPENTELEMETRY_COLLECTOR_CONFIG_URI` are configured.
