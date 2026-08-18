@@ -208,9 +208,8 @@ Lambda invocation
 ```
 
 An operation that crosses an invocation boundary can produce more than one
-span. The portable correlation point is the `Workflow` link. Do not rely on a
-later segment containing a link to an earlier operation span because the SDK
-does not checkpoint that OpenTelemetry span context.
+span. All SDKs correlate those spans through the `Workflow` span. TypeScript may
+also emit a deterministic operation link; Python and Java do not.
 
 ### Choosing a plugin
 
