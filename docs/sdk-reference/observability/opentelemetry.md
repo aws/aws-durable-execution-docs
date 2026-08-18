@@ -361,46 +361,20 @@ and continues without deterministic durable IDs.
 
 ## Deploy with the community auto-instrumentation layer
 
-Use the OpenTelemetry community language auto-instrumentation layer together
-with the community collector extension layer:
-
-- The language layer initializes auto-instrumentation and registers a global
-    OpenTelemetry provider. Set `AWS_LAMBDA_EXEC_WRAPPER` to
-    `/opt/otel-handler`.
-- The collector layer receives telemetry from that provider and exports it to
-    the configured backend.
+The OpenTelemetry community language layer initializes auto-instrumentation,
+registers a global OpenTelemetry provider, and exports spans using OTLP. Set
+`AWS_LAMBDA_EXEC_WRAPPER` to `/opt/otel-handler` and configure the OTLP endpoint
+for your observability backend.
 
 The no-arg plugin constructors use the global provider. You do not need to
 configure or pass a provider to the plugin.
 
-Include a `collector.yaml` in your function bundle and set
-`OPENTELEMETRY_COLLECTOR_CONFIG_URI` to its path:
-
-```yaml
-receivers:
-  otlp:
-    protocols:
-      http:
-        endpoint: "localhost:4318"
-exporters:
-  awsxray:
-    region: "${AWS_REGION}"
-service:
-  pipelines:
-    traces:
-      receivers: [otlp]
-      exporters: [awsxray]
-```
-
-Configure the language layer to export OTLP HTTP traces to the local collector.
-Disable metrics and log export if the collector configuration only defines a
-traces pipeline.
+The examples below use OTLP HTTP and disable metrics and log export. If the
+backend requires authentication, also configure `OTEL_EXPORTER_OTLP_HEADERS`.
 
 Follow the
 [OpenTelemetry Lambda auto-instrumentation documentation](https://opentelemetry.io/docs/platforms/faas/lambda-auto-instrument/)
-to build or obtain the language layer. Follow the
-[collector extension documentation](https://github.com/open-telemetry/opentelemetry-lambda/tree/main/collector)
-to build and publish the collector layer in your AWS account.
+to obtain the language layer.
 
 === "TypeScript"
 
@@ -412,16 +386,14 @@ to build and publish the collector layer in your AWS account.
         Handler: index.handler
         Layers:
           - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-nodejs-layer>:<version>
-          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-collector-layer>:<version>
         Environment:
           Variables:
             AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-handler
             OTEL_TRACES_EXPORTER: otlp
             OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-            OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://localhost:4318/v1/traces
+            OTEL_EXPORTER_OTLP_ENDPOINT: https://<otlp-endpoint>
             OTEL_METRICS_EXPORTER: none
             OTEL_LOGS_EXPORTER: none
-            OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
         Tracing: Active
         Policies:
           - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
@@ -444,16 +416,14 @@ to build and publish the collector layer in your AWS account.
         Handler: index.handler
         Layers:
           - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-python-layer>:<version>
-          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-collector-layer>:<version>
         Environment:
           Variables:
             AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-handler
             OTEL_TRACES_EXPORTER: otlp
             OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-            OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://localhost:4318/v1/traces
+            OTEL_EXPORTER_OTLP_ENDPOINT: https://<otlp-endpoint>
             OTEL_METRICS_EXPORTER: none
             OTEL_LOGS_EXPORTER: none
-            OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
         Tracing: Active
         Policies:
           - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
@@ -482,17 +452,15 @@ to build and publish the collector layer in your AWS account.
         Handler: com.example.ExampleHandler
         Layers:
           - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-java-agent-layer>:<version>
-          - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-collector-layer>:<version>
           - <otel-plugin-layer-arn>
         Environment:
           Variables:
             AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-handler
             OTEL_TRACES_EXPORTER: otlp
             OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-            OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://localhost:4318/v1/traces
+            OTEL_EXPORTER_OTLP_ENDPOINT: https://<otlp-endpoint>
             OTEL_METRICS_EXPORTER: none
             OTEL_LOGS_EXPORTER: none
-            OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
             OTEL_JAVAAGENT_EXTENSIONS: /opt/java/lib/aws-durable-execution-sdk-java-plugin-otel-<version>.jar
         Tracing: Active
         Policies:
@@ -509,6 +477,50 @@ to build and publish the collector layer in your AWS account.
     To load the plugin from the layer without registering it in handler code,
     also set `DURABLE_EXECUTION_PLUGINS` to `otel-execution` or
     `otel-invocation`.
+
+### Add a collector extension (optional)
+
+Add the community collector extension layer when you need local processing,
+routing, or an exporter that is not available in the language layer. Keep
+`AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-handler` so the language layer continues to
+initialize the provider and the ambient Lambda span.
+
+Append the collector layer, point the OTLP exporter at its local receiver, and
+set the collector configuration path:
+
+```yaml
+Layers:
+  - <community-language-layer-arn>
+  - !Sub arn:aws:lambda:${AWS::Region}:<account>:layer:<community-collector-layer>:<version>
+Environment:
+  Variables:
+    AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-handler
+    OTEL_EXPORTER_OTLP_ENDPOINT: http://localhost:4318
+    OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
+```
+
+For example, include the following `collector.yaml` in the function bundle to
+export traces to X-Ray:
+
+```yaml
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: "localhost:4318"
+exporters:
+  awsxray:
+    region: "${AWS_REGION}"
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [awsxray]
+```
+
+Change the collector exporter to route spans to another platform. See the
+[collector extension documentation](https://github.com/open-telemetry/opentelemetry-lambda/tree/main/collector)
+for available components and layer deployment instructions.
 
 ### Collector-only setup (advanced)
 
@@ -632,9 +644,6 @@ Environment:
     ```
 
     Substitute `InvocationOtelPlugin` to use the invocation-centered view.
-
-Routing spans through a collector also lets you export to a third-party platform
-by changing the collector exporter.
 
 ## Configuration
 
