@@ -26,11 +26,11 @@ Span links connect the two views. The deterministic ID overrides are scoped to
 spans created by the plugin, so unrelated OpenTelemetry instrumentation
 continues to use the provider's normal ID generator.
 
-The plugin no longer auto-configures an OpenTelemetry export pipeline. It uses
-the global provider by default. For an application-owned pipeline, you must
-supply the provider, provider factory, or provider builder and configure its
-processors, exporter, sampling, resources, propagators, and library
-instrumentation.
+Provider and export-pipeline configuration are external to the plugins. By
+default, each plugin uses the global provider. For an application-owned
+pipeline, supply the provider, provider factory, or provider builder and
+configure its processors, exporter, sampling, resources, propagators, and
+library instrumentation.
 
 Some names on this page keep the X-Ray label, such as the X-Ray trace header and
 the `awsxray` collector exporter, but the resulting traces are available in
