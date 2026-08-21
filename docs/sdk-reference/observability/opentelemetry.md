@@ -6,25 +6,31 @@ traces to any OpenTelemetry backend, such as Amazon CloudWatch. It builds on the
 and it opens spans at the workflow, invocation, operation, and attempt
 boundaries.
 
-A durable execution can run across many Lambda invocations. The plugin exposes
-two correlated views:
+A durable execution can run across many Lambda invocations. The durable backend
+propagates a stable server span through `_X_AMZN_TRACE_ID`. When the header
+contains valid `Root` and `Parent` fields, every plugin span for one execution
+uses that canonical trace ID. The execution-scoped `Workflow` span is a direct
+child of the remote backend span and keeps a deterministic span ID across
+reinvocations.
 
-- **Workflow view**: One execution-scoped `Workflow` trace uses stable trace and
-    span IDs across all Lambda invocations. With `ExecutionOtelPlugin`, it
-    contains the operation and attempt hierarchy. With `InvocationOtelPlugin`,
-    it acts as a correlation root that operation and attempt spans link to. The
-    `Workflow` root span is exported when the execution reaches a terminal
-    status.
-- **Invocation view**: Each Lambda invocation produces an `Invocation` span in
-    the current Lambda or application trace. With `InvocationOtelPlugin`, it
-    parents the operations and attempts from that invocation. With
-    `ExecutionOtelPlugin`, those spans remain in the Workflow view and link to
-    the `Invocation` span instead. The invocation view is exported when each
-    Lambda invocation ends.
+Each Lambda invocation also produces an `Invocation` span. It uses the active
+ambient Lambda span as its parent only when that span belongs to the canonical
+trace. Otherwise, it is a direct child of the remote backend span. This places
+the workflow, invocations, operations, and attempts in one trace.
 
-Span links connect the two views. The deterministic ID overrides are scoped to
-spans created by the plugin, so unrelated OpenTelemetry instrumentation
-continues to use the provider's normal ID generator.
+The two plugins provide different operation views within that trace:
+
+- **Workflow view**: `ExecutionOtelPlugin` parents operations to `Workflow`.
+    Operations and attempts link to the `Invocation` span that observed them.
+- **Invocation view**: `InvocationOtelPlugin` parents each operation segment to
+    the current `Invocation`. Operations and attempts link to `Workflow`.
+    Continuation and replay segments also link to the initial logical operation
+    span.
+
+Links provide correlation and do not replace parent-child relationships. The
+deterministic ID overrides are scoped to spans created by the plugin, so
+unrelated OpenTelemetry instrumentation continues to use the provider's normal
+ID generator.
 
 Provider and export-pipeline configuration are external to the plugins. By
 default, each plugin uses the global provider. For an application-owned
@@ -98,8 +104,8 @@ CloudWatch.
 
 ## The two plugins
 
-Both plugins emit the same span types and a deterministic `Workflow` root span.
-They differ in the parent of operation spans and when those spans become
+Both plugins emit the same span types in one canonical trace. They differ in the
+parent of operation spans, the links on those spans, and when the spans become
 visible. Register exactly one of them.
 
 ### ExecutionOtelPlugin
@@ -131,34 +137,24 @@ workflow spans can exceed the ingestion limits of some observability platforms.
     --8<-- "examples/java/sdk-reference/observability/opentelemetry/execution-plugin.java"
     ```
 
-With an ADOT or global provider, the workflow and invocation views are separate
-traces:
+For an execution that suspends at a wait, the trace resembles:
 
 ```text
-Durable workflow trace:
-Workflow                              (root; exported on terminal status)
-|-- Operation: fetch-data  (STEP)      -> link to Invocation #1
-|   `-- Attempt: fetch-data attempt 1  -> link to Invocation #1
-|-- Operation: cooldown    (WAIT)      -> link to Invocation #2
-`-- Operation: process     (STEP)      -> link to Invocation #2
-    `-- Attempt: process attempt 1     -> link to Invocation #2
-
-Ambient Lambda trace #1:
-Lambda invocation
-`-- Invocation #1
-
-Ambient Lambda trace #2:
-Lambda invocation
-`-- Invocation #2
+Remote backend server span
+|-- Workflow                              (exported on terminal status)
+|   |-- Operation: fetch-data  (STEP)     -> link to Invocation #1
+|   |   `-- Attempt: fetch-data attempt 1 -> link to Invocation #1
+|   |-- Operation: cooldown    (WAIT)     -> links to Invocation #1 and #2
+|   `-- Operation: process     (STEP)     -> link to Invocation #2
+|       `-- Attempt: process attempt 1    -> link to Invocation #2
+|-- Ambient Lambda span #1
+|   `-- Invocation #1
+`-- Ambient Lambda span #2
+    `-- Invocation #2
 ```
 
 The operation links identify which invocation ran each part of the workflow.
-The invocation spans are not children of `Workflow`.
-
-This topology is the same in all three SDKs with both global and
-application-owned providers. The `Invocation` span uses the active
-OpenTelemetry parent when one exists, then the extracted upstream parent, and
-otherwise becomes a root.
+They do not make the invocation spans children of `Workflow`.
 
 ### InvocationOtelPlugin
 
@@ -189,45 +185,107 @@ execution progresses.
     --8<-- "examples/java/sdk-reference/observability/opentelemetry/invocation-plugin.java"
     ```
 
-For an execution that suspends at a wait, the traces resemble:
+For an execution that suspends at a wait, the trace resembles:
 
 ```text
-Durable workflow trace:
-Workflow                              (root; exported on terminal status)
-
-Ambient Lambda trace #1:
-Lambda invocation
-`-- Invocation #1
-    |-- Operation: fetch-data  (STEP)      -> link to Workflow
-    |   `-- Attempt: fetch-data attempt 1  -> link to Workflow
-    `-- Operation: cooldown    (WAIT)      -> link to Workflow
-
-Ambient Lambda trace #2:
-Lambda invocation
-`-- Invocation #2
-    |-- Operation: cooldown    (WAIT)      -> link to Workflow
-    `-- Operation: process     (STEP)      -> link to Workflow
-        `-- Attempt: process attempt 1     -> link to Workflow
+Remote backend server span
+|-- Workflow
+|-- Ambient Lambda span #1
+|   `-- Invocation #1
+|       |-- Operation: fetch-data  (STEP)  -> link to Workflow
+|       |   `-- Attempt: fetch-data attempt 1
+|       |       `-> link to Workflow
+|       `-- Operation: cooldown    (WAIT)  -> link to Workflow
+`-- Ambient Lambda span #2
+    `-- Invocation #2
+        |-- Operation: cooldown    (WAIT)  -> links to initial cooldown
+        |                                      span and Workflow
+        `-- Operation: process     (STEP)  -> link to Workflow
+            `-- Attempt: process attempt 1 -> link to Workflow
 ```
 
 An operation that crosses an invocation boundary can produce more than one
-span. In all three SDKs, replay and continuation spans use new span IDs and
-correlate through the `Workflow` span. They do not synthesize links to earlier
-operation spans.
+span. A continuation or replay segment uses a new span ID and links to the
+initial logical operation span, which uses the deterministic operation span ID.
+It also retains the `Workflow` link. CloudWatch does not yet visualize span
+links.
 
 ### Choosing a plugin
 
 For both plugins, your observability platform's quotas and limits apply.
 
-| Consideration          | ExecutionOtelPlugin                                       | InvocationOtelPlugin                                 |
-| ---------------------- | --------------------------------------------------------- | ---------------------------------------------------- |
-| Operation parent       | Deterministic `Workflow` trace                            | Current `Invocation` trace                           |
-| Cross-view link        | Operation or attempt to `Invocation`                      | Operation or attempt to `Workflow`                   |
-| Workflow export        | On terminal execution status                              | On terminal execution status                         |
-| Operation visibility   | When the operation completes                              | At each invocation boundary                          |
-| In-progress visibility | Limited until operations and the execution complete       | Each invocation appears as it completes              |
-| Better for             | Short executions and a workflow-centered hierarchy        | Long executions and an invocation-centered hierarchy |
-| Platform compatibility | Long-open spans can exceed platform ingestion time limits | Spans stay within the Lambda invocation time limit   |
+| Consideration          | ExecutionOtelPlugin                                       | InvocationOtelPlugin                                  |
+| ---------------------- | --------------------------------------------------------- | ----------------------------------------------------- |
+| Operation parent       | `Workflow`                                                | Current `Invocation`                                  |
+| Correlation link       | Operation or attempt to current `Invocation`              | Operation or attempt to `Workflow`                    |
+| Continuation link      | One operation span can link to several invocations        | Later segment links to initial logical operation span |
+| Workflow export        | On terminal execution status                              | On terminal execution status                          |
+| Operation visibility   | When the operation completes                              | At each invocation boundary                           |
+| In-progress visibility | Limited until operations and the execution complete       | Each invocation appears as it completes               |
+| Better for             | Short executions and a workflow-centered hierarchy        | Long executions and an invocation-centered hierarchy  |
+| Platform compatibility | Long-open spans can exceed platform ingestion time limits | Spans stay within the Lambda invocation time limit    |
+
+## Trace parent and sampling
+
+The plugins resolve the execution parent and the sampling decision
+independently. A missing or unusable `Sampled` field does not replace a valid
+remote parent with a synthetic root.
+
+| `_X_AMZN_TRACE_ID` state                                              | Canonical trace ID                                            | Common execution ancestor | Sampling                                                                |
+| --------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------- |
+| Valid `Root`, `Parent`, `Sampled=1`                                   | Reuse `Root`                                                  | Remote `Parent`           | Preserve sampled                                                        |
+| Valid `Root`, `Parent`, `Sampled=0`                                   | Reuse `Root`                                                  | Remote `Parent`           | Preserve not sampled                                                    |
+| Valid `Root`, `Parent`, no valid `Sampled`                            | Reuse `Root`                                                  | Remote `Parent`           | Leave the sampled trace flag unset; configured sampler behavior applies |
+| Valid `Root`, missing or invalid `Parent`, `Sampled=1` or `Sampled=0` | Reuse `Root`                                                  | Synthetic execution root  | Preserve the explicit decision                                          |
+| Valid `Root`, missing or invalid `Parent`, no valid `Sampled`         | Reuse `Root`                                                  | Synthetic execution root  | Configured root sampler decides                                         |
+| Missing or invalid `Root`                                             | Derive from the execution ARN and stable execution start time | Synthetic execution root  | Configured root sampler decides                                         |
+
+Only `Sampled=0` and `Sampled=1` carry authoritative upstream decisions. An
+absent or unusable value does not mean that the upstream system explicitly
+chose not to sample. Its OpenTelemetry span context still represents the value
+with an unset sampled bit.
+
+A `ParentBased` sampler treats a remote parent with an unset sampled bit as not
+sampled. A directly configured non-parent-based `TraceIdRatioBased` sampler can
+decide from the canonical trace ID instead. The reused or derived trace ID
+remains stable across reinvocations, so trace-ID-ratio decisions also remain
+stable. Other sampler decisions can change between reinvocations unless the
+application persists them.
+
+When `Root` and `Parent` are valid, the normal hierarchy is:
+
+```text
+Remote backend server span (`Root` / `Parent`)
+|-- Workflow
+|-- Ambient Lambda span #1
+|   `-- Invocation #1
+|-- Ambient Lambda span #2
+|   `-- Invocation #2
+`-- Invocation #N  (when no valid same-trace ambient span exists)
+```
+
+`Workflow` inherits the canonical trace ID and keeps a deterministic,
+execution-scoped span ID. An ambient span can parent `Invocation` only when it
+uses the same trace ID. A valid remote parent remains the real ancestor when
+`Sampled` is missing. The plugins do not create a synthetic-root link to it.
+
+When the plugins cannot construct a valid remote parent, they use:
+
+```text
+Synthetic execution root
+|-- Workflow
+|-- Invocation #1
+|-- Invocation #2
+`-- Invocation #N
+```
+
+The synthetic execution root has a deterministic span ID that remains stable
+across reinvocations and differs from Workflow and operation span IDs. A valid
+`Root` still supplies the canonical trace ID. If `Root` is also invalid, the
+plugins derive the trace ID from the execution ARN and stable execution start
+time. Fallback mode ignores unrelated ambient context. TypeScript, Python, and
+Java use this same topology with global and application-owned providers. The
+selected sampling decision applies consistently to every descendant.
 
 ## Span structure and attributes
 
@@ -252,8 +310,9 @@ attempt span.
 The AWS Distro for OpenTelemetry (ADOT) Lambda layer supplies a global provider,
 auto-instrumentation, and a collector extension. Add the language-specific
 layer, set `AWS_LAMBDA_EXEC_WRAPPER=/opt/otel-instrument`, enable active tracing
-so invocation spans can inherit the Lambda trace, and grant the function role
-the `AWSXRayDaemonWriteAccess` managed policy.
+so the runtime supplies `_X_AMZN_TRACE_ID`, and grant the function role the
+`AWSXRayDaemonWriteAccess` managed policy. Auto-instrumentation can then create
+an ambient Lambda span in the same trace as the durable backend parent.
 
 The no-arg plugin constructors use the global provider. You do not need a
 provider option.
@@ -366,7 +425,9 @@ emitting spans without deterministic durable IDs.
 The OpenTelemetry community language layer initializes auto-instrumentation,
 registers a global OpenTelemetry provider, and exports spans using OTLP. Set
 `AWS_LAMBDA_EXEC_WRAPPER` to `/opt/otel-handler` and configure the OTLP endpoint
-for your observability backend.
+for your observability backend. Enable active tracing so the plugin can reuse
+the durable backend parent and the layer can create a same-trace ambient Lambda
+span.
 
 The no-arg plugin constructors use the global provider. You do not need to
 configure or pass a provider to the plugin.
@@ -528,8 +589,9 @@ for available components and layer deployment instructions.
 
 Use the collector extension without a language auto-instrumentation layer when
 you need to configure the OpenTelemetry provider in application code. Add only
-the collector layer, leave `AWS_LAMBDA_EXEC_WRAPPER` unset, and pass the
-application-owned provider to the plugin.
+the collector layer, leave `AWS_LAMBDA_EXEC_WRAPPER` unset, keep active tracing
+enabled, and pass the application-owned provider to the plugin. Without an
+ambient Lambda span, `Invocation` uses the remote backend span directly.
 
 ```yaml
 Layers:
@@ -537,6 +599,7 @@ Layers:
 Environment:
   Variables:
     OPENTELEMETRY_COLLECTOR_CONFIG_URI: /var/task/collector.yaml
+Tracing: Active
 ```
 
 === "TypeScript"
@@ -660,8 +723,8 @@ Environment:
         `traceparent` data in Lambda client context.
     - **instrumentationName** Instrumentation scope name. Defaults to
         `aws-durable-execution-sdk-js`.
-    - **workflowSpanName** Name of the `Workflow` root span. Defaults to
-        `Workflow`.
+    - **workflowSpanName** Name of the execution-scoped `Workflow` span.
+        Defaults to `Workflow`.
     - **enrichLogger** Adds `traceId`, `spanId`, and `otelTraceSampled` to each
         durable log record. Defaults to `true`.
 
@@ -679,8 +742,8 @@ Environment:
         client context.
     - **instrument_name** Instrumentation scope name. Defaults to
         `aws-durable-execution-sdk-python`.
-    - **workflow_span_name** Name of the `Workflow` root span. Defaults to
-        `Workflow`.
+    - **workflow_span_name** Name of the execution-scoped `Workflow` span.
+        Defaults to `Workflow`.
     - **enrich_logger** Installs a root-logger filter that stamps trace context
         onto log records. Defaults to `True`.
 
@@ -763,7 +826,10 @@ therefore requires a global OpenTelemetry provider.
 
 ## Correlate logs with traces
 
-The plugin stamps active trace and span IDs onto log records. See
+The plugin stamps active trace and span IDs onto log records. Logs from every
+reinvocation of one execution use the same canonical `traceId`. The `spanId`
+identifies the active invocation, operation, or attempt, and
+`otelTraceSampled` reflects the effective sampled flag. See
 [Logging](logging.md) for the SDK logger.
 
 === "TypeScript"
@@ -788,14 +854,24 @@ The plugin stamps active trace and span IDs onto log records. See
 ## Verify
 
 Invoke a durable function that includes a wait or resume so it runs across more
-than one Lambda invocation. In CloudWatch Traces, expect:
+than one Lambda invocation. In CloudWatch Traces, expect one canonical trace ID
+for every span carrying the execution ARN:
 
-- A deterministic `Workflow` trace exported when the execution completes.
-- One ambient Lambda trace per invocation, containing the plugin's `Invocation`
-    span.
-- Operation links between the workflow and invocation views.
-- Log records whose trace fields match the active invocation, operation, or
-    attempt span.
+- The durable backend server span is the common ancestor when CloudWatch
+    returns it. `Workflow` is its direct child.
+- Each `Invocation` is a child of a same-trace ambient Lambda span, or a direct
+    child of the backend server span when no valid ambient span exists.
+- `ExecutionOtelPlugin` operations are children of `Workflow` and link to the
+    invocations that observed them.
+- `InvocationOtelPlugin` operation segments are children of `Invocation` and
+    link to `Workflow`. A resumed wait or replayed operation also links to its
+    initial logical operation span.
+- Log records retain the canonical `traceId`. Their `spanId` values match the
+    active invocation, operation, or attempt.
+
+Some backend queries omit the remote backend span. In that case, `Workflow` and
+directly parented `Invocation` spans still contain its non-null parent span ID.
+Do not interpret the unresolved parent as a parentless Workflow span.
 
 For Java, use the CloudWatch **Group by nodes** view to inspect the hierarchy.
 The ungrouped X-Ray Segments Timeline cannot attach OTLP-exported spans beneath
@@ -814,7 +890,14 @@ If no plugin spans appear:
     `OPENTELEMETRY_COLLECTOR_CONFIG_URI` are configured.
 - For Java ADOT, confirm the plugin JAR is listed in
     `OTEL_JAVAAGENT_EXTENSIONS`.
-- Check provider sampling configuration when only some executions appear.
+- Check `_X_AMZN_TRACE_ID` and provider sampling configuration. An explicit
+    `Sampled=0` suppresses export, and `ParentBased` treats a missing sampled bit
+    as not sampled.
+
+If spans carrying one execution ARN use different trace IDs, confirm active
+tracing is enabled and that every invocation uses the same current plugin and
+context extractor. Missing or invalid remote parent data should still produce
+one canonical fallback trace, not one trace per invocation.
 
 ## See also
 
