@@ -21,7 +21,8 @@ the workflow, invocations, operations, and attempts in one trace.
 The two plugins provide different operation views within that trace:
 
 - **Workflow view**: `ExecutionOtelPlugin` parents operations to `Workflow`.
-    Operations and attempts link to the `Invocation` span that observed them.
+    Each operation or attempt span links to the current `Invocation` span when
+    that span is created.
 - **Invocation view**: `InvocationOtelPlugin` parents each operation segment to
     the current `Invocation`. Operations and attempts link to `Workflow`.
     Continuation and replay segments also link to the initial logical operation
@@ -111,9 +112,10 @@ visible. Register exactly one of them.
 ### ExecutionOtelPlugin
 
 `ExecutionOtelPlugin` provides a workflow-centered view. Operation spans are
-children of the `Workflow` span and link to the `Invocation` span that observed
-them. The `Workflow` span is exported only when the execution reaches a terminal
-status. An operation that suspends is also left unexported until it completes.
+children of the `Workflow` span and link to the current `Invocation` span when
+they are created. The `Workflow` span is exported only when the execution
+reaches a terminal status. An operation that suspends is also left unexported
+until it completes.
 
 Choose this plugin for shorter executions or when the durable workflow hierarchy
 is more important than seeing each invocation as it completes. Long-open
@@ -144,7 +146,7 @@ Remote backend server span
 |-- Workflow                              (exported on terminal status)
 |   |-- Operation: fetch-data  (STEP)     -> link to Invocation #1
 |   |   `-- Attempt: fetch-data attempt 1 -> link to Invocation #1
-|   |-- Operation: cooldown    (WAIT)     -> links to Invocation #1 and #2
+|   |-- Operation: cooldown    (WAIT)     -> link to Invocation #2
 |   `-- Operation: process     (STEP)     -> link to Invocation #2
 |       `-- Attempt: process attempt 1    -> link to Invocation #2
 |-- Ambient Lambda span #1
@@ -153,8 +155,11 @@ Remote backend server span
     `-- Invocation #2
 ```
 
-The operation links identify which invocation ran each part of the workflow.
-They do not make the invocation spans children of `Workflow`.
+Each operation or attempt span links only to the current invocation when that
+span is created. If an operation starts in one invocation and completes in
+another, its exported operation span links to the invocation that completes it;
+the plugin does not retain the earlier invocation span ID. These links do not
+make the invocation spans children of `Workflow`.
 
 ### InvocationOtelPlugin
 
@@ -218,7 +223,7 @@ For both plugins, your observability platform's quotas and limits apply.
 | ---------------------- | --------------------------------------------------------- | ----------------------------------------------------- |
 | Operation parent       | `Workflow`                                                | Current `Invocation`                                  |
 | Correlation link       | Operation or attempt to current `Invocation`              | Operation or attempt to `Workflow`                    |
-| Continuation link      | One operation span can link to several invocations        | Later segment links to initial logical operation span |
+| Continuation link      | Reconstructed span links only to current `Invocation`     | Later segment links to initial logical operation span |
 | Workflow export        | On terminal execution status                              | On terminal execution status                          |
 | Operation visibility   | When the operation completes                              | At each invocation boundary                           |
 | In-progress visibility | Limited until operations and the execution complete       | Each invocation appears as it completes               |
@@ -861,8 +866,8 @@ for every span carrying the execution ARN:
     returns it. `Workflow` is its direct child.
 - Each `Invocation` is a child of a same-trace ambient Lambda span, or a direct
     child of the backend server span when no valid ambient span exists.
-- `ExecutionOtelPlugin` operations are children of `Workflow` and link to the
-    invocations that observed them.
+- `ExecutionOtelPlugin` operations are children of `Workflow` and link only to
+    the current invocation when each span is created.
 - `InvocationOtelPlugin` operation segments are children of `Invocation` and
     link to `Workflow`. A resumed wait or replayed operation also links to its
     initial logical operation span.
