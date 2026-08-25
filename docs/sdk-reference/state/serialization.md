@@ -417,8 +417,14 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
 
 === "Java"
 
-    Coming soon. See
-    [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
+    Java provides `FileSystemSerDesStage`, a string-to-string pipeline stage. Compose
+    it after a value codec such as `JacksonSerDes`, then pass the resulting `SerDes`
+    to an operation. Other operations in the same handler continue to use the
+    default SerDes.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-walkthrough.java"
+    ```
 
 === "C#"
 
@@ -466,7 +472,20 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "Java"
 
-    Coming soon.
+    `FileSystemSerDesStage.builder(basePath)` creates a stage builder. The stage
+    must follow a value codec in a SerDes pipeline.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-signature.java"
+    ```
+
+    **Parameters:**
+
+    - `basePath` `Path` where the SDK writes data files. Set this to your
+        filesystem mount point.
+
+    **Returns:** A `FileSystemSerDesStage`. Append it to a value codec with
+    `then(...)` to create the `SerDes` used by durable operations.
 
 === "C#"
 
@@ -512,7 +531,23 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "Java"
 
-    Coming soon.
+    Java configures the filesystem stage through its builder rather than a
+    separate config object.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-config.java"
+    ```
+
+    **Methods:**
+
+    - `storageMode(...)` (optional) A `FileSystemStorageMode` value. Default:
+        `FileSystemStorageMode.ALWAYS`.
+    - `pathEncoding(...)` (optional) A `FileSystemPathEncoding` value. Default:
+        `FileSystemPathEncoding.URI`.
+    - `previewConfig(...)` (optional) A `PreviewConfig` for structured JSON
+        previews.
+    - `previewGenerator(...)` (optional) A custom function that receives the
+        preceding stage's string and `SerDesContext`, and returns a preview map.
 
 === "C#"
 
@@ -520,14 +555,14 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 ### Storage modes
 
-The `storageMode` enumerated field controls when the SDK writes to the filesystem.
+The storage mode setting controls when the SDK writes to the filesystem.
 
-`FileSystemSerdesMode.ALWAYS` writes every value to a file. The checkpoint stores
-only the file pointer.
+`ALWAYS` writes every value to a file. The checkpoint stores only the file
+pointer.
 
-`FileSystemSerdesMode.OVERFLOW` uses the standard durable execution checkpoint
-store and only writes to the filesystem when the value would exceed the durable
-execution checkpoint size limit. See
+`OVERFLOW` uses the standard durable execution checkpoint store and only writes
+to the filesystem when the value would exceed the durable execution checkpoint
+size limit. See
 [AWS Lambda service quotas](https://docs.aws.amazon.com/general/latest/gr/lambda-service.html).
 
 === "TypeScript"
@@ -544,7 +579,9 @@ execution checkpoint size limit. See
 
 === "Java"
 
-    Coming soon.
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-overflow.java"
+    ```
 
 === "C#"
 
@@ -552,14 +589,14 @@ execution checkpoint size limit. See
 
 ### Path encoding
 
-The `pathEncoding` field controls how the durable execution ARN and the entity ID
-become the on-disk directory and file names.
+The path encoding setting controls how the durable execution ARN and the entity
+ID become the on-disk directory and file names.
 
 `FileSystemPathEncoding.URI` builds a per-execution directory from the function
-name, execution name, and invocation ID parsed from the ARN, and encodes the entity
-ID with `encodeURIComponent` for the file name. Names stay readable when you read
-files directly from the mount. A very long entity ID may exceed the filesystem's
-per-name length limit, commonly 255 bytes.
+name, execution name, and invocation ID parsed from the ARN, and percent-encodes
+the entity ID for the file name. Names stay readable when you read files directly
+from the mount. A very long entity ID may exceed the filesystem's per-name length
+limit, commonly 255 bytes.
 
 `FileSystemPathEncoding.HASH` replaces the ARN and the entity ID with their SHA-256
 hex digests. Names are a fixed 64 characters and are always filesystem-safe
@@ -581,7 +618,9 @@ enough to exceed the name-length limit.
 
 === "Java"
 
-    Coming soon.
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-path-encoding.java"
+    ```
 
 === "C#"
 
@@ -655,7 +694,29 @@ default.
 
 === "Java"
 
-    Coming soon.
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-preview.java"
+    ```
+
+    **`PreviewConfig` fields:**
+
+    - `mode` Either `PreviewMode.INCLUDE_ALL` or `PreviewMode.EXCLUDE_ALL`. Sets
+        the starting point before applying include, exclude, and mask selectors.
+    - `include` (optional) Fields to add when starting from `EXCLUDE_ALL`.
+    - `exclude` (optional) Fields to remove. Always wins over `mask`.
+    - `mask` (optional) Fields whose values become `maskString`. A masked field
+        is visible unless it is also excluded.
+    - `maskString` (optional) Replacement value for masked fields. Default:
+        `"***"`.
+    - `maxPreviewBytes` (optional) Maximum estimated UTF-8 size for accepted
+        preview entries. Default: `4096`.
+
+    Use `PreviewField.anywhere("name")` to match a field name at any depth, or
+    `PreviewField.path("customer.status")` to match an exact dot-separated path.
+    The built-in `previewConfig(...)` requires the preceding pipeline stage to
+    produce JSON. For another format, use `previewGenerator(...)`. The custom
+    generator also receives `SerDesContext`; during serialization,
+    `originalValue()` contains the object supplied to the root value codec.
 
 === "C#"
 
@@ -684,8 +745,25 @@ once with `configureSerdes`.
 
 === "Java"
 
-    Coming soon. See
-    [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
+    Override `createConfiguration()` and set the composed SerDes with
+    `withSerDes(...)`. Filesystem access is blocking, so use a dedicated SerDes
+    executor in production. It must be different from the user-operation
+    executor.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-default.java"
+    ```
+
+    Java writes immutable, content-hashed payload files with a unique name and
+    does not overwrite files referenced by earlier checkpoints. The SDK does not
+    delete payload files; configure retention or lifecycle management on the
+    backing storage. Publication uses one `CREATE_NEW` write without hard links
+    or renames, so the write path supports both EFS and S3 Files.
+
+    Filesystem read and write failures use `RetryableSerDesException`. To retry
+    those failures, wrap the filesystem stage in `RetrySerDesStage` with a short,
+    bounded retry strategy before appending it to the pipeline. Malformed
+    envelopes, invalid paths, and codec failures are permanent.
 
 === "C#"
 
