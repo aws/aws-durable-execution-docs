@@ -370,6 +370,49 @@ Map and parallel perations support two SerDes fields that apply at different lev
     --8<-- "examples/csharp/sdk-reference/serialization/PassThroughSerdesExample.cs"
     ```
 
+## SerDes pipelines
+
+A SerDes pipeline starts with one value codec that converts objects to and from strings.
+Additional reversible stages transform the serialized string for behavior such as
+compression, encryption, or external storage.
+
+=== "TypeScript"
+
+    Coming soon.
+
+=== "Python"
+
+    Coming soon.
+
+=== "Java"
+
+    Call `then(...)` on a `SerDes` value codec to append one or more `SerDesStage`
+    instances. Serialization runs in declaration order. Deserialization reverses the
+    stages, then passes the resulting string to the value codec.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/serdes-pipeline.java"
+    ```
+
+    Every stage must use a self-identifying format. During deserialization, a stage:
+
+    - reverses input in its recognized format;
+    - rejects recognized input that is malformed or uses an unsupported version; and
+    - returns unrecognized input unchanged.
+
+    The SDK passes the same `SerDesContext` to each stage. During serialization,
+    `originalValue()` contains the object supplied to the root value codec. During
+    deserialization, `originalValue()` is `null`.
+
+    The example serializes with `JacksonSerDes`, converts its JSON string from UTF-8 to
+    Base64 inside a versioned binary stage, and then passes that string to the filesystem
+    stage. Deserialization reads the filesystem value first, reverses the Base64 stage,
+    and finally calls `JacksonSerDes`.
+
+=== "C#"
+
+    Coming soon.
+
 ## FileSystem serdes
 
 The FileSystem serdes stores data on the filesystem and keeps a file pointer in
