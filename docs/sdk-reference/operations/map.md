@@ -319,6 +319,8 @@ execution and the completion status of the result.
     CompletionConfig.minSuccessful(int count)
     CompletionConfig.toleratedFailureCount(int count)
     CompletionConfig.toleratedFailurePercentage(double percentage)
+    CompletionConfig.shouldComplete(
+        Function<CompletionStatus, CompletionDecision> decision)
     ```
 
 === "C#"
@@ -459,7 +461,9 @@ execution and the completion status of the result.
     enum ConcurrencyCompletionStatus {
         ALL_COMPLETED,
         MIN_SUCCESSFUL_REACHED,
-        FAILURE_TOLERANCE_EXCEEDED
+        FAILURE_TOLERANCE_EXCEEDED,
+        CUSTOM_COMPLETION_SUCCEEDED,
+        CUSTOM_COMPLETION_FAILED
     }
     ```
 
@@ -702,6 +706,37 @@ abandoned items, but cancellation is not guaranteed.
     | `minSuccessful(N)`              | `MIN_SUCCESSFUL_REACHED`      | `ALL_COMPLETED`                    |
     | `toleratedFailureCount(N)`      | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
     | `toleratedFailurePercentage(p)` | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
+
+    Use `CompletionConfig.shouldComplete(...)` when the predefined thresholds cannot
+    express the completion rule. The SDK evaluates the function as completion state
+    changes. It receives a `CompletionStatus` with `successCount`, `failureCount`,
+    `completedCount`, `totalCount`, and `allItemsRegistered`. Map registers all items
+    before processing begins.
+
+    Return `CompletionDecision.continueExecution()` to keep processing. Return
+    `CompletionDecision.complete(...)` with `CUSTOM_COMPLETION_SUCCEEDED` or
+    `CUSTOM_COMPLETION_FAILED` to stop and classify the result.
+
+    ```java
+    var completion = CompletionConfig.shouldComplete(status -> {
+        if (status.successCount() >= requiredSuccesses) {
+            return CompletionConfig.CompletionDecision.complete(
+                    ConcurrencyCompletionStatus.CUSTOM_COMPLETION_SUCCEEDED);
+        }
+        if (status.failureCount() >= failureLimit) {
+            return CompletionConfig.CompletionDecision.complete(
+                    ConcurrencyCompletionStatus.CUSTOM_COMPLETION_FAILED);
+        }
+        return CompletionConfig.CompletionDecision.continueExecution();
+    });
+    ```
+
+    A custom completion function is mutually exclusive with `minSuccessful`,
+    `toleratedFailureCount`, and `toleratedFailurePercentage`. It must return a
+    non-null decision. Keep it deterministic and free of side effects. Items that have
+    not started when it completes have status `SKIPPED`.
+    `CUSTOM_COMPLETION_FAILED` does not throw automatically. Inspect
+    `result.completionReason().isSucceeded()` to distinguish the custom outcomes.
 
 === "C#"
 
