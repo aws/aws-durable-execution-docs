@@ -84,8 +84,12 @@ Use map to apply the same operation to every item in a collection. Use
     **Parameters:**
 
     - `name` (required) A name for the map operation.
-    - `items` A `Collection<I>` of items to process. Its iteration order must be
-        deterministic. See [Java collection order](#java-collection-order).
+    - `items` A `Collection<I>` of items to process. Its iteration order must remain
+        stable during replay so item indexes match their checkpoints. Use an ordered
+        collection such as `List`, `LinkedHashSet`, or `TreeSet`. The SDK rejects
+        `HashSet` and the `keySet()`, `values()`, and `entrySet()` views of known
+        unordered maps. Copy or sort unordered inputs into a `List` before calling
+        `map()` or `mapAsync()`.
     - `resultType` `Class<O>` or `TypeToken<O>` for deserialization.
     - `function` A `MapFunction<I, O>` called for each item. See
         [Map Function](#map-function).
@@ -120,21 +124,6 @@ Use map to apply the same operation to every item in a collection. Use
     **Throws:** Item exceptions are captured in the `IBatchResult`. Inspect `Failed` to
     detect failures, or call `ThrowIfError()` to re-throw the first failure. The map
     throws `MapException` only when the `CompletionConfig` criteria are violated.
-
-### Java collection order
-
-The Java SDK assigns each map item a zero-based index and uses that order to match
-item checkpoints during replay. Pass a collection whose iteration order remains
-stable for the same input.
-
-`List` implementations, `LinkedHashSet`, and sorted sets such as `TreeSet` preserve
-deterministic order. The SDK rejects `HashSet` and the `keySet()`, `values()`, and
-`entrySet()` views of known unordered map implementations, including `HashMap`,
-`IdentityHashMap`, `WeakHashMap`, and `ConcurrentHashMap`. It throws
-`IllegalArgumentException` for these inputs.
-
-If source data comes from a set or map without an ordering guarantee, copy or sort
-it into a `List` before calling `map()` or `mapAsync()`.
 
 ### Map Function
 
