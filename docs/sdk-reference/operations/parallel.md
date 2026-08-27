@@ -326,6 +326,8 @@ execution and the completion status of the result.
     CompletionConfig.firstSuccessful()
     CompletionConfig.minSuccessful(int count)
     CompletionConfig.toleratedFailureCount(int count)
+    CompletionConfig.shouldComplete(
+        Function<CompletionStatus, CompletionDecision> decision)
     ```
 
 === "C#"
@@ -491,7 +493,9 @@ execution and the completion status of the result.
     enum ConcurrencyCompletionStatus {
         ALL_COMPLETED,
         MIN_SUCCESSFUL_REACHED,
-        FAILURE_TOLERANCE_EXCEEDED
+        FAILURE_TOLERANCE_EXCEEDED,
+        CUSTOM_COMPLETION_SUCCEEDED,
+        CUSTOM_COMPLETION_FAILED
     }
     ```
 
@@ -501,9 +505,9 @@ execution and the completion status of the result.
     - **`completionStatus`** why the operation completed. See
         [Completion strategies](#completion-strategies).
 
-    `ConcurrencyCompletionStatus.isSucceeded()` returns `true` for both `ALL_COMPLETED` and
-    `MIN_SUCCESSFUL_REACHED`. To check if any branch failed, use `result.failed() > 0`
-    (where `result` is a `ParallelResult`).
+    `ConcurrencyCompletionStatus.isSucceeded()` returns `true` for `ALL_COMPLETED`,
+    `MIN_SUCCESSFUL_REACHED`, and `CUSTOM_COMPLETION_SUCCEEDED`. To check if any branch
+    failed, use `result.failed() > 0` (where `result` is a `ParallelResult`).
 
     `ParallelResult` contains only aggregate counts. To get individual branch results, hold
     the `DurableFuture<T>` returned by each `branch()` call and call `.get()` on it after
@@ -769,6 +773,37 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
 
         `ParallelConfig` in Java does not support `toleratedFailurePercentage`. Use
         `toleratedFailureCount` instead.
+
+    Use `CompletionConfig.shouldComplete(...)` when the predefined thresholds cannot
+    express the completion rule. The SDK evaluates the function as completion state
+    changes. It receives a `CompletionStatus` with `successCount`, `failureCount`,
+    `completedCount`, `totalCount`, and `allItemsRegistered`. For parallel operations,
+    `allItemsRegistered` becomes `true` when `get()` or `close()` joins the operation.
+
+    Return `CompletionDecision.continueExecution()` to keep processing. Return
+    `CompletionDecision.complete(...)` with `CUSTOM_COMPLETION_SUCCEEDED` or
+    `CUSTOM_COMPLETION_FAILED` to stop and classify the result.
+
+    ```java
+    var completion = CompletionConfig.shouldComplete(status -> {
+        if (status.successCount() >= requiredSuccesses) {
+            return CompletionConfig.CompletionDecision.complete(
+                    ConcurrencyCompletionStatus.CUSTOM_COMPLETION_SUCCEEDED);
+        }
+        if (status.failureCount() >= failureLimit) {
+            return CompletionConfig.CompletionDecision.complete(
+                    ConcurrencyCompletionStatus.CUSTOM_COMPLETION_FAILED);
+        }
+        return CompletionConfig.CompletionDecision.continueExecution();
+    });
+    ```
+
+    A custom completion function is mutually exclusive with `minSuccessful` and
+    `toleratedFailureCount`. It must return a non-null decision. Keep it deterministic
+    and free of side effects. Registered branches that have not started when it
+    completes have status `SKIPPED`. `CUSTOM_COMPLETION_FAILED` does not throw
+    automatically. Inspect `result.completionStatus().isSucceeded()` to distinguish
+    the custom outcomes.
 
 === "C#"
 
