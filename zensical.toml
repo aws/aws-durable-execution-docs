@@ -118,6 +118,10 @@ nav = [
       { "Code Organization" = "patterns/best-practices/code-organization.md" },
     ]},
   ]},
+  { "Guides" = [
+    { "Guides" = "guides/index.md" },
+    { "JavaScript Runtimes" = "guides/javascript-runtimes.md" },
+  ]},
 ]
 
 # With the "extra_css" option you can add your own CSS styling to customize
