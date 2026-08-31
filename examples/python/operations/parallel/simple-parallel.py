@@ -23,4 +23,4 @@ def handler(event: dict, context: DurableContext) -> list[str]:
         [check_inventory, check_payment, check_shipping],
         name="check-services",
     )
-    return result.to_dict()
+    return result.get_results()

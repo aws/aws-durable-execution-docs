@@ -23,4 +23,4 @@ def handler(event: dict, context: DurableContext) -> list[str]:
         name="process-items",
         config=config,
     )
-    return result.to_dict()
+    return result.get_results()
