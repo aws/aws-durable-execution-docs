@@ -24,8 +24,16 @@ pip install aws-durable-execution-sdk-python-testing
 
 The SDK provides decorators to mark functions as durable:
 
-- `@durable_execution` - Marks your Lambda handler as a durable function
-- `@durable_step` - Marks a function that can be used with `context.step()`
-- `@durable_with_child_context` - Marks a function that receives a child context
+- **`@durable_execution`** marks your Lambda handler as a durable function.
+- **`@durable_step`** wraps a function so it can be passed to `context.step()`,
+    binding any extra arguments and preserving the function name.
+- **`@durable_with_child_context`** wraps a function that receives a child
+    `DurableContext`, for use with `context.run_in_child_context()`.
+- **`@durable_parallel_branch`** wraps a function into a named `ParallelBranch`
+    for `context.parallel()`. Call it with an optional `name` to produce the
+    decorator.
+- **`@durable_wait_for_callback`** wraps a submitter function for
+    `context.wait_for_callback()`, binding extra arguments alongside the
+    `callback_id` and `WaitForCallbackContext`.
 
 The Python SDK uses synchronous methods and does not support `await`.
