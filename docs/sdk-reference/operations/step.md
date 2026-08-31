@@ -239,13 +239,13 @@ The step will checkpoint the last error after exhausting all retry attempts.
     ```java
     interface StepContext {
         DurableLogger getLogger();
-        int getAttempt();      // current retry attempt, 0-based
+        int getAttempt();      // current retry attempt, 1-based
     }
     ```
 
     - `getLogger()` A logger enriched with execution context metadata. See
         [Logging](../observability/logging.md).
-    - `getAttempt()` The current retry attempt number (0-based).
+    - `getAttempt()` The current retry attempt number (1-based).
 
     Java `StepContext` does not expose replay state. Use `DurableContext.isReplaying()`
     in orchestration code outside the step function.
