@@ -16,4 +16,4 @@ def handler(event: dict, context: DurableContext) -> list[int]:
         square,
         name="square-numbers",
     )
-    return result.to_dict()
+    return result.get_results()

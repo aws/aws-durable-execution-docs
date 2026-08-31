@@ -29,4 +29,4 @@ def handler(event: dict, context: DurableContext) -> list[list[str]]:
         process_region,
         name="process-regions",
     )
-    return result.to_dict()
+    return result.get_results()
