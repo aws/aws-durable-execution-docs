@@ -34,10 +34,12 @@ Add to your `pom.xml` dependencies:
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java</artifactId>
+    <version>2.2.0</version>
 </dependency>
 <dependency>
     <groupId>com.amazonaws</groupId>
     <artifactId>aws-lambda-java-core</artifactId>
+    <version>1.4.0</version>
 </dependency>
 ```
 
