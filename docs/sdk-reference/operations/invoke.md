@@ -149,8 +149,8 @@ When this function runs:
     **Throws:**
 
     - `InvokeFailedException` if the invoked function fails.
-    - `InvokeTimedOutException` if the invocation times out (Python only, via
-    - `InvokeConfig.timeout`). `InvokeStoppedException` if the invocation was stopped.
+    - `InvokeTimedOutException` if the invocation reaches its service-side timeout.
+    - `InvokeStoppedException` if the invocation was stopped.
 
 === "C#"
 
@@ -325,10 +325,10 @@ failures without letting them terminate the calling function.
     --8<-- "examples/csharp/operations/invoke/handle-invocation-error.cs"
     ```
 
-Java exposes separate exception types for different failure modes:
-`InvokeFailedException` for function errors, `InvokeTimedOutException` for timeouts
-(Python only), and `InvokeStoppedException` when the invocation was stopped. All extend
-`InvokeException`.
+Java exposes separate exception types for different failure modes.
+`InvokeFailedException` represents function errors, `InvokeTimedOutException`
+represents service-side timeouts, and `InvokeStoppedException` represents stopped
+invocations. All extend `InvokeException`.
 
 ## See also
 
