@@ -85,8 +85,9 @@ execute the same operation concurrently for each item in a collection.
 
     **Parameters:**
 
-    - `functions` A sequence of callables, each receiving a `DurableContext` and returning
-        `T`.
+    - `functions` A sequence of branches. Each element is either a plain callable
+        `(ctx: DurableContext) -> T` or a `ParallelBranch[T]` wrapper that pairs a callable
+        with a name.
     - `name` (optional) A name for the parallel operation.
     - `config` (optional) A `ParallelConfig` object.
 
@@ -95,8 +96,18 @@ execute the same operation concurrently for each item in a collection.
     **Raises:** Branch exceptions are captured in the `BatchResult`. Call `throw_if_error()`
     to re-raise the first failure.
 
-    Each element in `functions` is a plain callable `(ctx: DurableContext) -> T`. Python has
-    no named-branch wrapper type.
+    **`ParallelBranch`**
+
+    Wrap a callable in `ParallelBranch` to give a branch a custom name in execution
+    history without defining a named function. The `durable_parallel_branch` decorator
+    produces the same wrapper from a function.
+
+    ```python
+    @dataclass(frozen=True)
+    class ParallelBranch(Generic[T]):
+        func: Callable          # receives a DurableContext
+        name: str | None = None
+    ```
 
 === "Java"
 
@@ -610,8 +621,9 @@ the parent context.
 
 === "Python"
 
-    Branch functions are synchronous callables that receive a `DurableContext` and return
-    `T`.
+    A branch is a synchronous callable that receives a `DurableContext` and returns `T`,
+    or a `ParallelBranch[T]` wrapping such a callable with a name. Wrap a branch in
+    `ParallelBranch` to name it in execution history without defining a named function.
 
     ```python
     --8<-- "examples/python/operations/parallel/named-branches.py"
