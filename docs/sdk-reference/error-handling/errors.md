@@ -105,15 +105,24 @@ error and the operation details.
     ```mermaid
     graph TD
       DEE[DurableExecutionsError]
-      DEE --> UnrecoverableError
       DEE --> ValidationError
       DEE --> SerDesError
-      DEE --> UserlandError
+      DEE --> UnrecoverableError
+      DEE --> DOE[DurableOperationError]
       UnrecoverableError --> ExecutionError
+      ExecutionError --> NonDeterministicExecutionError
       UnrecoverableError --> InvocationError
-      ExecutionError --> CallbackError
       InvocationError --> StepInterruptedError
-      UserlandError --> CallableRuntimeError
+      InvocationError --> RetryableSerDesError
+      DOE --> StepError
+      DOE --> InvokeError
+      DOE --> ChildContextError
+      DOE --> WaitForConditionError
+      DOE --> BatchCompletionError
+      DOE --> CallbackError
+      CallbackError --> CallbackExternalError
+      CallbackError --> CallbackTimeoutError
+      CallbackError --> CallbackSubmitterError
     ```
 
     ```python
@@ -122,12 +131,29 @@ error and the operation details.
 
     `DurableExecutionsError` is the base class for all SDK exceptions.
 
-    `CallableRuntimeError` wraps any exception your code throws inside a step. Its
-    `error_type`, `message`, `data`, and `stack_trace` attributes carry the details of the
-    original exception.
+    `DurableOperationError` is the base class for per-operation failures. `StepError`,
+    `InvokeError`, `ChildContextError`, and `WaitForConditionError` each report a failure
+    from the matching operation. `BatchCompletionError` reports a `map` or `parallel`
+    batch that a custom completion predicate marked failed. Inspect the failure through
+    its `error_type`, `message`, `data`, and `stack_trace` attributes. The SDK
+    reconstructs a `DurableOperationError` stand-in carrying those fields on both the
+    first run and replay, so the SDK does not preserve the original exception type.
+
+    `CallbackError` is the parent class for callback failures. `CallbackExternalError`
+    reports a failure the external entity sent through
+    `SendDurableExecutionCallbackFailure`. `CallbackTimeoutError` signals a callback that
+    exceeded its timeout. `CallbackSubmitterError` wraps a failure raised inside the
+    submitter function. Catch `CallbackError` to handle every callback failure with a
+    single branch.
+
+    `SerDesError` reports a permanent serialization or deserialization failure and does
+    not retry. `RetryableSerDesError` signals a transient one that fails the invocation
+    so the backend retries it.
 
     `ExecutionError` fails the execution without retry. `InvocationError` causes Lambda to
     retry the entire invocation. Both carry a `termination_reason` attribute.
+    `NonDeterministicExecutionError` is a subclass of `ExecutionError` that the SDK raises
+    when replay diverges from the recorded execution history.
 
     `StepInterruptedError` is a subclass of `InvocationError`. The SDK raises it when an
     at-most-once step started but Lambda was interrupted before the SDK checkpointed the
@@ -306,8 +332,11 @@ exception type when they encounter a value they cannot handle.
 
 === "Python"
 
-    When serialization or deserialization fails, the SDK raises `SerDesError`, returns a
-    `FAILED` status response, and does not retry.
+    A custom `SerDes` signals a permanent failure by raising `SerDesError`: the SDK
+    returns a `FAILED` status response and does not retry. For a transient failure, such
+    as an offloading `SerDes` whose network call times out, raise `RetryableSerDesError`
+    instead: the SDK fails the invocation so the backend retries it, rather than surfacing
+    the failure to your code.
 
     ```python
     --8<-- "examples/python/sdk-reference/error-handling/serdes-error.py"
