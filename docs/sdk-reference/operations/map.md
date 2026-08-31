@@ -84,7 +84,12 @@ Use map to apply the same operation to every item in a collection. Use
     **Parameters:**
 
     - `name` (required) A name for the map operation.
-    - `items` A `Collection<I>` of items to process.
+    - `items` A `Collection<I>` of items to process. Its iteration order must remain
+        stable during replay so item indexes match their checkpoints. Use an ordered
+        collection such as `List`, `LinkedHashSet`, or `TreeSet`. The SDK rejects
+        `HashSet` and the `keySet()`, `values()`, and `entrySet()` views of known
+        unordered maps. Copy or sort unordered inputs into a `List` before calling
+        `map()` or `mapAsync()`.
     - `resultType` `Class<O>` or `TypeToken<O>` for deserialization.
     - `function` A `MapFunction<I, O>` called for each item. See
         [Map Function](#map-function).
@@ -93,9 +98,10 @@ Use map to apply the same operation to every item in a collection. Use
     **Returns:** `MapResult<O>` from `map()`, or `DurableFuture<MapResult<O>>` from
     `mapAsync()`.
 
-    **Throws:** Item exceptions are captured in `MapResult`. Inspect `failed()` to detect
-    failures. If the SDK cannot reconstruct the original exception, it throws
-    `MapIterationFailedException`.
+    **Throws:** `IllegalArgumentException` if `items` is null or has a known
+    non-deterministic iteration order. Item exceptions are captured in `MapResult`.
+    Inspect `failed()` to detect failures. If the SDK cannot reconstruct the original
+    exception, it throws `MapIterationFailedException`.
 
 === "C#"
 
