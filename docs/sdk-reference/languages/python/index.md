@@ -37,3 +37,22 @@ The SDK provides decorators to mark functions as durable:
     `callback_id` and `WaitForCallbackContext`.
 
 The Python SDK uses synchronous methods and does not support `await`.
+
+## 2.x Upgrade
+
+When upgrading from `1.x` to `2.x`, review the Python SDK migration guide in the
+[SDK repository](https://github.com/aws/aws-durable-execution-sdk-python/blob/main/docs/migration-1.x-to-2.x.md).
+The main changes are:
+
+- Catch the typed, per-operation errors `StepError`, `InvokeError`,
+    `ChildContextError`, and `WaitForConditionError` (or the base
+    `DurableOperationError`) instead of the removed `CallableRuntimeError`.
+- Replace `except CallableRuntimeError` after `BatchResult.throw_if_error()` with
+    `ChildContextError`, `SerDesError`, and `BatchCompletionError`.
+- Catch serialization failures as `SerDesError` (a direct child of
+    `DurableExecutionsError`) instead of `ExecutionError`.
+- Expect the first-run serialize/deserialize round trip for `step`, child contexts,
+    `map`/`parallel`, and `wait_for_condition`, and ensure `wait_for_condition`
+    `initial_state` is serializable by the configured serdes.
+- Read the new `attempt` field on `StepContext` and `WaitForConditionCheckContext`, and
+    pass `attempt` when constructing those contexts directly in tests.
