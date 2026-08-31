@@ -38,6 +38,51 @@ the step result automatically.
     --8<-- "examples/csharp/sdk-reference/serialization/Walkthrough.cs"
     ```
 
+## First-run round trip
+
+On the first run of an operation the SDK serializes the result to the checkpoint. Some
+SDKs also deserialize that serialized value back before returning it, so the value your
+code receives on the first run is identical to the value replay reconstructs from the
+checkpoint. This matters when you use a custom serializer that is not a round-trip
+identity: with round-tripping, the first run sees the deserialized shape rather than the
+raw object you returned.
+
+=== "TypeScript"
+
+    `step`, child contexts, `map`, and `parallel` round-trip (serialize then deserialize)
+    the result on the first run, so first-run output matches replay. `invoke` and `wait`
+    do not round-trip a result. If your custom `Serdes` is not a round-trip identity, use
+    the deserialized shape in the code that follows the operation, or make the pair
+    reversible.
+
+=== "Python"
+
+    `step`, child contexts, `map`, `parallel`, and `wait_for_condition` round-trip
+    (serialize then deserialize) the result on the first run, so first-run output matches
+    replay. `invoke` and `wait` do not round-trip a result. If your custom `SerDes` is not
+    a round-trip identity, use the deserialized shape in the code that follows the
+    operation, or make the pair reversible.
+
+    `wait_for_condition` also round-trips `initial_state` through the configured `SerDes`
+    before the first check, so `initial_state` must be serializable by that `SerDes`.
+
+=== "Java"
+
+    By default, `step`, child contexts, `map`, `parallel`, and `waitForCondition`
+    round-trip (serialize then deserialize) the result on the first run, so first-run
+    output matches replay. `invoke` and `wait` do not round-trip a result. You can disable
+    this with `DurableConfig.builder().withDeserializeAfterSerialization(false)`; even when
+    disabled, a custom `SerDes` is still expected to be round-trip safe.
+
+=== "C#"
+
+    On the first run, the SDK serializes the operation result to the checkpoint but
+    returns the raw in-memory value; it deserializes the value only on replay. A custom
+    serializer that is not a round-trip identity therefore produces the raw object on the
+    first run and the deserialized value on replay. The result is serialized with the
+    single `ILambdaSerializer` registered on `ILambdaContext.Serializer`; there is no
+    per-operation serializer.
+
 ## Lambda handler serialization
 
 The Durable Execution SDK SerDes only applies to durable operation results. It does not
@@ -698,6 +743,13 @@ When serialization or deserialization fails, each SDK raises or throws a specifi
 exception type. See
 [Serialization errors](../error-handling/errors.md#serialization-errors) for the
 exception hierarchy and how to handle serialization failures.
+
+=== "Python"
+
+    A custom SerDes signals a permanent failure by raising `SerDesError`, which fails the
+    operation without retrying. For a transient failure that should retry, such as an
+    offloading SerDes whose network call times out, raise `RetryableSerDesError` instead.
+    It fails the invocation so the backend retries it rather than surfacing to your code.
 
 ## See also
 
