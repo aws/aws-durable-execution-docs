@@ -32,18 +32,17 @@ the docs repo:
 | Repository | Source path to read |
 |---|---|
 | [aws-durable-execution-sdk-js](https://github.com/aws/aws-durable-execution-sdk-js) | `packages/aws-durable-execution-sdk-js/src` |
-| [aws-durable-execution-sdk-python](https://github.com/aws/aws-durable-execution-sdk-python) | `src/aws_durable_execution_sdk_python` |
+| [aws-durable-execution-sdk-python](https://github.com/aws/aws-durable-execution-sdk-python) | `packages/aws-durable-execution-sdk-python/src/aws_durable_execution_sdk_python` |
 | [aws-durable-execution-sdk-java](https://github.com/aws/aws-durable-execution-sdk-java) | `sdk/src/main/java/software/amazon/lambda/durable` |
 | [aws-lambda-dotnet](https://github.com/aws/aws-lambda-dotnet) | `Libraries/src/Amazon.Lambda.DurableExecution` |
 
 Testing SDKs are useful for confirming example code compiles and runs. The
-JavaScript, Java, and C# testing SDKs live in the same repos as the main SDKs
-(under `-testing` package paths, or `Amazon.Lambda.DurableExecution.Testing`
-for C#). The Python testing SDK lives in a separate repo:
+JavaScript, Python, Java, and C# testing SDKs all live in the same repos as
+their main SDKs, under `-testing` package paths (or
+`Amazon.Lambda.DurableExecution.Testing` for C#):
 
 | Repository | Source path to read |
 |---|---|
-| [aws-durable-execution-sdk-python-testing](https://github.com/aws/aws-durable-execution-sdk-python-testing) | `src/aws_durable_execution_sdk_python_testing` |
 | [aws-lambda-dotnet](https://github.com/aws/aws-lambda-dotnet) | `Libraries/src/Amazon.Lambda.DurableExecution.Testing` |
 
 
