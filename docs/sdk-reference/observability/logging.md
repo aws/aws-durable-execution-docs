@@ -156,7 +156,7 @@ IDs, log sampling, and X-Ray tracing integration.
       "level": "INFO",
       "message": "Running step",
       "AWSRequestId": "72171fff-...",
-      "durableExecutionArn": "arn:aws:lambda:...",
+      "executionArn": "arn:aws:lambda:...",
       "operationId": "abc123",
       "operationName": "process",
       "attempt": "1"
@@ -197,8 +197,7 @@ depending on the logging context.
 This is the `DurableContext` passed to the durable handler. It enriches the output with
 the following fields:
 
-- `executionArn` (TypeScript, Python) / `durableExecutionArn` (Java MDC) the ARN of the
-    current durable execution
+- `executionArn` the ARN of the current durable execution
 - `requestId` the Lambda request ID
 
 ### DurableContext (child)
@@ -217,8 +216,8 @@ All DurableContext fields, plus:
 
 === "Java"
 
-    - `contextId` the operation ID of the child context operation
-    - `contextName` the name given to the child context, when you provide one
+    - `operationId` the operation ID of the child context operation
+    - `operationName` the name given to the child context, when you provide one
 
 === "C#"
 
@@ -402,7 +401,7 @@ interface.
     **`LoggerConfig`**
 
     ```java
-    public record LoggerConfig(boolean suppressReplayLogs) {
+    public record LoggerConfig(boolean suppressReplayLogs, boolean oldKeyNames) {
         public static LoggerConfig defaults()          // suppress replay logs (default)
         public static LoggerConfig withReplayLogging() // allow logs during replay
     }
@@ -412,6 +411,10 @@ interface.
 
     - `suppressReplayLogs` (`boolean`) When `true` (default), the SDK suppresses logs during
         replay. Use `LoggerConfig.withReplayLogging()` to set this to `false`.
+    - `oldKeyNames` (`boolean`) When `false` (default), the SDK uses the Java 2.x MDC keys
+        `executionArn`, `operationId`, and `operationName`. Set it to `true` temporarily
+        to emit the 1.x keys `durableExecutionArn`, `contextId`, and `contextName` while
+        migrating log queries and dashboards.
 
     ```java
     DurableConfig.builder()
