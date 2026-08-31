@@ -171,9 +171,9 @@ The step will checkpoint the last error after exhausting all retry attempts.
 
     ```java
     StepConfig.builder()
-        .retryStrategy(RetryStrategy)  // optional
-        .semantics(StepSemantics)      // optional
-        .serDes(SerDes)                // optional
+        .retryStrategy(RetryStrategy)          // optional
+        .semanticsPerRetry(StepSemantics)      // optional
+        .serDes(SerDes)                        // optional
         .build()
     ```
 
@@ -182,8 +182,8 @@ The step will checkpoint the last error after exhausting all retry attempts.
     - `retryStrategy` (optional) A `RetryStrategy` instance. Use
         `RetryStrategies.exponentialBackoff()` to build one. See
         [Retry strategies](../error-handling/retries.md).
-    - `semantics` (optional) `StepSemantics.AT_LEAST_ONCE_PER_RETRY` (default) or
-        `StepSemantics.AT_MOST_ONCE_PER_RETRY`.
+    - `semanticsPerRetry` (optional) `StepSemantics.AT_LEAST_ONCE_PER_RETRY`
+        (default) or `StepSemantics.AT_MOST_ONCE_PER_RETRY`.
     - `serDes` (optional) Custom `SerDes` for the step result. See
         [Serialization](../state/serialization.md).
 
@@ -240,14 +240,15 @@ The step will checkpoint the last error after exhausting all retry attempts.
     interface StepContext {
         DurableLogger getLogger();
         int getAttempt();      // current retry attempt, 0-based
-        boolean isReplaying();
     }
     ```
 
     - `getLogger()` A logger enriched with execution context metadata. See
         [Logging](../observability/logging.md).
     - `getAttempt()` The current retry attempt number (0-based).
-    - `isReplaying()` Whether the function is currently replaying from a checkpoint.
+
+    Java `StepContext` does not expose replay state. Use `DurableContext.isReplaying()`
+    in orchestration code outside the step function.
 
 === "C#"
 

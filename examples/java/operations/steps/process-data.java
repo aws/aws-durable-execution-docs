@@ -16,7 +16,7 @@ public class ProcessDataExample extends DurableHandler<Map<String, Object>, Map<
                 java.time.Duration.ofMinutes(5),
                 2.0,
                 software.amazon.lambda.durable.retry.JitterStrategy.FULL))
-            .semantics(StepSemantics.AT_LEAST_ONCE_PER_RETRY)
+            .semanticsPerRetry(StepSemantics.AT_LEAST_ONCE_PER_RETRY)
             .build();
 
         Map<String, Object> result = context.step("process_data", Map.class,
