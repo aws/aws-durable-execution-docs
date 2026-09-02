@@ -434,9 +434,15 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
 
 === "C#"
 
-    Not available. The .NET SDK has no FileSystem serdes. To keep large payloads out of the
-    checkpoint, write them to a persistent store (such as Amazon S3) inside a step and
-    checkpoint a pointer instead of the payload.
+    `FileSystemSerializer` wraps an inner `ILambdaSerializer` and writes each result to the
+    mounted filesystem, keeping only a file pointer in the checkpoint. Pass it to a single
+    operation through `StepConfig`, `ChildContextConfig`, or `WaitForConditionConfig`, or as the
+    `ItemSerializer` on `MapConfig`/`ParallelConfig`. Other operations in the same handler
+    continue to use the serializer registered at the host boundary.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesWalkthrough.cs"
+    ```
 
 ### Create a FileSystem serdes
 
@@ -482,7 +488,24 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "C#"
 
-    Not available.
+    `new FileSystemSerializer(inner, basePath, storageMode?, pathEncoding?)` returns a
+    serializer that implements both `ILambdaSerializer` and `IDurableResultSerializer`.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesSignature.cs"
+    ```
+
+    **Parameters:**
+
+    - `inner` The `ILambdaSerializer` that converts values to and from bytes (for example
+        `DefaultLambdaJsonSerializer`, or a wrapper that compresses). This is where the
+        on-the-wire format is controlled.
+    - `basePath` Directory where the SDK writes data files. Set this to your filesystem
+        mount point (for example `/mnt/efs`).
+    - `storageMode` (optional) A `FileSystemStorageMode` value. Default: `Always`.
+    - `pathEncoding` (optional) A `FileSystemPathEncoding` value. Default: `Uri`.
+
+    **Returns:** A serializer that reads and writes files under `basePath`.
 
 ### FileSystemSerdesConfig
 
@@ -528,7 +551,13 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "C#"
 
-    Not available.
+    The .NET SDK has no separate config object — pass `storageMode` and `pathEncoding` as
+    constructor arguments (see above). The **inner serializer** is where you control the
+    on-the-wire format; wrap it to compress results before they are written to disk.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesCompression.cs"
+    ```
 
 ### Storage modes
 
@@ -560,7 +589,13 @@ execution checkpoint size limit. See
 
 === "C#"
 
-    Not available.
+    `FileSystemStorageMode.Always` (default) writes every result to a file; the checkpoint
+    holds only the pointer. `FileSystemStorageMode.Overflow` keeps the result inline until it
+    would exceed the durable execution checkpoint size limit, then spills to a file.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesOverflow.cs"
+    ```
 
 ### Path encoding
 
@@ -597,7 +632,14 @@ enough to exceed the name-length limit.
 
 === "C#"
 
-    Not available.
+    `FileSystemPathEncoding.Uri` (default) builds human-navigable paths from the durable
+    execution ARN, with the entity id as the file name. `FileSystemPathEncoding.Hash` replaces
+    the ARN (directory) and entity id (file name) with their SHA-256 hex digest — fixed length
+    and always filesystem-safe.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesPathEncoding.cs"
+    ```
 
 ### Preview and PII masking
 
@@ -671,7 +713,9 @@ default.
 
 === "C#"
 
-    Not available.
+    Not yet supported in the .NET SDK. `FileSystemSerializer` writes the full serialized value
+    to the filesystem and stores only a file pointer in the checkpoint; inline previews and
+    field masking are planned as a follow-up.
 
 ### Set as the default for the handler
 
@@ -701,8 +745,10 @@ once with `configureSerdes`.
 
 === "C#"
 
-    Not available. The single `ILambdaSerializer` you register at the host boundary is
-    already applied to every durable operation result in the handler.
+    Not yet supported in the .NET SDK. Set `FileSystemSerializer` per operation via
+    `StepConfig.Serializer` (or `ItemSerializer` for Map/Parallel). An execution-wide default
+    serializer hook is planned as a follow-up; until then, the single `ILambdaSerializer` you
+    register at the host boundary applies to any operation that does not set its own.
 
 ## Serialization errors
 
