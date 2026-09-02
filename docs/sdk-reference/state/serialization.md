@@ -329,9 +329,12 @@ Map and parallel perations support two SerDes fields that apply at different lev
 
 === "C#"
 
-    `MapConfig` does not expose a serializer, and there is no separate item-level
-    serializer. Each item result is serialized with the `ILambdaSerializer` registered at
-    the host boundary. `ParallelConfig` likewise has no serializer field.
+    Set `MapConfig<TItem>.ItemSerializer` (and `ParallelConfig.ItemSerializer`) to serialize
+    each item / branch **result** with a specific `ILambdaSerializer`. When `null` (default),
+    item results use the `ILambdaSerializer` registered at the host boundary. There is no
+    separate whole-result serializer: the aggregated batch envelope (per-item statuses and
+    completion reason) is an SDK-internal, source-generated structure and is not
+    user-serialized — only the per-item results are.
 
     ```csharp
     --8<-- "examples/csharp/sdk-reference/serialization/MapConfigExample.cs"
