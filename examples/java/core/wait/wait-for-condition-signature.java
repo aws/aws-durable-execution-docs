@@ -25,7 +25,7 @@ public record WaitForConditionResult<T>(T value, boolean isDone) {
 
 // Config
 WaitForConditionConfig.<T>builder()
-    .waitStrategy(strategy)     // optional, defaults to exponential backoff
+    .waitStrategy(strategy)     // optional, defaults to WaitStrategies.defaultStrategy()
     .initialState(initialState) // optional, defaults to null
     .serDes(serDes)             // optional
     .build();

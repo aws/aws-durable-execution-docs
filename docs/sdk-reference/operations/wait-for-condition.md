@@ -219,6 +219,20 @@ re-use common wait strategy logic without having to code your own function.
     --8<-- "examples/java/core/wait/strategy-helper.java"
     ```
 
+    `WaitStrategies.defaultStrategy()` returns the same strategy as
+    `WaitStrategies.Presets.DEFAULT`: 60 maximum attempts, a 5-second initial delay, a
+    5-minute maximum delay, a 1.5x backoff rate, and full jitter.
+
+    Use `WaitStrategies.exponentialBackoff(...)` to customize each backoff parameter.
+    Use `WaitStrategies.fixedDelay(maxAttempts, delay)` for a constant delay between
+    checks. Both factories count attempts from 1 and throw
+    `WaitForConditionFailedException` when the check remains incomplete after
+    `maxAttempts`.
+
+    Java's strategy factories do not accept `shouldContinuePolling`. The check function
+    controls completion by returning `WaitForConditionResult.stopPolling(...)` or
+    `WaitForConditionResult.continuePolling(...)`.
+
 === "C#"
 
     ```csharp
