@@ -99,8 +99,13 @@ Each SDK uses a default SerDes when you do not provide one.
 
 === "C#"
 
-    There is no per-operation default SerDes. Register a single `ILambdaSerializer` at the
-    host boundary and the SDK uses it for every durable operation result.
+    The default is the single `ILambdaSerializer` registered at the host boundary — the SDK
+    uses it for every durable operation result and for the handler's return value. An
+    optional per-operation override is available (see
+    [Custom SerDes on durable operations](#custom-serdes-on-durable-operations)): set
+    `Serializer` on `StepConfig`, `CallbackConfig`, `InvokeConfig`,
+    `WaitForConditionConfig<TState>`, or `ChildContextConfig` to use a different
+    `ILambdaSerializer` for that one operation.
 
     Use `DefaultLambdaJsonSerializer` (from `Amazon.Lambda.Serialization.SystemTextJson`)
     for reflection-based serialization. For AOT or trim-friendly functions, use
@@ -163,8 +168,10 @@ Each SDK uses a default SerDes when you do not provide one.
 
 === "C#"
 
-    .NET has no per-operation SerDes interface. Serialization is controlled by the single
-    `ILambdaSerializer` registered on `ILambdaContext.Serializer`.
+    .NET has no separate per-operation SerDes interface — it reuses the standard
+    `ILambdaSerializer` contract. Serialization defaults to the single `ILambdaSerializer`
+    registered on `ILambdaContext.Serializer`, and an individual operation can override it
+    by setting `Serializer` (an `ILambdaSerializer`) on that operation's config.
 
     ```csharp
     --8<-- "examples/csharp/sdk-reference/serialization/SerdesInterface.cs"
@@ -240,9 +247,10 @@ same handler continue to use the default.
 
 === "C#"
 
-    `StepConfig` does not expose a serializer. The step result is serialized with the
-    `ILambdaSerializer` registered at the host boundary. Register a custom
-    `ILambdaSerializer` there to change how step results are serialized.
+    Set `StepConfig.Serializer` to serialize this step's result with a specific
+    `ILambdaSerializer`. When it is `null` (default), the step result is serialized with the
+    `ILambdaSerializer` registered at the host boundary. Only this step is affected; other
+    operations and the handler's return value continue to use the registered serializer.
 
     ```csharp
     --8<-- "examples/csharp/sdk-reference/serialization/StepConfigExample.cs"
@@ -276,9 +284,10 @@ system sends when it completes the callback.
 
 === "C#"
 
-    `CallbackConfig` does not expose a serializer. The payload the external system delivers
-    is deserialized with the `ILambdaSerializer` registered at the host boundary. Register a
-    custom `ILambdaSerializer` there to change how the callback payload is deserialized.
+    Set `CallbackConfig.Serializer` to deserialize the callback payload with a specific
+    `ILambdaSerializer`. When it is `null` (default), the payload the external system
+    delivers is deserialized with the `ILambdaSerializer` registered at the host boundary.
+    Only the deserialize path is used for callbacks.
 
     ```csharp
     --8<-- "examples/csharp/sdk-reference/serialization/CallbackConfigExample.cs"
