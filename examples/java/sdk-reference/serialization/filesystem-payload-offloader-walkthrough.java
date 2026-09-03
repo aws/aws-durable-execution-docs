@@ -4,23 +4,21 @@ import software.amazon.lambda.durable.DurableContext;
 import software.amazon.lambda.durable.DurableHandler;
 import software.amazon.lambda.durable.StepContext;
 import software.amazon.lambda.durable.config.StepConfig;
-import software.amazon.lambda.durable.serde.JacksonSerDes;
-import software.amazon.lambda.durable.serde.SerDes;
-import software.amazon.lambda.durable.serde.filesystem.FileSystemSerDesStage;
+import software.amazon.lambda.durable.offload.filesystem.FileSystemPayloadOffloader;
 
-public class FileSystemSerDesWalkthrough
+public class FileSystemPayloadOffloaderWalkthrough
         extends DurableHandler<Object, Map<String, String>> {
     @Override
     public Map<String, String> handleRequest(Object input, DurableContext context) {
-        SerDes fileSystemSerDes = new JacksonSerDes()
-            .then(FileSystemSerDesStage.builder(Path.of("/mnt/s3")).build());
-
-        StepConfig config = StepConfig.builder()
-            .serDes(fileSystemSerDes)
+        var offloader = FileSystemPayloadOffloader
+            .builder(Path.of("/mnt/s3"))
             .build();
 
-        // Pass the pipeline to one step. Other operations in this handler keep
-        // using the default Jackson SerDes.
+        StepConfig config = StepConfig.builder()
+            .payloadOffloader(offloader)
+            .build();
+
+        // Only this step uses the filesystem offloader. Its SerDes is unchanged.
         return context.step(
             "fetch-order",
             Map.class,

@@ -125,58 +125,39 @@ public class ConfiguredHandler extends DurableHandler<Input, Output> {
 The configured executor is used for user operations such as async steps and concurrent
 branches. Internal SDK polling and checkpoint coordination use SDK-managed threads.
 
-## SerDes pipelines
+## Payload offloading
 
-A Java SerDes pipeline starts with one value codec that converts objects to and from
-strings. Additional reversible stages transform the serialized string for behavior such
-as compression, encryption, or external storage.
+Java separates value serialization from external payload storage. `SerDes` converts
+objects to and from serialized text. A `PayloadOffloader` runs after serialization and
+stores that text inline or in an external system.
 
-Call `then(...)` on a `SerDes` value codec to append one or more `SerDesStage` instances.
-Serialization runs in declaration order. Deserialization reverses the stages, then
-passes the resulting string to the value codec.
+This separation lets applications add filesystem storage without replacing or wrapping
+an existing custom `SerDes`:
 
 ```java
 import java.nio.file.Path;
-import software.amazon.lambda.durable.config.StepConfig;
-import software.amazon.lambda.durable.serde.Base64StringBinaryCodec;
-import software.amazon.lambda.durable.serde.ComposableBinarySerDesStage;
-import software.amazon.lambda.durable.serde.JacksonSerDes;
-import software.amazon.lambda.durable.serde.SerDes;
-import software.amazon.lambda.durable.serde.Utf8StringBinaryCodec;
-import software.amazon.lambda.durable.serde.filesystem.FileSystemSerDesStage;
+import software.amazon.lambda.durable.DurableConfig;
+import software.amazon.lambda.durable.offload.filesystem.FileSystemPayloadOffloader;
 
-var base64Stage = ComposableBinarySerDesStage.builder()
-    .startWith(Utf8StringBinaryCodec.INSTANCE)
-    .endWith(Base64StringBinaryCodec.INSTANCE)
-    .build();
-
-var fileSystemStage = FileSystemSerDesStage
+var offloader = FileSystemPayloadOffloader
     .builder(Path.of("/mnt/efs/durable-payloads"))
     .build();
 
-SerDes pipeline = new JacksonSerDes()
-    .then(base64Stage)
-    .then(fileSystemStage);
-
-StepConfig stepConfig = StepConfig.builder()
-    .serDes(pipeline)
+var config = DurableConfig.builder()
+    .withSerDes(customSerDes)
+    .withPayloadOffloader(offloader)
     .build();
 ```
 
-Every stage must use a self-identifying format. During deserialization, a stage:
+Configure an offloader globally with `withPayloadOffloader(...)`, or override it for an
+individual operation with `payloadOffloader(...)` on the operation config. Payload I/O
+runs inline by default; use `withPayloadOffloadExecutorService(...)` to isolate blocking
+storage work.
 
-- reverses input in its recognized format;
-- rejects recognized input that is malformed or uses an unsupported version; and
-- returns unrecognized input unchanged.
-
-The SDK passes the same `SerDesContext` to each stage. During serialization,
-`originalValue()` contains the object supplied to the root value codec. During
-deserialization, `originalValue()` is `null`.
-
-The example serializes with `JacksonSerDes`, converts its JSON string from UTF-8 to
-Base64 inside a versioned binary stage, and then passes that string to the filesystem
-stage. Deserialization reads the filesystem value first, reverses the Base64 stage, and
-finally calls `JacksonSerDes`.
+See
+[Filesystem payload storage](../state/serialization.md#filesystem-payload-storage)
+for filesystem configuration, previews, retries, security requirements, and lifecycle
+guidance.
 
 ## 2.x Upgrade
 

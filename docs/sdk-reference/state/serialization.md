@@ -370,16 +370,18 @@ Map and parallel perations support two SerDes fields that apply at different lev
     --8<-- "examples/csharp/sdk-reference/serialization/PassThroughSerdesExample.cs"
     ```
 
-## FileSystem serdes
+## Filesystem payload storage
 
-The FileSystem serdes stores data on the filesystem and keeps a file pointer in
-the checkpoint. This can be useful when you do not want to store your data in the
-checkpoint itself, for example when your payload exceeds the durable execution
+Filesystem payload storage keeps serialized data in a file and stores a file
+pointer in the checkpoint. TypeScript and Python expose it as a SerDes
+implementation. Java exposes it as a `PayloadOffloader` that runs independently
+after SerDes. Use filesystem storage when you do not want to store data in the
+checkpoint itself, for example when a payload exceeds the durable execution
 checkpoint size limit. The persisted value lives on the filesystem and the SDK
 reads it on replay.
 
-The FileSystem serdes requires a filesystem that persists across invocations and
-that every Lambda execution environment can read. In AWS Lambda, this means:
+Filesystem payload storage requires a filesystem that persists across invocations
+and that every Lambda execution environment can read. In AWS Lambda, this means:
 
 - [Amazon Elastic File System (Amazon EFS)](https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem-efs.html).
     Serverless file system that scales automatically with your workloads.
@@ -417,14 +419,13 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
 
 === "Java"
 
-    Java provides `FileSystemSerDesStage`, a string-to-string pipeline stage. Compose
-    it after a value codec such as `JacksonSerDes`, then pass the resulting `SerDes`
-    to an operation. See [SerDes pipelines](../languages/java/#serdes-pipelines) for
-    Java's composition model. Other operations in the same handler continue to use
-    the default SerDes.
+    Java provides `FileSystemPayloadOffloader`, which stores the text produced by
+    the configured `SerDes`. Pass it to an operation without changing that
+    operation's serializer. Other operations in the same handler continue to use
+    the handler's default payload-storage behavior.
 
     ```java
-    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-walkthrough.java"
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-payload-offloader-walkthrough.java"
     ```
 
 === "C#"
@@ -433,9 +434,10 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
     checkpoint, write them to a persistent store (such as Amazon S3) inside a step and
     checkpoint a pointer instead of the payload.
 
-### Create a FileSystem serdes
+### Create filesystem payload storage
 
-Create a FileSystem serdes and pass it to an operation's config.
+Create the language-specific filesystem storage component and pass it to an
+operation's config.
 
 === "TypeScript"
 
@@ -473,11 +475,11 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "Java"
 
-    `FileSystemSerDesStage.builder(basePath)` creates a stage builder. The stage
-    must follow a value codec in a SerDes pipeline.
+    `FileSystemPayloadOffloader.builder(basePath)` creates a filesystem offloader
+    builder.
 
     ```java
-    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-signature.java"
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-payload-offloader-signature.java"
     ```
 
     **Parameters:**
@@ -485,14 +487,14 @@ Create a FileSystem serdes and pass it to an operation's config.
     - `basePath` `Path` where the SDK writes data files. Set this to your
         filesystem mount point.
 
-    **Returns:** A `FileSystemSerDesStage`. Append it to a value codec with
-    `then(...)` to create the `SerDes` used by durable operations.
+    **Returns:** A `FileSystemPayloadOffloader` that can be configured globally or
+    on individual durable operations.
 
 === "C#"
 
     Not available.
 
-### FileSystemSerdesConfig
+### Configure filesystem payload storage
 
 === "TypeScript"
 
@@ -532,23 +534,25 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "Java"
 
-    Java configures the filesystem stage through its builder rather than a
+    Java configures the filesystem offloader through its builder rather than a
     separate config object.
 
     ```java
-    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-config.java"
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-payload-offloader-config.java"
     ```
 
     **Methods:**
 
-    - `storageMode(...)` (optional) A `FileSystemStorageMode` value. Default:
-        `FileSystemStorageMode.ALWAYS`.
+    - `storageMode(...)` (optional) A `PayloadOffloadMode` value. Default:
+        `PayloadOffloadMode.ALWAYS`.
     - `pathEncoding(...)` (optional) A `FileSystemPathEncoding` value. Default:
         `FileSystemPathEncoding.URI`.
+    - `checkpointEnvelopeLimitBytes(...)` (optional) Maximum UTF-8 size for inline
+        and reference checkpoint envelopes.
     - `previewConfig(...)` (optional) A `PreviewConfig` for structured JSON
         previews.
     - `previewGenerator(...)` (optional) A custom function that receives the
-        preceding stage's string and `SerDesContext`, and returns a preview map.
+        serialized string and `PayloadOffloadContext`, and returns a preview map.
 
 === "C#"
 
@@ -581,7 +585,7 @@ size limit. See
 === "Java"
 
     ```java
-    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-overflow.java"
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-payload-offloader-overflow.java"
     ```
 
 === "C#"
@@ -593,17 +597,14 @@ size limit. See
 The path encoding setting controls how the durable execution ARN and the entity
 ID become the on-disk directory and file names.
 
-`FileSystemPathEncoding.URI` builds a per-execution directory from the function
-name, execution name, and invocation ID parsed from the ARN, and percent-encodes
-the entity ID for the file name. Names stay readable when you read files directly
-from the mount. A very long entity ID may exceed the filesystem's per-name length
-limit, commonly 255 bytes.
+`FileSystemPathEncoding.URI` uses readable, percent-encoded ownership components.
+The exact directory and file-name layout is SDK-specific. A very long entity ID
+may exceed the filesystem's per-name length limit, commonly 255 bytes.
 
-`FileSystemPathEncoding.HASH` replaces the ARN and the entity ID with their SHA-256
-hex digests. Names are a fixed 64 characters and are always filesystem-safe
-regardless of the input characters or length. Choose `HASH` when entity IDs may
-contain characters that are unsafe in a file name, such as `/`, or may be long
-enough to exceed the name-length limit.
+`FileSystemPathEncoding.HASH` replaces ownership components with SHA-256 hex
+digests. Names are fixed-length and filesystem-safe regardless of the input
+characters or length. Choose `HASH` when entity IDs may contain unsafe
+characters, such as `/`, or may be long enough to exceed the name-length limit.
 
 === "TypeScript"
 
@@ -620,7 +621,7 @@ enough to exceed the name-length limit.
 === "Java"
 
     ```java
-    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-path-encoding.java"
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-payload-offloader-path-encoding.java"
     ```
 
 === "C#"
@@ -629,10 +630,10 @@ enough to exceed the name-length limit.
 
 ### Preview and PII masking
 
-When the FileSystem serdes writes to a file, the checkpoint envelope only contains
+When serialized data is written to a file, the checkpoint envelope only contains
 the file pointer, so the GetDurableExecution API and the AWS Console cannot show
-the actual data for that operation. Configure `generatePreview` to embed a small
-object inline so you can see the data without reading the file.
+the actual data for that operation. Configure a preview to embed a small object
+inline so you can see the data without reading the file.
 
 Use `buildPreview` to compute the preview from a `PreviewConfig`. The config
 selects which fields to include, exclude, or mask. Masking replaces a field's value
@@ -696,7 +697,7 @@ default.
 === "Java"
 
     ```java
-    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-preview.java"
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-payload-offloader-preview.java"
     ```
 
     **`PreviewConfig` fields:**
@@ -709,15 +710,18 @@ default.
         is visible unless it is also excluded.
     - `maskString` (optional) Replacement value for masked fields. Default:
         `"***"`.
-    - `maxPreviewBytes` (optional) Maximum estimated UTF-8 size for accepted
+    - `maxPreviewBytes` (optional) Maximum serialized UTF-8 size for accepted
         preview entries. Default: `4096`.
 
     Use `PreviewField.anywhere("name")` to match a field name at any depth, or
     `PreviewField.path("customer.status")` to match an exact dot-separated path.
-    The built-in `previewConfig(...)` requires the preceding pipeline stage to
-    produce JSON. For another format, use `previewGenerator(...)`. The custom
-    generator also receives `SerDesContext`; during serialization,
-    `originalValue()` contains the object supplied to the root value codec.
+    Escape a literal dot as `\.` and a literal backslash as `\\`.
+    The built-in `previewConfig(...)` expects the configured `SerDes` to produce
+    JSON. For another format, use `previewGenerator(...)`. The custom generator
+    also receives `PayloadOffloadContext`; during serialization,
+    `originalValue()` contains the original value supplied to `SerDes`. Preview
+    maps are snapshotted into immutable JSON-compatible values before the SDK
+    encodes the checkpoint envelope.
 
 === "C#"
 
@@ -725,9 +729,8 @@ default.
 
 ### Set as the default for the handler
 
-When you want every step result, child-context result, invoke result, and
-waitForCondition result in the handler to use the FileSystem serdes, configure it
-once with `configureSerdes`.
+When you want every supported operation result in the handler to use filesystem
+payload storage, configure it once at the handler level.
 
 === "TypeScript"
 
@@ -746,25 +749,33 @@ once with `configureSerdes`.
 
 === "Java"
 
-    Override `createConfiguration()` and set the composed SerDes with
-    `withSerDes(...)`. Filesystem access is blocking, so use a dedicated SerDes
+    Override `createConfiguration()` and set the offloader with
+    `withPayloadOffloader(...)`. This does not replace an existing custom
+    `SerDes`. Filesystem access is blocking, so use a dedicated payload-offload
     executor in production. It must be different from the user-operation
     executor.
 
     ```java
-    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-default.java"
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-payload-offloader-default.java"
     ```
 
     Java writes immutable, content-hashed payload files with a unique name and
     does not overwrite files referenced by earlier checkpoints. The SDK does not
     delete payload files; configure retention or lifecycle management on the
-    backing storage. Publication uses one `CREATE_NEW` write without hard links
-    or renames, so the write path supports both EFS and S3 Files.
+    backing storage. Retain files while an execution, replay, history inspection,
+    or delayed result consumer may reference them, and clean up orphaned files
+    externally. Publication uses one `CREATE_NEW` write without hard links or
+    renames, so the write path supports both EFS and S3 Files.
 
-    Filesystem read and write failures use `RetryableSerDesException`. To retry
-    those failures, wrap the filesystem stage in `RetrySerDesStage` with a short,
-    bounded retry strategy before appending it to the pipeline. Malformed
-    envelopes, invalid paths, and codec failures are permanent.
+    A stored reference is a capability, not an authentication credential.
+    Restrict access to the shared base path and protect checkpoint and history
+    data containing references with the same controls as the payload.
+
+    Filesystem read and write failures use
+    `RetryablePayloadOffloadException`. To retry those failures, wrap the
+    filesystem offloader in `RetryPayloadOffloader` with a short, bounded retry
+    strategy. Malformed envelopes, invalid paths, and serialization failures are
+    permanent.
 
 === "C#"
 
