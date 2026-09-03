@@ -81,8 +81,10 @@ The step will checkpoint the last error after exhausting all retry attempts.
 
     **Returns:** `T`, the return value of `func`.
 
-    **Raises:** `CallableRuntimeError` wrapping the original exception after retries are
-    exhausted. `StepInterruptedError` if an at-most-once step was interrupted.
+    **Raises:** `StepError` (a `DurableOperationError` subclass) wrapping the original
+    exception after retries are exhausted. An at-most-once step interrupted before it
+    checkpointed also surfaces as `StepError`, with `error_type` recording
+    `StepInterruptedError`. A permanent serializer failure raises `SerDesError`.
 
 === "Java"
 
@@ -229,10 +231,12 @@ The step will checkpoint the last error after exhausting all retry attempts.
     @dataclass(frozen=True)
     class StepContext:
         logger: LoggerInterface
+        attempt: int          # current attempt, 1-based
     ```
 
     - `logger` A logger enriched with execution context metadata. See
         [Logging](../observability/logging.md).
+    - `attempt` The current attempt number, starting at 1 for the first execution.
 
 === "Java"
 

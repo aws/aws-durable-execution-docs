@@ -127,7 +127,8 @@ When this function runs:
 
     **Returns:** `R`, the return value of the invoked function.
 
-    **Raises:** `CallableRuntimeError` if the invoked function fails or times out.
+    **Raises:** `InvokeError` (a `DurableOperationError` subclass) if the invoked function
+    fails, times out, or is stopped.
 
 === "Java"
 
