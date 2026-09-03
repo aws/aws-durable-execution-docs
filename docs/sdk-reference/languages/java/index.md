@@ -125,6 +125,40 @@ public class ConfiguredHandler extends DurableHandler<Input, Output> {
 The configured executor is used for user operations such as async steps and concurrent
 branches. Internal SDK polling and checkpoint coordination use SDK-managed threads.
 
+## Payload offloading
+
+Java separates value serialization from external payload storage. `SerDes` converts
+objects to and from serialized text. A `PayloadOffloader` runs after serialization and
+stores that text inline or in an external system.
+
+This separation lets applications add filesystem storage without replacing or wrapping
+an existing custom `SerDes`:
+
+```java
+import java.nio.file.Path;
+import software.amazon.lambda.durable.DurableConfig;
+import software.amazon.lambda.durable.offload.filesystem.FileSystemPayloadOffloader;
+
+var offloader = FileSystemPayloadOffloader
+    .builder(Path.of("/mnt/efs/durable-payloads"))
+    .build();
+
+var config = DurableConfig.builder()
+    .withSerDes(customSerDes)
+    .withPayloadOffloader(offloader)
+    .build();
+```
+
+Configure an offloader globally with `withPayloadOffloader(...)`, or override it for an
+individual operation with `payloadOffloader(...)` on the operation config. Payload I/O
+runs inline by default; use `withPayloadOffloadExecutorService(...)` to isolate blocking
+storage work.
+
+See
+[Filesystem payload storage](../state/serialization.md#filesystem-payload-storage)
+for filesystem configuration, previews, retries, security requirements, and lifecycle
+guidance.
+
 ## 2.x Upgrade
 
 When upgrading from `1.x` to `2.x`, review the Java SDK migration guide in the
