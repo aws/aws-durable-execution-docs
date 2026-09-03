@@ -13,10 +13,11 @@ public class MapConfigExample
     private async Task<IReadOnlyList<string>> Workflow(
         UrlEvent input, IDurableContext ctx)
     {
-        var config = new MapConfig
+        var config = new MapConfig<string>
         {
             MaxConcurrency = 5,
             CompletionConfig = new CompletionConfig { ToleratedFailureCount = 2 },
+            NestingType = NestingType.Flat,
         };
 
         IBatchResult<string> result = await ctx.MapAsync(

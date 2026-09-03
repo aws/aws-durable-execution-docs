@@ -5,8 +5,9 @@
 Map executes a function for each item in a collection concurrently. It manages
 concurrency, collects results as items complete, and checkpoints the outcome.
 
-Each item runs in its own [child context](child-context.md) and checkpoints its result
-independently as it completes.
+Each item runs in its own [child context](child-context.md). The default nested mode
+checkpoints that context and its result. Flat mode omits the per-item context checkpoint to
+reduce operation overhead.
 
 Use map to apply the same operation to every item in a collection. Use
 [parallel](parallel.md) instead to execute different operations concurrently.
@@ -84,7 +85,12 @@ Use map to apply the same operation to every item in a collection. Use
     **Parameters:**
 
     - `name` (required) A name for the map operation.
-    - `items` A `Collection<I>` of items to process.
+    - `items` A `Collection<I>` of items to process. Its iteration order must remain
+        stable during replay so item indexes match their checkpoints. Use an ordered
+        collection such as `List`, `LinkedHashSet`, or `TreeSet`. The SDK rejects
+        `HashSet` and the `keySet()`, `values()`, and `entrySet()` views of known
+        unordered maps. Copy or sort unordered inputs into a `List` before calling
+        `map()` or `mapAsync()`.
     - `resultType` `Class<O>` or `TypeToken<O>` for deserialization.
     - `function` A `MapFunction<I, O>` called for each item. See
         [Map Function](#map-function).
@@ -93,9 +99,10 @@ Use map to apply the same operation to every item in a collection. Use
     **Returns:** `MapResult<O>` from `map()`, or `DurableFuture<MapResult<O>>` from
     `mapAsync()`.
 
-    **Throws:** Item exceptions are captured in `MapResult`. Inspect `failed()` to detect
-    failures. If the SDK cannot reconstruct the original exception, it throws
-    `MapIterationFailedException`.
+    **Throws:** `IllegalArgumentException` if `items` is null or has a known
+    non-deterministic iteration order. Item exceptions are captured in `MapResult`.
+    Inspect `failed()` to detect failures. If the SDK cannot reconstruct the original
+    exception, it throws `MapIterationFailedException`.
 
 === "C#"
 
@@ -109,7 +116,7 @@ Use map to apply the same operation to every item in a collection. Use
     - `func` A function called for each item. See [Map Function](#map-function).
     - `name` (optional) A name for the map operation. Omit it to infer one from the
         call site.
-    - `config` (optional) A `MapConfig` object.
+    - `config` (optional) A `MapConfig<TItem>` object.
     - `cancellationToken` (optional) A token linked with the SDK's workflow-shutdown
         signal, forwarded to `func`.
 
@@ -202,6 +209,7 @@ Use map to apply the same operation to every item in a collection. Use
       completionConfig?: CompletionConfig;
       serdes?: Serdes<BatchResult<TResult>>;
       itemSerdes?: Serdes<TResult>;
+      summaryGenerator?: (result: BatchResult<TResult>) => string;
       nesting?: NestingType;
     }
     ```
@@ -214,19 +222,23 @@ Use map to apply the same operation to every item in a collection. Use
     - `completionConfig` (optional) When to stop. Default: wait for all items.
     - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
     - `itemSerdes` (optional) Custom `Serdes` for individual item results.
-    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. `FLAT`
-        reduces operation overhead by ~30% at the cost of lower observability.
+    - `summaryGenerator` (optional) A function invoked when the serialized `BatchResult`
+        exceeds 256KB. See [Checkpointing](#checkpointing).
+    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
 
 === "Python"
 
     ```python
     @dataclass(frozen=True)
-    class MapConfig:
+    class MapConfig(Generic[T]):
         max_concurrency: int | None = None
         completion_config: CompletionConfig = CompletionConfig()
         serdes: SerDes | None = None
         item_serdes: SerDes | None = None
         summary_generator: SummaryGenerator | None = None
+        nesting_type: NestingType = NestingType.NESTED
+        item_namer: Callable[[T, int], str] | None = None
     ```
 
     **Parameters:**
@@ -238,6 +250,10 @@ Use map to apply the same operation to every item in a collection. Use
     - `item_serdes` (optional) Custom `SerDes` for individual item results.
     - `summary_generator` (optional) A callable invoked when the serialized `BatchResult`
         exceeds 256KB. See [Checkpointing](#checkpointing).
+    - `nesting_type` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
+    - `item_namer` (optional) A deterministic callable that returns a custom name for each
+        item from the item and its zero-based index.
 
 === "Java"
 
@@ -246,6 +262,9 @@ Use map to apply the same operation to every item in a collection. Use
         .maxConcurrency(Integer)       // optional
         .completionConfig(CompletionConfig)  // optional
         .serDes(SerDes)                // optional
+        .nestingType(NestingType)      // optional
+        .itemNamer(BiFunction<Object, Integer, String>)  // optional
+        .itemNamer(Class<I>, BiFunction<? super I, Integer, String>)  // optional
         .build()
     ```
 
@@ -255,16 +274,22 @@ Use map to apply the same operation to every item in a collection. Use
     - `completionConfig` (optional) When to stop. Default:
         `CompletionConfig.allCompleted()`.
     - `serDes` (optional) Custom `SerDes` for item results and the overall result.
+    - `nestingType` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
+    - `itemNamer` (optional) A function that returns a custom name for each item from the
+        item and its zero-based index. Pass the item type as the first argument to receive
+        the item strongly typed instead of as `Object`. Java does not support `itemNamer`
+        with `NestingType.FLAT`.
 
 === "C#"
 
     ```csharp
-    public sealed class MapConfig
+    public sealed class MapConfig<TItem>
     {
         public int? MaxConcurrency { get; set; }               // null = unlimited
-        public CompletionConfig CompletionConfig { get; set; } // default AllCompleted()
+        public CompletionConfig CompletionConfig { get; set; } // default AllSuccessful()
         public NestingType NestingType { get; set; }           // default Nested
-        public Func<object, int, string>? ItemNamer { get; set; }
+        public Func<TItem, int, string>? ItemNamer { get; set; }
     }
     ```
 
@@ -272,11 +297,11 @@ Use map to apply the same operation to every item in a collection. Use
 
     - `MaxConcurrency` (optional) Maximum items running at once. `null` (default) is
         unlimited; must be at least 1 when set.
-    - `CompletionConfig` (optional) When to stop. Default: `CompletionConfig.AllCompleted()`.
-        Every item runs regardless of per-item failures.
-    - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`.
-        `Flat` records per-item results inline on the map operation instead of emitting a
-        per-item `CONTEXT` checkpoint.
+    - `CompletionConfig` (optional) When to stop. Default: `CompletionConfig.AllSuccessful()`.
+        Any item failure completes the map with `FailureToleranceExceeded`. Set
+        `CompletionConfig.AllCompleted()` to run every item regardless of failures.
+    - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`. See
+        [Nesting](#nesting).
     - `ItemNamer` (optional) A function that returns a custom name for each item, given the
         item and its zero-based index. Used in logs and traces. When `null` (default),
         items are named by index.
@@ -319,6 +344,8 @@ execution and the completion status of the result.
     CompletionConfig.minSuccessful(int count)
     CompletionConfig.toleratedFailureCount(int count)
     CompletionConfig.toleratedFailurePercentage(double percentage)
+    CompletionConfig.shouldComplete(
+        Function<CompletionStatus, CompletionDecision> decision)
     ```
 
 === "C#"
@@ -326,8 +353,8 @@ execution and the completion status of the result.
     Use the static factories or set the properties directly:
 
     ```csharp
-    CompletionConfig.AllCompleted()    // default for map: every item runs
-    CompletionConfig.AllSuccessful()   // ToleratedFailureCount = 0
+    CompletionConfig.AllSuccessful()   // default for map: ToleratedFailureCount = 0
+    CompletionConfig.AllCompleted()    // every item runs regardless of failures
     CompletionConfig.FirstSuccessful() // MinSuccessful = 1
 
     new CompletionConfig { MinSuccessful = count }
@@ -459,7 +486,9 @@ execution and the completion status of the result.
     enum ConcurrencyCompletionStatus {
         ALL_COMPLETED,
         MIN_SUCCESSFUL_REACHED,
-        FAILURE_TOLERANCE_EXCEEDED
+        FAILURE_TOLERANCE_EXCEEDED,
+        CUSTOM_COMPLETION_SUCCEEDED,
+        CUSTOM_COMPLETION_FAILED
     }
     ```
 
@@ -596,6 +625,14 @@ Name your map operations to make them easier to identify in logs and tests.
 
     Pass `name` as a keyword argument. Omit it or pass `None` to leave it unnamed.
 
+    Use `item_namer` in `MapConfig` to give each item a custom name:
+
+    ```python
+    config = MapConfig(item_namer=lambda order, index: f"order-{order['id']}")
+
+    context.map(orders, process_order, name="process-orders", config=config)
+    ```
+
 === "Java"
 
     ```java
@@ -604,6 +641,16 @@ Name your map operations to make them easier to identify in logs and tests.
 
     The name is always required in Java. The SDK derives each item's name from the operation
     name: `{name}-iteration-{index}`.
+
+    Use `itemNamer` in `MapConfig` to give each item a custom name:
+
+    ```java
+    var config = MapConfig.builder()
+            .itemNamer(Order.class, (order, index) -> "order-" + order.id())
+            .build();
+
+    context.map("process-orders", orders, ProcessedOrder.class, this::processOrder, config);
+    ```
 
 === "C#"
 
@@ -616,9 +663,9 @@ Name your map operations to make them easier to identify in logs and tests.
     Use `ItemNamer` in `MapConfig` to give each item a custom name:
 
     ```csharp
-    var config = new MapConfig
+    var config = new MapConfig<Order>
     {
-        ItemNamer = (item, index) => $"order-{((Order)item).Id}",
+        ItemNamer = (order, index) => $"order-{order.Id}",
     };
     ```
 
@@ -649,6 +696,22 @@ Configure map behavior using `MapConfig`:
     ```csharp
     --8<-- "examples/csharp/operations/map/map-config.cs"
     ```
+
+## Nesting
+
+Nested mode is the default. The SDK records each item context as a separate `CONTEXT`
+operation and checkpoints the item result there. Each item appears separately in the
+execution history.
+
+In flat mode, the SDK uses a virtual context for each item and omits the per-item
+`CONTEXT` operation. Durable operations inside the map function still checkpoint and
+appear as children of the map operation. The SDK records the item outcome with the parent
+map operation.
+
+Use flat mode for maps with many items when each item performs few durable operations and
+you do not need each item represented separately in the execution history. Flat mode
+removes one checkpointed operation per item while preserving checkpoints for durable
+operations inside each item.
 
 ## Completion strategies
 
@@ -703,6 +766,37 @@ abandoned items, but cancellation is not guaranteed.
     | `toleratedFailureCount(N)`      | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
     | `toleratedFailurePercentage(p)` | `FAILURE_TOLERANCE_EXCEEDED`  | `ALL_COMPLETED`                    |
 
+    Use `CompletionConfig.shouldComplete(...)` when the predefined thresholds cannot
+    express the completion rule. The SDK evaluates the function as completion state
+    changes. It receives a `CompletionStatus` with `successCount`, `failureCount`,
+    `completedCount`, `totalCount`, and `allItemsRegistered`. Map registers all items
+    before processing begins.
+
+    Return `CompletionDecision.continueExecution()` to keep processing. Return
+    `CompletionDecision.complete(...)` with `CUSTOM_COMPLETION_SUCCEEDED` or
+    `CUSTOM_COMPLETION_FAILED` to stop and classify the result.
+
+    ```java
+    var completion = CompletionConfig.shouldComplete(status -> {
+        if (status.successCount() >= requiredSuccesses) {
+            return CompletionConfig.CompletionDecision.complete(
+                    ConcurrencyCompletionStatus.CUSTOM_COMPLETION_SUCCEEDED);
+        }
+        if (status.failureCount() >= failureLimit) {
+            return CompletionConfig.CompletionDecision.complete(
+                    ConcurrencyCompletionStatus.CUSTOM_COMPLETION_FAILED);
+        }
+        return CompletionConfig.CompletionDecision.continueExecution();
+    });
+    ```
+
+    A custom completion function is mutually exclusive with `minSuccessful`,
+    `toleratedFailureCount`, and `toleratedFailurePercentage`. It must return a
+    non-null decision. Keep it deterministic and free of side effects. Items that have
+    not started when it completes have status `SKIPPED`.
+    `CUSTOM_COMPLETION_FAILED` does not throw automatically. Inspect
+    `result.completionReason().isSucceeded()` to distinguish the custom outcomes.
+
 === "C#"
 
     The `IBatchResult`'s `CompletionReason` indicates the stop condition. Items that were
@@ -710,8 +804,8 @@ abandoned items, but cancellation is not guaranteed.
 
     | `CompletionConfig`                   | Early exit `CompletionReason` | Full completion `CompletionReason` |
     | ------------------------------------ | ----------------------------- | ---------------------------------- |
-    | `AllCompleted()` (default)           | n/a                           | `AllCompleted`                     |
-    | `AllSuccessful()`                    | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `AllSuccessful()` (default)          | `FailureToleranceExceeded`    | `AllCompleted`                     |
+    | `AllCompleted()`                     | n/a                           | `AllCompleted`                     |
     | `FirstSuccessful()`                  | `MinSuccessfulReached`        | `AllCompleted`                     |
     | `MinSuccessful = N`                  | `MinSuccessfulReached`        | `AllCompleted`                     |
     | `ToleratedFailureCount = N`          | `FailureToleranceExceeded`    | `AllCompleted`                     |
@@ -794,9 +888,14 @@ propagating it immediately. Other items continue running.
 
 ## Checkpointing
 
-Each item checkpoints its result on completion. Items that have not completed when the
-map operation reaches its completion criteria remain with status `STARTED` and will
-receive no further checkpoint updates.
+Checkpoint behavior depends on the nesting type. In nested mode, each item checkpoints
+its result in a per-item `CONTEXT` operation. In flat mode, the SDK omits that context
+checkpoint and records the item outcome with the parent map operation. Durable operations
+inside an item still checkpoint in both modes.
+
+Items that have not completed when the map operation reaches its completion criteria
+receive no further checkpoint updates. Unless noted otherwise, the language-specific
+details below describe nested mode.
 
 === "TypeScript"
 
@@ -868,11 +967,11 @@ receive no further checkpoint updates.
 
 === "C#"
 
-    The `IBatchResult` is reconstructed from the per-item child-context checkpoints. The
-    aggregate is never stored as a single serialized blob. On replay, the SDK reassembles the
-    `IBatchResult` from those individual checkpoints without re-executing completed items.
+    In nested mode, the SDK reconstructs `IBatchResult` from the per-item child-context
+    checkpoints without re-executing completed items. In flat mode, the SDK records item
+    results and errors inline on the parent map operation instead.
 
-    Each item's result is serialized with the `ILambdaSerializer` registered on
+    The SDK serializes results with the `ILambdaSerializer` registered on
     `ILambdaContext.Serializer`; there is no per-item summary generator to configure.
 
 ## Nesting map operations

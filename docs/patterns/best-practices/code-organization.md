@@ -105,9 +105,9 @@ intent clear.
 ## Run independent work concurrently
 
 Use `parallel` for a fixed number of named branches and `map` to iterate over a
-variable-length list. Both are durable so each branch checkpoints independently and
-survives Lambda timeouts or sandbox crashes, unlike language-specific constructs such as
-`Promise.all`, `asyncio.gather`, or `CompletableFuture`.
+variable-length list. Both checkpoint durable progress and survive Lambda timeouts or
+sandbox crashes, unlike language-specific constructs such as `Promise.all`,
+`asyncio.gather`, or `CompletableFuture`.
 
 === "TypeScript"
 

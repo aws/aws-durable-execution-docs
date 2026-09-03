@@ -16,7 +16,7 @@ latest release from
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java</artifactId>
-    <version>1.2.1</version>
+    <version>2.2.0</version>
 </dependency>
 <dependency>
     <groupId>com.amazonaws</groupId>
@@ -31,7 +31,7 @@ For local and cloud tests, add the testing SDK in test scope:
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
-    <version>1.2.1</version>
+    <version>2.2.0</version>
     <scope>test</scope>
 </dependency>
 ```

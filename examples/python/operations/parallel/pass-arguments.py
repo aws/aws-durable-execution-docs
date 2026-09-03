@@ -19,4 +19,4 @@ def handler(event: dict, context: DurableContext) -> list[str]:
         [make_branch(item) for item in items],
         name="process-items",
     )
-    return result.to_dict()
+    return result.get_results()

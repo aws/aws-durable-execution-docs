@@ -5,8 +5,9 @@
 Parallel executes multiple operations concurrently. It manages concurrency, collects
 results as branches complete, and checkpoints the outcome.
 
-Each branch runs in its own [child context](child-context.md) and checkpoints its result
-independently as it completes.
+Each branch runs in its own [child context](child-context.md). The default nested mode
+checkpoints that context and its result. Flat mode omits the per-branch context checkpoint
+to reduce operation overhead.
 
 Use parallel to execute independent tasks concurrently. Use [map](map.md) instead to
 execute the same operation concurrently for each item in a collection.
@@ -84,8 +85,9 @@ execute the same operation concurrently for each item in a collection.
 
     **Parameters:**
 
-    - `functions` A sequence of callables, each receiving a `DurableContext` and returning
-        `T`.
+    - `functions` A sequence of branches. Each element is either a plain callable
+        `(ctx: DurableContext) -> T` or a `ParallelBranch[T]` wrapper that pairs a callable
+        with a name.
     - `name` (optional) A name for the parallel operation.
     - `config` (optional) A `ParallelConfig` object.
 
@@ -94,8 +96,18 @@ execute the same operation concurrently for each item in a collection.
     **Raises:** Branch exceptions are captured in the `BatchResult`. Call `throw_if_error()`
     to re-raise the first failure.
 
-    Each element in `functions` is a plain callable `(ctx: DurableContext) -> T`. Python has
-    no named-branch wrapper type.
+    **`ParallelBranch`**
+
+    Wrap a callable in `ParallelBranch` to give a branch a custom name in execution
+    history without defining a named function. The `durable_parallel_branch` decorator
+    produces the same wrapper from a function.
+
+    ```python
+    @dataclass(frozen=True)
+    class ParallelBranch(Generic[T]):
+        func: Callable          # receives a DurableContext
+        name: str | None = None
+    ```
 
 === "Java"
 
@@ -218,6 +230,7 @@ execute the same operation concurrently for each item in a collection.
       completionConfig?: CompletionConfig;
       serdes?: Serdes<BatchResult<TResult>>;
       itemSerdes?: Serdes<TResult>;
+      summaryGenerator?: (result: BatchResult<TResult>) => string;
       nesting?: NestingType;
     }
     ```
@@ -228,8 +241,10 @@ execute the same operation concurrently for each item in a collection.
     - `completionConfig` (optional) When to stop. Default: wait for all branches.
     - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
     - `itemSerdes` (optional) Custom `Serdes` for individual branch results.
-    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. `FLAT`
-        reduces operation overhead by ~30% at the cost of lower observability.
+    - `summaryGenerator` (optional) A function invoked when the serialized `BatchResult`
+        exceeds 256KB. See [Checkpointing](#checkpointing).
+    - `nesting` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
 
 === "Python"
 
@@ -241,6 +256,7 @@ execute the same operation concurrently for each item in a collection.
         serdes: SerDes | None = None
         item_serdes: SerDes | None = None
         summary_generator: SummaryGenerator | None = None
+        nesting_type: NestingType = NestingType.NESTED
     ```
 
     **Parameters:**
@@ -252,6 +268,8 @@ execute the same operation concurrently for each item in a collection.
     - `item_serdes` (optional) Custom `SerDes` for individual branch results.
     - `summary_generator` (optional) A callable invoked when the serialized `BatchResult`
         exceeds 256KB. See [Checkpointing](#checkpointing).
+    - `nesting_type` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
 
 === "Java"
 
@@ -259,6 +277,7 @@ execute the same operation concurrently for each item in a collection.
     ParallelConfig.builder()
         .maxConcurrency(Integer)      // optional
         .completionConfig(CompletionConfig)  // optional
+        .nestingType(NestingType)     // optional
         .build()
     ```
 
@@ -267,6 +286,8 @@ execute the same operation concurrently for each item in a collection.
     - `maxConcurrency` (optional) Maximum branches running at once. Default: unlimited.
     - `completionConfig` (optional) When to stop. Default:
         `CompletionConfig.allCompleted()`.
+    - `nestingType` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
+        [Nesting](#nesting).
 
 === "C#"
 
@@ -285,13 +306,11 @@ execute the same operation concurrently for each item in a collection.
         unlimited. Must be at least 1 when set.
     - `CompletionConfig` (optional) When to stop. Default:
         `CompletionConfig.AllSuccessful()`.
-    - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`.
-        `Flat` records per-branch results inline on the parallel operation instead of
-        emitting a per-branch `CONTEXT` checkpoint.
+    - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`. See
+        [Nesting](#nesting).
 
-    The `IBatchResult` is reconstructed from per-branch checkpoints, which are serialized
-    with the `ILambdaSerializer` registered on `ILambdaContext.Serializer`; there is no
-    per-operation serializer slot.
+    The SDK serializes results with the `ILambdaSerializer` registered on
+    `ILambdaContext.Serializer`; there is no per-operation serializer slot.
 
 ### CompletionConfig
 
@@ -326,6 +345,8 @@ execution and the completion status of the result.
     CompletionConfig.firstSuccessful()
     CompletionConfig.minSuccessful(int count)
     CompletionConfig.toleratedFailureCount(int count)
+    CompletionConfig.shouldComplete(
+        Function<CompletionStatus, CompletionDecision> decision)
     ```
 
 === "C#"
@@ -491,7 +512,9 @@ execution and the completion status of the result.
     enum ConcurrencyCompletionStatus {
         ALL_COMPLETED,
         MIN_SUCCESSFUL_REACHED,
-        FAILURE_TOLERANCE_EXCEEDED
+        FAILURE_TOLERANCE_EXCEEDED,
+        CUSTOM_COMPLETION_SUCCEEDED,
+        CUSTOM_COMPLETION_FAILED
     }
     ```
 
@@ -501,9 +524,9 @@ execution and the completion status of the result.
     - **`completionStatus`** why the operation completed. See
         [Completion strategies](#completion-strategies).
 
-    `ConcurrencyCompletionStatus.isSucceeded()` returns `true` for both `ALL_COMPLETED` and
-    `MIN_SUCCESSFUL_REACHED`. To check if any branch failed, use `result.failed() > 0`
-    (where `result` is a `ParallelResult`).
+    `ConcurrencyCompletionStatus.isSucceeded()` returns `true` for `ALL_COMPLETED`,
+    `MIN_SUCCESSFUL_REACHED`, and `CUSTOM_COMPLETION_SUCCEEDED`. To check if any branch
+    failed, use `result.failed() > 0` (where `result` is a `ParallelResult`).
 
     `ParallelResult` contains only aggregate counts. To get individual branch results, hold
     the `DurableFuture<T>` returned by each `branch()` call and call `.get()` on it after
@@ -598,8 +621,9 @@ the parent context.
 
 === "Python"
 
-    Branch functions are synchronous callables that receive a `DurableContext` and return
-    `T`.
+    A branch is a synchronous callable that receives a `DurableContext` and returns `T`,
+    or a `ParallelBranch[T]` wrapping such a callable with a name. Wrap a branch in
+    `ParallelBranch` to name it in execution history without defining a named function.
 
     ```python
     --8<-- "examples/python/operations/parallel/named-branches.py"
@@ -710,6 +734,22 @@ Configure parallel behavior using `ParallelConfig`:
     --8<-- "examples/csharp/operations/parallel/parallel-config.cs"
     ```
 
+## Nesting
+
+Nested mode is the default. The SDK records each branch context as a separate `CONTEXT`
+operation and checkpoints the branch result there. Each branch appears separately in the
+execution history.
+
+In flat mode, the SDK uses a virtual context for each branch and omits the per-branch
+`CONTEXT` operation. Durable operations inside the branch still checkpoint and appear as
+children of the parallel operation. The SDK records the branch outcome with the parent
+parallel operation.
+
+Use flat mode for parallel operations with many branches when each branch performs few
+durable operations and you do not need each branch represented separately in the
+execution history. Flat mode removes one checkpointed operation per branch while
+preserving checkpoints for durable operations inside each branch.
+
 ## Completion strategies
 
 `CompletionConfig` controls when the parallel operation completes. When the operation
@@ -769,6 +809,37 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
 
         `ParallelConfig` in Java does not support `toleratedFailurePercentage`. Use
         `toleratedFailureCount` instead.
+
+    Use `CompletionConfig.shouldComplete(...)` when the predefined thresholds cannot
+    express the completion rule. The SDK evaluates the function as completion state
+    changes. It receives a `CompletionStatus` with `successCount`, `failureCount`,
+    `completedCount`, `totalCount`, and `allItemsRegistered`. For parallel operations,
+    `allItemsRegistered` becomes `true` when `get()` or `close()` joins the operation.
+
+    Return `CompletionDecision.continueExecution()` to keep processing. Return
+    `CompletionDecision.complete(...)` with `CUSTOM_COMPLETION_SUCCEEDED` or
+    `CUSTOM_COMPLETION_FAILED` to stop and classify the result.
+
+    ```java
+    var completion = CompletionConfig.shouldComplete(status -> {
+        if (status.successCount() >= requiredSuccesses) {
+            return CompletionConfig.CompletionDecision.complete(
+                    ConcurrencyCompletionStatus.CUSTOM_COMPLETION_SUCCEEDED);
+        }
+        if (status.failureCount() >= failureLimit) {
+            return CompletionConfig.CompletionDecision.complete(
+                    ConcurrencyCompletionStatus.CUSTOM_COMPLETION_FAILED);
+        }
+        return CompletionConfig.CompletionDecision.continueExecution();
+    });
+    ```
+
+    A custom completion function is mutually exclusive with `minSuccessful` and
+    `toleratedFailureCount`. It must return a non-null decision. Keep it deterministic
+    and free of side effects. Registered branches that have not started when it
+    completes have status `SKIPPED`. `CUSTOM_COMPLETION_FAILED` does not throw
+    automatically. Inspect `result.completionStatus().isSucceeded()` to distinguish
+    the custom outcomes.
 
 === "C#"
 
@@ -866,9 +937,14 @@ propagating it immediately. Other branches continue running.
 
 ## Checkpointing
 
-Each branch checkpoints its result on completion. Branches that have not completed yet
-when the parallel operation reaches its completion criteria remain with status `STARTED`
-and will receive no further checkpoint updates.
+Checkpoint behavior depends on the nesting type. In nested mode, each branch checkpoints
+its result in a per-branch `CONTEXT` operation. In flat mode, the SDK omits that context
+checkpoint and records the branch outcome with the parent parallel operation. Durable
+operations inside a branch still checkpoint in both modes.
+
+Branches that have not completed when the parallel operation reaches its completion
+criteria receive no further checkpoint updates. Unless noted otherwise, the
+language-specific details below describe nested mode.
 
 === "TypeScript"
 
@@ -938,10 +1014,10 @@ and will receive no further checkpoint updates.
 
 === "C#"
 
-    Each branch checkpoints its result as it completes. The `IBatchResult` is reconstructed
-    from those per-branch checkpoints rather than stored as a single aggregate blob, so the
-    SDK reassembles it on replay from the individual branch results. Per-branch payloads are
-    serialized with the `ILambdaSerializer` registered on `ILambdaContext.Serializer`.
+    In nested mode, the SDK reconstructs `IBatchResult` from per-branch checkpoints.
+    In flat mode, the SDK records branch results and errors inline on the parent parallel
+    operation instead. The SDK serializes results with the `ILambdaSerializer` registered
+    on `ILambdaContext.Serializer`.
 
 ## Nesting parallel operations
 

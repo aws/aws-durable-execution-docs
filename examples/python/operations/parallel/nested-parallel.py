@@ -33,4 +33,4 @@ def handler(event: dict, context: DurableContext) -> list[list[str]]:
         [group_a, group_b],
         name="outer",
     )
-    return outer.to_dict()
+    return outer.get_results()

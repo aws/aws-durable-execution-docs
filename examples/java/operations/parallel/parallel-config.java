@@ -1,6 +1,7 @@
 import software.amazon.lambda.durable.DurableContext;
 import software.amazon.lambda.durable.DurableHandler;
 import software.amazon.lambda.durable.config.CompletionConfig;
+import software.amazon.lambda.durable.config.NestingType;
 import software.amazon.lambda.durable.config.ParallelConfig;
 import software.amazon.lambda.durable.model.ParallelResult;
 
@@ -10,6 +11,7 @@ public class ParallelConfigExample extends DurableHandler<Void, ParallelResult> 
         var config = ParallelConfig.builder()
                 .maxConcurrency(2)
                 .completionConfig(CompletionConfig.firstSuccessful())
+                .nestingType(NestingType.FLAT)
                 .build();
 
         try (var parallel = context.parallel("fetch-data", config)) {

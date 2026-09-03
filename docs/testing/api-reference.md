@@ -1007,7 +1007,7 @@ shared set of accessors.
     // Step error
     ErrorObject getError()
 
-    // Retry attempt number (0-based)
+    // Retry attempt number (1-based)
     int getAttempt()
     ```
 

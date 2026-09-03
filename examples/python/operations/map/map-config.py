@@ -5,7 +5,11 @@ from aws_durable_execution_sdk_python import (
     DurableContext,
     durable_execution,
 )
-from aws_durable_execution_sdk_python.config import CompletionConfig, MapConfig
+from aws_durable_execution_sdk_python.config import (
+    CompletionConfig,
+    MapConfig,
+    NestingType,
+)
 
 
 def fetch_url(
@@ -23,6 +27,7 @@ def handler(event: dict, context: DurableContext) -> list[str]:
     config = MapConfig(
         max_concurrency=5,
         completion_config=CompletionConfig(tolerated_failure_count=2),
+        nesting_type=NestingType.FLAT,
     )
     result: BatchResult[str] = context.map(
         event["urls"],
@@ -30,4 +35,4 @@ def handler(event: dict, context: DurableContext) -> list[str]:
         name="fetch-urls",
         config=config,
     )
-    return result.to_dict()
+    return result.get_results()

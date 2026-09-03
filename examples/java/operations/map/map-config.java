@@ -7,6 +7,7 @@ import software.amazon.lambda.durable.DurableContext;
 import software.amazon.lambda.durable.DurableHandler;
 import software.amazon.lambda.durable.config.CompletionConfig;
 import software.amazon.lambda.durable.config.MapConfig;
+import software.amazon.lambda.durable.config.NestingType;
 import software.amazon.lambda.durable.model.MapResult;
 
 public class MapConfigExample extends DurableHandler<List<String>, List<String>> {
@@ -17,6 +18,7 @@ public class MapConfigExample extends DurableHandler<List<String>, List<String>>
         var config = MapConfig.builder()
                 .maxConcurrency(5)
                 .completionConfig(CompletionConfig.toleratedFailureCount(2))
+                .nestingType(NestingType.FLAT)
                 .build();
 
         MapResult<String> result = context.map(
@@ -25,7 +27,9 @@ public class MapConfigExample extends DurableHandler<List<String>, List<String>>
                 String.class,
                 (url, index, ctx) -> ctx.step("fetch-" + index, String.class, s -> {
                     var request = HttpRequest.newBuilder(URI.create(url)).build();
-                    return HTTP.send(request, HttpResponse.BodyHandlers.ofString()).body();
+                    return HTTP.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+                            .join()
+                            .body();
                 }),
                 config);
 

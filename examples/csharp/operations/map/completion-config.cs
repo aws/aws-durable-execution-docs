@@ -11,7 +11,7 @@ public class CompletionConfigExample
     private async Task<IReadOnlyList<string>> Workflow(
         ItemEvent input, IDurableContext ctx)
     {
-        var config = new MapConfig
+        var config = new MapConfig<string>
         {
             CompletionConfig = new CompletionConfig { MinSuccessful = 3 },
         };
