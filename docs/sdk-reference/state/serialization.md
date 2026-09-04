@@ -488,8 +488,17 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "C#"
 
-    `new FileSystemSerializer(inner, basePath, storageMode?, pathEncoding?)` returns a
-    serializer that implements both `ILambdaSerializer` and `IDurableResultSerializer`.
+    `FileSystemSerializer` has two constructors, both returning a serializer that implements
+    both `ILambdaSerializer` and `IDurableResultSerializer`:
+
+    - `new FileSystemSerializer(inner, basePath, storageMode?, pathEncoding?)` — you supply
+        the inner serializer explicitly.
+    - `new FileSystemSerializer(basePath, storageMode?, pathEncoding?)` — no inner serializer.
+        The durable runtime binds the serializer registered at the host boundary (the
+        `[assembly: LambdaSerializer(...)]` serializer, or the one passed to
+        `LambdaBootstrapBuilder.Create(handler, serializer)`) as the inner when the instance
+        runs through a per-operation serializer slot. Use this when the on-the-wire format is
+        just the function's normal serializer, so you do not have to thread it in yourself.
 
     ```csharp
     --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesSignature.cs"
@@ -499,13 +508,19 @@ Create a FileSystem serdes and pass it to an operation's config.
 
     - `inner` The `ILambdaSerializer` that converts values to and from bytes (for example
         `DefaultLambdaJsonSerializer`, or a wrapper that compresses). This is where the
-        on-the-wire format is controlled.
+        on-the-wire format is controlled. Omit it to reuse the serializer registered at the
+        host boundary. An explicitly-supplied inner always wins over the global one.
     - `basePath` Directory where the SDK writes data files. Set this to your filesystem
         mount point (for example `/mnt/efs`).
     - `storageMode` (optional) A `FileSystemStorageMode` value. Default: `Always`.
     - `pathEncoding` (optional) A `FileSystemPathEncoding` value. Default: `Uri`.
 
     **Returns:** A serializer that reads and writes files under `basePath`.
+
+    A `FileSystemSerializer` built without an inner serializer only resolves the global
+    serializer when it is used through a per-operation slot (for example
+    `StepConfig.Serializer`). Using it as a plain `ILambdaSerializer` with no bound inner —
+    for instance as the host-boundary serializer — throws `InvalidOperationException`.
 
 ### FileSystemSerdesConfig
 
