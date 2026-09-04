@@ -99,8 +99,13 @@ Each SDK uses a default SerDes when you do not provide one.
 
 === "C#"
 
-    There is no per-operation default SerDes. Register a single `ILambdaSerializer` at the
-    host boundary and the SDK uses it for every durable operation result.
+    The default is the single `ILambdaSerializer` registered at the host boundary — the SDK
+    uses it for every durable operation result and for the handler's return value. An
+    optional per-operation override is available (see
+    [Custom SerDes on durable operations](#custom-serdes-on-durable-operations)): set
+    `Serializer` on `StepConfig`, `CallbackConfig`, `InvokeConfig`,
+    `WaitForConditionConfig<TState>`, or `ChildContextConfig` to use a different
+    `ILambdaSerializer` for that one operation.
 
     Use `DefaultLambdaJsonSerializer` (from `Amazon.Lambda.Serialization.SystemTextJson`)
     for reflection-based serialization. For AOT or trim-friendly functions, use
@@ -163,8 +168,10 @@ Each SDK uses a default SerDes when you do not provide one.
 
 === "C#"
 
-    .NET has no per-operation SerDes interface. Serialization is controlled by the single
-    `ILambdaSerializer` registered on `ILambdaContext.Serializer`.
+    .NET has no separate per-operation SerDes interface — it reuses the standard
+    `ILambdaSerializer` contract. Serialization defaults to the single `ILambdaSerializer`
+    registered on `ILambdaContext.Serializer`, and an individual operation can override it
+    by setting `Serializer` (an `ILambdaSerializer`) on that operation's config.
 
     ```csharp
     --8<-- "examples/csharp/sdk-reference/serialization/SerdesInterface.cs"
@@ -240,9 +247,10 @@ same handler continue to use the default.
 
 === "C#"
 
-    `StepConfig` does not expose a serializer. The step result is serialized with the
-    `ILambdaSerializer` registered at the host boundary. Register a custom
-    `ILambdaSerializer` there to change how step results are serialized.
+    Set `StepConfig.Serializer` to serialize this step's result with a specific
+    `ILambdaSerializer`. When it is `null` (default), the step result is serialized with the
+    `ILambdaSerializer` registered at the host boundary. Only this step is affected; other
+    operations and the handler's return value continue to use the registered serializer.
 
     ```csharp
     --8<-- "examples/csharp/sdk-reference/serialization/StepConfigExample.cs"
@@ -276,9 +284,10 @@ system sends when it completes the callback.
 
 === "C#"
 
-    `CallbackConfig` does not expose a serializer. The payload the external system delivers
-    is deserialized with the `ILambdaSerializer` registered at the host boundary. Register a
-    custom `ILambdaSerializer` there to change how the callback payload is deserialized.
+    Set `CallbackConfig.Serializer` to deserialize the callback payload with a specific
+    `ILambdaSerializer`. When it is `null` (default), the payload the external system
+    delivers is deserialized with the `ILambdaSerializer` registered at the host boundary.
+    Only the deserialize path is used for callbacks.
 
     ```csharp
     --8<-- "examples/csharp/sdk-reference/serialization/CallbackConfigExample.cs"
@@ -320,9 +329,12 @@ Map and parallel perations support two SerDes fields that apply at different lev
 
 === "C#"
 
-    `MapConfig` does not expose a serializer, and there is no separate item-level
-    serializer. Each item result is serialized with the `ILambdaSerializer` registered at
-    the host boundary. `ParallelConfig` likewise has no serializer field.
+    Set `MapConfig<TItem>.ItemSerializer` (and `ParallelConfig.ItemSerializer`) to serialize
+    each item / branch **result** with a specific `ILambdaSerializer`. When `null` (default),
+    item results use the `ILambdaSerializer` registered at the host boundary. There is no
+    separate whole-result serializer: the aggregated batch envelope (per-item statuses and
+    completion reason) is an SDK-internal, source-generated structure and is not
+    user-serialized — only the per-item results are.
 
     ```csharp
     --8<-- "examples/csharp/sdk-reference/serialization/MapConfigExample.cs"
@@ -422,9 +434,15 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
 
 === "C#"
 
-    Not available. The .NET SDK has no FileSystem serdes. To keep large payloads out of the
-    checkpoint, write them to a persistent store (such as Amazon S3) inside a step and
-    checkpoint a pointer instead of the payload.
+    `FileSystemSerializer` wraps an inner `ILambdaSerializer` and writes each result to the
+    mounted filesystem, keeping only a file pointer in the checkpoint. Pass it to a single
+    operation through `StepConfig`, `ChildContextConfig`, or `WaitForConditionConfig`, or as the
+    `ItemSerializer` on `MapConfig`/`ParallelConfig`. Other operations in the same handler
+    continue to use the serializer registered at the host boundary.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesWalkthrough.cs"
+    ```
 
 ### Create a FileSystem serdes
 
@@ -470,7 +488,39 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "C#"
 
-    Not available.
+    `FileSystemSerializer` has two constructors, both returning a serializer that implements
+    both `ILambdaSerializer` and `IDurableResultSerializer`:
+
+    - `new FileSystemSerializer(inner, basePath, storageMode?, pathEncoding?)` — you supply
+        the inner serializer explicitly.
+    - `new FileSystemSerializer(basePath, storageMode?, pathEncoding?)` — no inner serializer.
+        The durable runtime binds the serializer registered at the host boundary (the
+        `[assembly: LambdaSerializer(...)]` serializer, or the one passed to
+        `LambdaBootstrapBuilder.Create(handler, serializer)`) as the inner when the instance
+        runs through a per-operation serializer slot. Use this when the on-the-wire format is
+        just the function's normal serializer, so you do not have to thread it in yourself.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesSignature.cs"
+    ```
+
+    **Parameters:**
+
+    - `inner` The `ILambdaSerializer` that converts values to and from bytes (for example
+        `DefaultLambdaJsonSerializer`, or a wrapper that compresses). This is where the
+        on-the-wire format is controlled. Omit it to reuse the serializer registered at the
+        host boundary. An explicitly-supplied inner always wins over the global one.
+    - `basePath` Directory where the SDK writes data files. Set this to your filesystem
+        mount point (for example `/mnt/efs`).
+    - `storageMode` (optional) A `FileSystemStorageMode` value. Default: `Always`.
+    - `pathEncoding` (optional) A `FileSystemPathEncoding` value. Default: `Uri`.
+
+    **Returns:** A serializer that reads and writes files under `basePath`.
+
+    A `FileSystemSerializer` built without an inner serializer only resolves the global
+    serializer when it is used through a per-operation slot (for example
+    `StepConfig.Serializer`). Using it as a plain `ILambdaSerializer` with no bound inner —
+    for instance as the host-boundary serializer — throws `InvalidOperationException`.
 
 ### FileSystemSerdesConfig
 
@@ -516,7 +566,13 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "C#"
 
-    Not available.
+    The .NET SDK has no separate config object — pass `storageMode` and `pathEncoding` as
+    constructor arguments (see above). The **inner serializer** is where you control the
+    on-the-wire format; wrap it to compress results before they are written to disk.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesCompression.cs"
+    ```
 
 ### Storage modes
 
@@ -548,7 +604,13 @@ execution checkpoint size limit. See
 
 === "C#"
 
-    Not available.
+    `FileSystemStorageMode.Always` (default) writes every result to a file; the checkpoint
+    holds only the pointer. `FileSystemStorageMode.Overflow` keeps the result inline until it
+    would exceed the durable execution checkpoint size limit, then spills to a file.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesOverflow.cs"
+    ```
 
 ### Path encoding
 
@@ -585,7 +647,14 @@ enough to exceed the name-length limit.
 
 === "C#"
 
-    Not available.
+    `FileSystemPathEncoding.Uri` (default) builds human-navigable paths from the durable
+    execution ARN, with the entity id as the file name. `FileSystemPathEncoding.Hash` replaces
+    the ARN (directory) and entity id (file name) with their SHA-256 hex digest — fixed length
+    and always filesystem-safe.
+
+    ```csharp
+    --8<-- "examples/csharp/sdk-reference/serialization/FileSystemSerdesPathEncoding.cs"
+    ```
 
 ### Preview and PII masking
 
@@ -659,7 +728,9 @@ default.
 
 === "C#"
 
-    Not available.
+    Not yet supported in the .NET SDK. `FileSystemSerializer` writes the full serialized value
+    to the filesystem and stores only a file pointer in the checkpoint; inline previews and
+    field masking are planned as a follow-up.
 
 ### Set as the default for the handler
 
@@ -689,8 +760,10 @@ once with `configureSerdes`.
 
 === "C#"
 
-    Not available. The single `ILambdaSerializer` you register at the host boundary is
-    already applied to every durable operation result in the handler.
+    Not yet supported in the .NET SDK. Set `FileSystemSerializer` per operation via
+    `StepConfig.Serializer` (or `ItemSerializer` for Map/Parallel). An execution-wide default
+    serializer hook is planned as a follow-up; until then, the single `ILambdaSerializer` you
+    register at the host boundary applies to any operation that does not set its own.
 
 ## Serialization errors
 
