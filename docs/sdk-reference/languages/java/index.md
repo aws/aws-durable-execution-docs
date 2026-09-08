@@ -125,6 +125,115 @@ public class ConfiguredHandler extends DurableHandler<Input, Output> {
 The configured executor is used for user operations such as async steps and concurrent
 branches. Internal SDK polling and checkpoint coordination use SDK-managed threads.
 
+### DurableConfig options
+
+`DurableConfig.builder()` supports the following Java SDK settings:
+
+| Builder method                           | Purpose                                                                                                                                 | Default                                       |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| `withLambdaClientBuilder(...)`           | Customize the production AWS SDK client. See [Custom Lambda client](../../configuration/custom-lambda-client.md).                       | Client configured from the Lambda environment |
+| `withDurableExecutionClient(...)`        | Supply a `DurableExecutionClient`, primarily for tests and custom infrastructure.                                                       | Lambda-backed client                          |
+| `withSerDes(...)`                        | Set the default serializer for handler inputs, outputs, and durable operation state. See [Serialization](../../state/serialization.md). | `JacksonSerDes`                               |
+| `withExecutorService(...)`               | Set the executor for user-defined async and concurrent work.                                                                            | Cached daemon thread pool                     |
+| `withLoggerConfig(...)`                  | Configure replay suppression and MDC key compatibility. See [Logging](../../observability/logging.md).                                  | Suppress replay logs and use 2.x MDC keys     |
+| `withPollingStrategy(...)`               | Configure delays while polling the durable execution backend.                                                                           | `PollingStrategies.Presets.DEFAULT`           |
+| `withCheckpointDelay(...)`               | Delay checkpoint submission briefly so concurrent updates can be batched.                                                               | `Duration.ZERO`                               |
+| `withDeserializeAfterSerialization(...)` | Round-trip serialized operation results and exceptions before checkpointing.                                                            | `true`                                        |
+| `withCheckpointEmptyMap(...)`            | Emit checkpoints for empty map operations. This is a temporary compatibility option.                                                    | `false`                                       |
+| `withPlugins(...)`                       | Register lifecycle plugins explicitly. See [Plugins](../../observability/plugins.md).                                                   | No explicit plugins                           |
+
+`withDurableExecutionClient(...)` replaces the SDK's backend client. For normal
+production customization such as credentials, Region, HTTP settings, or AWS SDK retry
+policies, use `withLambdaClientBuilder(...)`.
+
+### Backend polling
+
+Backend polling is distinct from durable waits and user-code retry strategies. It
+controls how often the SDK checks for checkpoint and operation status updates.
+
+The default uses exponential backoff with a 1-second base interval, a 2x backoff rate,
+full jitter, and a 10-second maximum interval. Configure a different strategy with
+`PollingStrategies`:
+
+```java
+var polling = PollingStrategies.exponentialBackoff(
+        Duration.ofMillis(500),
+        1.5,
+        JitterStrategy.HALF,
+        Duration.ofSeconds(5));
+
+return DurableConfig.builder()
+        .withPollingStrategy(polling)
+        .build();
+```
+
+Use `PollingStrategies.fixedDelay(Duration)` for a constant interval or
+`PollingStrategies.at(Instant)` to schedule a poll at a specific time.
+
+### Checkpoint batching
+
+By default, `withCheckpointDelay(Duration.ZERO)` submits checkpoint updates as soon as
+possible. A short delay lets the SDK combine updates produced by concurrent operations
+into fewer backend requests:
+
+```java
+return DurableConfig.builder()
+        .withCheckpointDelay(Duration.ofMillis(10))
+        .build();
+```
+
+A longer delay can improve batching but also increases the time before completed work
+becomes durable. Use a small value and validate the latency tradeoff for your workload.
+
+### Serialization round-trip validation
+
+Java immediately deserializes serialized operation results and exceptions by default.
+This catches incompatible custom `SerDes` implementations before checkpointing and
+keeps values returned during initial execution consistent with values returned during
+replay.
+
+You can disable the additional deserialize pass:
+
+```java
+return DurableConfig.builder()
+        .withDeserializeAfterSerialization(false)
+        .build();
+```
+
+!!! warning
+
+    Disabling validation can hide serialization failures until replay, and initial
+    execution may return a different value shape than replay. Custom serializers must
+    remain round-trip safe even when validation is disabled.
+
+### Load plugins dynamically
+
+`withPlugins(...)` registers plugin instances in application code. Java can also load
+plugin providers from the application class path. Set `DURABLE_EXECUTION_PLUGINS` to an
+ordered, comma-separated list of provider names:
+
+```text
+DURABLE_EXECUTION_PLUGINS=otel-invocation,com.example.audit
+```
+
+The SDK discovers `DurableExecutionPluginProvider` implementations with
+`ServiceLoader`, but creates only the providers named in the environment variable.
+Dynamically loaded plugins run first in the listed order, followed by plugins supplied
+through `withPlugins(...)`.
+
+For a Lambda layer, place the provider JAR under `java/lib`. The JAR must contain this
+service-provider configuration file:
+
+```text
+META-INF/services/software.amazon.lambda.durable.plugin.DurableExecutionPluginProvider
+```
+
+The file contains the provider implementation class name. If you shade multiple
+providers into one JAR, configure the build to merge `META-INF/services` entries.
+Invalid or missing providers, duplicate configured or discovered provider names, and
+incompatible provider API versions cause `DurableConfig` construction to throw
+`IllegalStateException`.
+
 ## 2.x Upgrade
 
 When upgrading from `1.x` to `2.x`, review the Java SDK migration guide in the
