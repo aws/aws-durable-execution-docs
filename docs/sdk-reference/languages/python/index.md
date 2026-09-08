@@ -41,7 +41,7 @@ The Python SDK uses synchronous methods and does not support `await`.
 ## 2.x Upgrade
 
 When upgrading from `1.x` to `2.x`, review the Python SDK migration guide in the
-[SDK repository](https://github.com/aws/aws-durable-execution-sdk-python/blob/main/docs/migration-1.x-to-2.x.md).
+[SDK repository](https://github.com/aws/aws-durable-execution-sdk-python/blob/main/docs/migration-1.x-to-2.0.md).
 The main changes are:
 
 - Catch the typed, per-operation errors `StepError`, `InvokeError`,
