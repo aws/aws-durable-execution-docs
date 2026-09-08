@@ -38,6 +38,16 @@ the step result automatically.
     --8<-- "examples/csharp/sdk-reference/serialization/Walkthrough.cs"
     ```
 
+## Round-trip serialization
+
+The SDK round-trips an operation result by serializing and then deserializing it
+before returning it on the first run. This round trip ensures that the first run
+returns the same value that replay reconstructs from the operation's checkpoint.
+
+A serializer/deserializer pair should preserve the value across a round trip.
+`deserialize(serialize(value))` should be equivalent to `value`. If it is not,
+the round trip will change the operation result.
+
 ## Lambda handler serialization
 
 The Durable Execution SDK SerDes only applies to durable operation results. It does not
