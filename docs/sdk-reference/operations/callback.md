@@ -452,6 +452,10 @@ submitter step.
 
     - `retry_strategy` (optional) A callable returning a `RetryDecision` for the submitter
         step. See [Retry strategies](../error-handling/retries.md).
+    - `serdes` (optional, inherited from `CallbackConfig`) Custom `SerDes` that
+        deserializes the raw callback payload. The SDK then checkpoints the deserialized
+        value with the default SerDes, so the default SerDes must serialize whatever your
+        custom `SerDes` returns. See [Serialization](../state/serialization.md).
 
 === "Java"
 

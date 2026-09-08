@@ -237,8 +237,10 @@ execute the same operation concurrently for each item in a collection.
 
     **Parameters:**
 
-    - `maxConcurrency` (optional) Maximum branches running at once. Default: unlimited.
-    - `completionConfig` (optional) When to stop. Default: wait for all branches.
+    - `maxConcurrency` (optional) Maximum branches in flight at once. Default: unlimited.
+        See [Configuration](#configuration).
+    - `completionConfig` (optional) When to stop. See
+        [Completion strategies](#completion-strategies).
     - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
     - `itemSerdes` (optional) Custom `Serdes` for individual branch results.
     - `summaryGenerator` (optional) A function invoked when the serialized `BatchResult`
@@ -261,7 +263,8 @@ execute the same operation concurrently for each item in a collection.
 
     **Parameters:**
 
-    - `max_concurrency` (optional) Maximum branches running at once. Default: unlimited.
+    - `max_concurrency` (optional) Maximum branches in flight at once. Default: unlimited.
+        See [Configuration](#configuration).
     - `completion_config` (optional) When to stop. Default:
         `CompletionConfig.all_successful()`.
     - `serdes` (optional) Custom `SerDes` for the `BatchResult`.
@@ -283,7 +286,8 @@ execute the same operation concurrently for each item in a collection.
 
     **Parameters:**
 
-    - `maxConcurrency` (optional) Maximum branches running at once. Default: unlimited.
+    - `maxConcurrency` (optional) Maximum branches in flight at once. Default: unlimited.
+        See [Configuration](#configuration).
     - `completionConfig` (optional) When to stop. Default:
         `CompletionConfig.allCompleted()`.
     - `nestingType` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
@@ -302,7 +306,7 @@ execute the same operation concurrently for each item in a collection.
 
     **Parameters:**
 
-    - `MaxConcurrency` (optional) Maximum branches running at once. `null` (default) =
+    - `MaxConcurrency` (optional) Maximum branches in flight at once. `null` (default) =
         unlimited. Must be at least 1 when set.
     - `CompletionConfig` (optional) When to stop. Default:
         `CompletionConfig.AllSuccessful()`.
@@ -715,7 +719,11 @@ Name your parallel operations to make them easier to identify in logs and tests.
 
 ## Configuration
 
-Configure parallel behavior using `ParallelConfig`:
+Configure parallel behavior using `ParallelConfig`. `maxConcurrency` caps branches in
+flight, not threads. A suspended branch, for example one awaiting an invoke result or a
+callback, keeps its slot until it completes. By default the batch fails on the first
+failed branch. See [Completion strategies](#completion-strategies) to tolerate failures
+or stop early.
 
 === "TypeScript"
 
