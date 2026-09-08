@@ -191,30 +191,23 @@ timeout, downstream service, or durable execution service limits.
 
 ### Can a Java durable function be triggered by SQS, SNS, EventBridge, or other event sources?
 
-Yes, but Java event model deserialization needs care. The default user-data serializer is
-the SDK's Jackson-based `JacksonSerDes`, not the same serializer the Lambda Java runtime
-uses for event classes from `aws-lambda-java-events`. For broad event-source support, add
-the Lambda Java serialization library, which provides the
-`com.amazonaws.services.lambda.runtime.serialization` package, and route Lambda event
-classes through it.
+Yes. The optional `aws-durable-execution-sdk-java-extra-serdes` module provides
+`LambdaEventSerDes`, which applies the official Java Lambda runtime mappings for event
+classes from `aws-lambda-java-events`.
 
 ```xml
 <dependency>
-    <groupId>com.amazonaws</groupId>
-    <artifactId>aws-lambda-java-serialization</artifactId>
+    <groupId>software.amazon.lambda.durable</groupId>
+    <artifactId>aws-durable-execution-sdk-java-extra-serdes</artifactId>
     <version>VERSION</version>
 </dependency>
 ```
 
-Then provide a `SerDes` adapter:
+Use the same version as the core Java Durable Execution SDK, then configure the handler:
 
 ```java
-import com.amazonaws.services.lambda.runtime.serialization.events.LambdaEventSerializers;
-import java.lang.reflect.Type;
 import software.amazon.lambda.durable.DurableConfig;
-import software.amazon.lambda.durable.TypeToken;
-import software.amazon.lambda.durable.serde.JacksonSerDes;
-import software.amazon.lambda.durable.serde.SerDes;
+import software.amazon.lambda.durable.events.LambdaEventSerDes;
 
 @Override
 protected DurableConfig createConfiguration() {
@@ -222,38 +215,13 @@ protected DurableConfig createConfiguration() {
             .withSerDes(new LambdaEventSerDes())
             .build();
 }
-
-final class LambdaEventSerDes implements SerDes {
-    private final SerDes fallback = new JacksonSerDes();
-    private final ClassLoader classLoader = Thread.currentThread().getContextClassLoader();
-
-    @Override
-    public String serialize(Object value) {
-        return fallback.serialize(value);
-    }
-
-    @Override
-    public <T> T deserialize(String data, TypeToken<T> typeToken) {
-        Type type = typeToken.getType();
-        if (type instanceof Class<?> clazz && isLambdaEvent(clazz)) {
-            @SuppressWarnings("unchecked")
-            var serializer = LambdaEventSerializers.serializerFor((Class<T>) clazz, classLoader);
-            return serializer.fromJson(data);
-        }
-
-        return fallback.deserialize(data, typeToken);
-    }
-
-    private static boolean isLambdaEvent(Class<?> clazz) {
-        return clazz.getName().startsWith("com.amazonaws.services.lambda.runtime.events.");
-    }
-}
 ```
 
-This pattern addresses the event-trigger deserialization problem discussed in
-[aws/aws-durable-execution-sdk-java#366](https://github.com/aws/aws-durable-execution-sdk-java/issues/366).
-The configured `SerDes` is also used as the default for steps, child contexts, callbacks,
-and other operations unless an operation-specific config provides its own serializer.
+`LambdaEventSerDes` delegates non-event values, including generic types, to
+`JacksonSerDes`. You can pass a custom `SerDes` delegate to its constructor when your
+application needs different handling for non-event values. The configured `SerDes` is
+also used as the default for steps, child contexts, callbacks, and other operations unless
+an operation-specific config provides its own serializer.
 
 ### Can I use Lambda SnapStart?
 

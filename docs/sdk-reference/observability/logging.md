@@ -72,6 +72,7 @@ IDs, log sampling, and X-Ray tracing integration.
     // Obtain from any context:
     DurableLogger logger = context.getLogger();
     DurableLogger logger = stepContext.getLogger();
+    DurableLogger logger = context.getLogger(customSlf4jLogger);
 
     // Available methods:
     logger.trace(String format, Object... args)
@@ -344,9 +345,14 @@ interface.
 
 === "Java"
 
-    The Java SDK does not support swapping the underlying logger. `getLogger()` always wraps
-    an SLF4J logger obtained from `LoggerFactory`. To change logging behavior, configure
-    your SLF4J implementation (Logback, Log4j2) or adjust `LoggerConfig` via
+    Calling `getLogger()` uses the SDK's default SLF4J logger. To use a specific SLF4J
+    logger, pass it to `getLogger(Logger delegate)`. The SDK wraps the delegate in a
+    `DurableLogger`, preserving execution metadata and replay suppression for that logger
+    instance.
+
+    Java does not provide a context-level setter that replaces the default logger for
+    subsequent `getLogger()` calls. Configure your SLF4J implementation (Logback, Log4j2)
+    for application-wide behavior, and adjust replay suppression through `LoggerConfig` on
     `DurableConfig`. See [Configure logger](#configure-logger).
 
 === "C#"
@@ -468,7 +474,9 @@ interface.
 === "Java"
 
     The Java SDK wraps any SLF4J `Logger` in `DurableLogger`. There is no interface to
-    implement.
+    implement. Pass a logger to `context.getLogger(Logger delegate)` or
+    `stepContext.getLogger(Logger delegate)` to create a replay-aware wrapper around that
+    delegate.
 
 === "C#"
 
