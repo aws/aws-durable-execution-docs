@@ -1,5 +1,4 @@
-from aws_durable_execution_sdk_python import DurableContext, durable_execution
-from aws_durable_execution_sdk_python.exceptions import CallableRuntimeError
+from aws_durable_execution_sdk_python import DurableContext, InvokeError, durable_execution
 
 
 @durable_execution
@@ -11,5 +10,5 @@ def handler(event: dict, context: DurableContext) -> dict:
             name="process-payment",
         )
         return {"status": "success", "result": result}
-    except CallableRuntimeError as e:
+    except InvokeError as e:
         return {"status": "failed", "reason": str(e)}

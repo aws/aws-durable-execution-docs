@@ -78,8 +78,8 @@ multiple child contexts concurrently.
 
     **Returns:** `T`, the return value of `func`.
 
-    **Raises:** `CallableRuntimeError` wrapping the original exception if the child context
-    function raises.
+    **Raises:** `ChildContextError` (a `DurableOperationError` subclass) wrapping the
+    original exception if the child context function raises.
 
 === "Java"
 
@@ -154,12 +154,13 @@ multiple child contexts concurrently.
 
     - `serdes` (optional) Custom `SerDes` for the child context result. See
         [Serialization](../state/serialization.md).
-    - `item_serdes` (optional) Custom `SerDes` for individual items within the child
-        context.
     - `sub_type` (optional) An internal subtype identifier. Used by `map` and `parallel`
         internally; not needed for direct use.
     - `summary_generator` (optional) A function that generates a compact summary when the
         result exceeds the checkpoint size limit. Used internally by `map` and `parallel`.
+    - `is_virtual` (optional) When `True`, skips checkpointing for the child context and
+        propagates the parent's ID to its operations. Used internally by `map` and
+        `parallel` for flat nesting; not needed for direct use.
 
 === "Java"
 
