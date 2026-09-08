@@ -116,7 +116,9 @@ applied.
     as a durable step and each subsequent polling attempt is a retry, so avoid heavy
     computation or side effects and keep it focused on querying status.
 - `config` - A configuration object containing:
-    - `initialState` - The state object passed to the first check invocation
+    - `initialState` - The state object passed to the first check invocation. In Python
+        the SDK round-trips this value through the configured SerDes before the first
+        check, so it must be serializable by that SerDes.
     - `waitStrategy` - A [Wait strategy](#wait-strategies) to control polling behavior
 
 **Returns:** The final state object from the last check function invocation.
@@ -230,7 +232,8 @@ re-use common wait strategy logic without having to code your own function.
 - `shouldContinuePolling` - Predicate that returns `true` to keep polling or `false` to
     stop
 - `maxAttempts` - Maximum polling attempts. Set this to prevent runaway executions.
-    Defaults to 60
+    Defaults to 60. When the helper strategy reaches this limit before the condition is
+    met, it fails the operation. In Python the SDK raises `WaitForConditionError`.
 - `initialDelay` - Delay before the first retry. Defaults to 5 seconds
 - `maxDelay` - Maximum delay between attempts. Defaults to 5 minutes
 - `backoffRate` - Multiplier applied to the delay after each attempt (e.g., `2.0`
