@@ -333,7 +333,12 @@ execution and the completion status of the result.
         min_successful: int | None = None
         tolerated_failure_count: int | None = None
         tolerated_failure_percentage: int | float | None = None
+        should_complete: Callable[[CompletionStatus], CompletionDecision] | None = None
     ```
+
+    Use the threshold fields for count-based rules, or `should_complete` for a custom
+    predicate (see [Completion strategies](#completion-strategies)). `should_complete`
+    cannot be combined with the threshold fields.
 
 === "Java"
 
@@ -454,7 +459,9 @@ execution and the completion status of the result.
     - **`completion_reason`** why the operation completed. See
         [Completion strategies](#completion-strategies).
     - **`has_failure`** `True` if any item failed
-    - **`throw_if_error()`** raises the first item error as a `CallableRuntimeError`
+    - **`throw_if_error()`** raises the first failure: `ChildContextError` for a failed
+        item, `SerDesError` if an item result failed to serialize, or
+        `BatchCompletionError` if a custom predicate failed the batch
     - **`to_dict()`** serializes to a plain dict. Serializability depends on `R`.
 
 === "Java"
@@ -736,21 +743,42 @@ abandoned items, but cancellation is not guaranteed.
 
 === "Python"
 
-    The `BatchResult`'s `completion_reason` indicates the stop condition. Items that were
-    never started appear in `result.all` with status `STARTED`.
+    The `BatchResult`'s `completion_reason` indicates the stop condition. Items that
+    started but did not complete appear in `result.all` with status `STARTED`. Items that
+    never started are omitted from `result.all`, so `total_count` counts only the items
+    that appear.
 
     | `completion_config`              | Early exit `completion_reason` | Full completion `completion_reason` |
     | -------------------------------- | ------------------------------ | ----------------------------------- |
     | `CompletionConfig()` (default)   | `FAILURE_TOLERANCE_EXCEEDED`   | `ALL_COMPLETED`                     |
     | `first_successful()`             | `MIN_SUCCESSFUL_REACHED`       | `ALL_COMPLETED`                     |
+    | `all_completed()`                | n/a                            | `ALL_COMPLETED`                     |
     | `tolerated_failure_count=N`      | `FAILURE_TOLERANCE_EXCEEDED`   | `ALL_COMPLETED`                     |
     | `tolerated_failure_percentage=N` | `FAILURE_TOLERANCE_EXCEEDED`   | `ALL_COMPLETED`                     |
     | `min_successful=N`               | `MIN_SUCCESSFUL_REACHED`       | `ALL_COMPLETED`                     |
 
-    !!! warning
+    The default `CompletionConfig()` is fail-fast: any item failure exceeds the tolerance
+    and completes the batch early. Use `CompletionConfig.all_completed()` to run every item
+    regardless of failures.
 
-        `CompletionConfig.all_completed()` is deprecated. Use the default `CompletionConfig()`
-        instead.
+    Set `should_complete` when the threshold fields cannot express the rule. The predicate
+    receives a `CompletionStatus` (`success_count`, `failure_count`, `completed_count`,
+    `total_count`, and `items`, a per-item tuple of `CompletionItemStatus`) and returns a
+    `CompletionDecision`: `continue_batch()` to keep going, or
+    `complete_batch(outcome)` to stop, where `outcome` defaults to
+    `CompletionOutcome.SUCCEEDED`. A `CompletionOutcome.FAILED` outcome marks the whole
+    batch failed, and `throw_if_error()` then raises `BatchCompletionError` even when no
+    individual item failed.
+
+    ```python
+    --8<-- "examples/python/operations/map/custom-completion.py"
+    ```
+
+    The predicate runs before any item is scheduled (`completed_count == 0`) and again on
+    each terminal or suspension event, so it must handle the initial zero-progress
+    snapshot. It cannot be combined with `min_successful`, `tolerated_failure_count`, or
+    `tolerated_failure_percentage`, and must be deterministic, side-effect-free, and
+    monotonic. Unscheduled items report `status=None` in `items`.
 
 === "Java"
 
