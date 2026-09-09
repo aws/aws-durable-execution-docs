@@ -95,6 +95,9 @@ nav = [
       { "Java" = "sdk-reference/languages/java/index.md" },
       { "C#" = "sdk-reference/languages/csharp/index.md" },
     ]},
+    { "Integrations" = [
+      { "Pydantic AI" = "sdk-reference/integrations/pydantic-ai.md" },
+    ]},
   ]},
   { "Testing" = [
     { "Testing" = "testing/index.md" },
