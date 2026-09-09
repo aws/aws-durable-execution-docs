@@ -44,3 +44,7 @@ Language-specific installation and configuration:
 - [Python](languages/python/index.md)
 - [Java](languages/java/index.md)
 - [C#](languages/csharp/index.md)
+
+## Integrations
+
+- [Pydantic AI](integrations/pydantic-ai.md) Run AI agents durably on Lambda
