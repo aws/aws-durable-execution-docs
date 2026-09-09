@@ -130,6 +130,22 @@ If a language has a quirk, note it inside that language's tab:
     ```
 ```
 
+## Integration Pages
+
+An integration page documents a third-party framework that works with the
+Durable Execution SDK. Integration pages live under
+`docs/sdk-reference/integrations/`. Some frameworks exist in one language.
+Pydantic AI is Python only.
+
+For a single-language integration, the four-language rules do not apply. State
+the framework's language in the first sentence. Write the rest of the page in
+that language alone. Use a plain code fence instead of content tabs, because
+tabs separate languages and this page has only one.
+
+Everything else still applies. Keep the example minimal, store it under
+`examples/{language}/`, embed it with `--8<--`, and verify it against the
+framework and the SDK source before committing.
+
 ## Page Structure
 
 SDK reference pages follow this pattern:
@@ -374,6 +390,7 @@ grammar. The items below cover authoring mechanics.
 - [ ] Tab order is TypeScript → Python → Java → C# everywhere
 - [ ] Language-specific notes are inside tabs, not outside
 - [ ] All four languages have example files for every `--8<--` reference
+- [ ] Single-language integration pages use one language and a plain code fence instead of tabs
 - [ ] Every example verified against the actual SDK source
 - [ ] Java method signatures show both sync and async variants
 - [ ] TypeScript signatures show both overloads where they exist

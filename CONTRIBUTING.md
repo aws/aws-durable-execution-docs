@@ -152,7 +152,7 @@ Edit documentation in the markdown files under `docs/`.
 
 Embed code samples in documentation pages with the `--8<--` snippet syntax with content tabs for multi-language support.
 
-**IMPORTANT**: All code examples MUST include all four languages (TypeScript, Python, Java, C#) and remain functionally equivalent across languages. The tab order must always be TypeScript → Python → Java → C#.
+**IMPORTANT**: All code examples MUST include all four languages (TypeScript, Python, Java, C#) and remain functionally equivalent across languages. The tab order must always be TypeScript → Python → Java → C#. Single-language integration pages are the exception.
 
 #### Steps to add a new code sample:
 
