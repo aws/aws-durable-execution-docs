@@ -116,9 +116,10 @@ applied.
     as a durable step and each subsequent polling attempt is a retry, so avoid heavy
     computation or side effects and keep it focused on querying status.
 - `config` - A configuration object containing:
-    - `initialState` - The state object passed to the first check invocation. In Python
-        the SDK round-trips this value through the configured SerDes before the first
-        check, so it must be serializable by that SerDes.
+    - `initialState` - The state object passed to the first check invocation. The SDK
+        checkpoints polling state through the configured SerDes and restores it on
+        resume, so this value must serialize with that SerDes. A SerDes that fails to
+        deserialize the stored state fails the operation.
     - `waitStrategy` - A [Wait strategy](#wait-strategies) to control polling behavior
 
 **Returns:** The final state object from the last check function invocation.
