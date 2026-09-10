@@ -121,6 +121,16 @@ nav = [
       { "Code Organization" = "patterns/best-practices/code-organization.md" },
     ]},
   ]},
+  { "What's New" = [
+    { "What's New" = "whats-new/index.md" },
+    { "Durable Execution SDK for Python 2.x" = "whats-new/2026-python-2.md" },
+    { "Durable Execution SDK for Rust is in preview" = "whats-new/2026-08-rust-preview.md" },
+    { "OpenTelemetry plugin for Java is now stable" = "whats-new/2026-08-java-2.2-otel.md" },
+    { "Durable Execution SDK for .NET is generally available" = "whats-new/2026-07-dotnet-ga.md" },
+    { "Bring your own Durable Execution SDK" = "whats-new/2026-07-custom-sdk.md" },
+    { "Durable Execution SDK for Java 2.x" = "whats-new/2026-06-java-2.md" },
+    { "Durable Execution SDK for Java is generally available" = "whats-new/2026-04-java-ga.md" },
+  ]},
 ]
 
 # With the "extra_css" option you can add your own CSS styling to customize
