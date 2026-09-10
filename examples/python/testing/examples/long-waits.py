@@ -1,7 +1,3 @@
-import os
-
-os.environ["DURABLE_EXECUTION_TIME_SCALE"] = "0.0"
-
 from aws_durable_execution_sdk_python import DurableContext, durable_execution, durable_step
 from aws_durable_execution_sdk_python.types import StepContext
 from aws_durable_execution_sdk_python.config import Duration
@@ -22,7 +18,8 @@ def handler(event, context: DurableContext) -> str:
 
 
 def test_completes_with_long_wait():
-    runner = DurableFunctionTestRunner(handler=handler)
+    # skip_time=True is the default; the 24-hour wait completes instantly.
+    runner = DurableFunctionTestRunner(handler=handler, skip_time=True)
     with runner:
         result = runner.run(timeout=10)
 

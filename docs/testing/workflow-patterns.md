@@ -139,9 +139,9 @@ skipping. Each SDK handles this differently.
 
 === "Python"
 
-    Set the `DURABLE_EXECUTION_TIME_SCALE` environment variable to scale `context.wait()`
-    durations. Set it to `0.0` for instant waits, or to a small fraction such as `0.01` to
-    run waits at 100x speed. The scale does not apply to step retry delays.
+    `DurableFunctionTestRunner` defaults to `skip_time=True`, so the runner completes
+    `context.wait()` durations instantly via a virtual clock. The 24-hour wait resolves in
+    milliseconds.
 
     ```python
     --8<-- "examples/python/testing/examples/long-waits.py"
