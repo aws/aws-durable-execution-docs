@@ -1,5 +1,6 @@
 using Amazon.Lambda.Core;
 using Amazon.Lambda.DurableExecution;
+using Amazon.Lambda.Serialization.SystemTextJson;
 
 public class MapConfigExample
 {
@@ -9,12 +10,15 @@ public class MapConfigExample
 
     private async Task<IReadOnlyList<ProcessedItem>> Workflow(object input, IDurableContext ctx)
     {
-        // MapConfig has no serializer slot. Each item result is serialized with the
-        // ILambdaSerializer registered on ILambdaContext.Serializer. To customize
-        // serialization, register a custom ILambdaSerializer at the host boundary.
+        // Set MapConfig.ItemSerializer to serialize each item's RESULT with a specific
+        // ILambdaSerializer. When null (default), item results are serialized with the
+        // ILambdaSerializer registered on ILambdaContext.Serializer. This controls only the
+        // per-item result — not the aggregated batch envelope (statuses / completion
+        // reason), which is SDK-internal. ParallelConfig has the same ItemSerializer field.
         var config = new MapConfig<string>
         {
             MaxConcurrency = 3,
+            ItemSerializer = new CamelCaseLambdaJsonSerializer(),
         };
 
         var items = new[] { "a", "b", "c" };

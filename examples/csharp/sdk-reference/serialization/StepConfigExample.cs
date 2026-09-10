@@ -1,5 +1,6 @@
 using Amazon.Lambda.Core;
 using Amazon.Lambda.DurableExecution;
+using Amazon.Lambda.Serialization.SystemTextJson;
 
 public class StepConfigExample
 {
@@ -9,13 +10,14 @@ public class StepConfigExample
 
     private async Task<Order> Workflow(object input, IDurableContext ctx)
     {
-        // StepConfig has no serializer slot. The step result is serialized with
-        // the ILambdaSerializer registered on ILambdaContext.Serializer. To
-        // customize serialization, register a custom ILambdaSerializer at the
-        // host boundary instead of setting a per-step SerDes.
+        // Set StepConfig.Serializer to serialize THIS step's result with a specific
+        // ILambdaSerializer. When null (default), the step result is serialized with the
+        // ILambdaSerializer registered on ILambdaContext.Serializer. Only this step is
+        // affected — other operations and the handler's return value are unchanged.
         var config = new StepConfig
         {
             RetryStrategy = RetryStrategy.Exponential(maxAttempts: 3),
+            Serializer = new CamelCaseLambdaJsonSerializer(),
         };
 
         Order order = await ctx.StepAsync(
