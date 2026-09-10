@@ -1,5 +1,6 @@
 using Amazon.Lambda.Core;
 using Amazon.Lambda.DurableExecution;
+using Amazon.Lambda.Serialization.SystemTextJson;
 
 public class CallbackConfigExample
 {
@@ -9,13 +10,14 @@ public class CallbackConfigExample
 
     private async Task<ApprovalResult> Workflow(object input, IDurableContext ctx)
     {
-        // CallbackConfig has no serializer slot. The callback payload delivered by
-        // the external system is deserialized with the ILambdaSerializer registered
-        // on ILambdaContext.Serializer. To customize deserialization, register a
-        // custom ILambdaSerializer at the host boundary.
+        // Set CallbackConfig.Serializer to deserialize the callback payload with a specific
+        // ILambdaSerializer. When null (default), the payload the external system delivers is
+        // deserialized with the ILambdaSerializer registered on ILambdaContext.Serializer.
+        // Only the deserialize path is used for callbacks.
         var config = new CallbackConfig
         {
             Timeout = TimeSpan.FromHours(1),
+            Serializer = new DefaultLambdaJsonSerializer(),
         };
 
         ICallback<ApprovalResult> callback =
