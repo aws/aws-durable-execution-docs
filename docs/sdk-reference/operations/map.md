@@ -216,10 +216,12 @@ Use map to apply the same operation to every item in a collection. Use
 
     **Parameters:**
 
-    - `maxConcurrency` (optional) Maximum items running at once. Default: unlimited.
+    - `maxConcurrency` (optional) Maximum items in flight at once. Default: unlimited.
+        See [Configuration](#configuration).
     - `itemNamer` (optional) A function that returns a custom name for each item, used in
         logs and tests.
-    - `completionConfig` (optional) When to stop. Default: wait for all items.
+    - `completionConfig` (optional) When to stop. See
+        [Completion strategies](#completion-strategies).
     - `serdes` (optional) Custom `Serdes` for the `BatchResult`.
     - `itemSerdes` (optional) Custom `Serdes` for individual item results.
     - `summaryGenerator` (optional) A function invoked when the serialized `BatchResult`
@@ -243,9 +245,10 @@ Use map to apply the same operation to every item in a collection. Use
 
     **Parameters:**
 
-    - `max_concurrency` (optional) Maximum items running at once. Default: unlimited.
-    - `completion_config` (optional) When to stop. Default: `CompletionConfig()` (lenient,
-        all items run regardless of failures).
+    - `max_concurrency` (optional) Maximum items in flight at once. Default: unlimited.
+        See [Configuration](#configuration).
+    - `completion_config` (optional) When to stop. See
+        [Completion strategies](#completion-strategies).
     - `serdes` (optional) Custom `SerDes` for the `BatchResult`.
     - `item_serdes` (optional) Custom `SerDes` for individual item results.
     - `summary_generator` (optional) A callable invoked when the serialized `BatchResult`
@@ -270,7 +273,8 @@ Use map to apply the same operation to every item in a collection. Use
 
     **Parameters:**
 
-    - `maxConcurrency` (optional) Maximum items running at once. Default: unlimited.
+    - `maxConcurrency` (optional) Maximum items in flight at once. Default: unlimited.
+        See [Configuration](#configuration).
     - `completionConfig` (optional) When to stop. Default:
         `CompletionConfig.allCompleted()`.
     - `serDes` (optional) Custom `SerDes` for item results and the overall result.
@@ -295,7 +299,7 @@ Use map to apply the same operation to every item in a collection. Use
 
     **Parameters:**
 
-    - `MaxConcurrency` (optional) Maximum items running at once. `null` (default) is
+    - `MaxConcurrency` (optional) Maximum items in flight at once. `null` (default) is
         unlimited; must be at least 1 when set.
     - `CompletionConfig` (optional) When to stop. Default: `CompletionConfig.AllSuccessful()`.
         Any item failure completes the map with `FailureToleranceExceeded`. Set
@@ -678,7 +682,10 @@ Name your map operations to make them easier to identify in logs and tests.
 
 ## Configuration
 
-Configure map behavior using `MapConfig`:
+Configure map behavior using `MapConfig`. `maxConcurrency` caps items in flight, not
+threads. A suspended item, for example one awaiting an invoke result or a callback, keeps
+its slot until it completes. By default the batch fails on the first failed item. See
+[Completion strategies](#completion-strategies) to tolerate failures or stop early.
 
 === "TypeScript"
 
