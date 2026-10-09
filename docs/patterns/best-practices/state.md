@@ -37,6 +37,15 @@ state once you return it from the step.
     --8<-- "examples/java/patterns/state/durable-vs-local.java"
     ```
 
+=== "Go"
+
+    A local variable that holds a step result costs nothing until a step or the
+    handler returns it, which serializes it into execution state.
+
+    ```go
+    --8<-- "examples/go/patterns/state/durable-vs-local.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -71,6 +80,19 @@ store inside the first step and pass the key or version ID to the next step.
 
     ```java
     --8<-- "examples/java/patterns/state/store-references.java"
+    ```
+
+=== "Go"
+
+    Return a small reference struct from the step. The checkpoint holds the
+    struct, not the payload.
+
+    ```go
+    --8<-- "examples/go/patterns/state/store-references-wrong.go"
+    ```
+
+    ```go
+    --8<-- "examples/go/patterns/state/store-references.go"
     ```
 
 === "C#"
@@ -134,6 +156,19 @@ Keep per-item state small:
 
     ```java
     --8<-- "examples/java/patterns/state/batch-result-pointers.java"
+    ```
+
+=== "Go"
+
+    Each per-item step returns a key, so the `BatchResult` carries pointers, not
+    payloads. `durable.WithNesting(durable.NestingFlat)` runs each item in a
+    virtual context, so the batch records no per-item context operation. The
+    steps inside each item still checkpoint. When the `BatchResult` exceeds
+    256KB, `durable.WithBatchSummary` adds your own summary string to the
+    stored record.
+
+    ```go
+    --8<-- "examples/go/patterns/state/batch-result-pointers.go"
     ```
 
 === "C#"

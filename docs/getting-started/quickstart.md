@@ -1,7 +1,7 @@
 # Quickstart
 
 Create and deploy your first durable function using the AWS CLI. This guide covers
-TypeScript, Python, Java, and C#.
+TypeScript, Python, Java, Go (Preview), and C#.
 
 !!! note "Adding all your dependencies to the deployment package"
 
@@ -27,6 +27,10 @@ TypeScript, Python, Java, and C#.
 === "Java"
 
     - Java 17+ and Maven 3.8+
+
+=== "Go"
+
+    - Go 1.24 or later
 
 === "C#"
 
@@ -96,6 +100,17 @@ Note the role ARN returned. You'll need it in the next step.
     ```java
     --8<-- "examples/java/getting-started/quickstart.java"
     ```
+
+=== "Go"
+
+    Save as `main.go`
+
+    ```go
+    --8<-- "examples/go/getting-started/quickstart.go"
+    ```
+
+    This is the whole program. For the build and packaging detail, see the
+    [Go SDK guide](../sdk-reference/languages/go/index.md).
 
 === "C#"
 
@@ -205,6 +220,35 @@ execution role you just created.
       --zip-file fileb://target/*.jar \
       --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
     ```
+
+=== "Go"
+
+    ```console
+    mkdir my-function && cd my-function
+    go mod init example.com/my-function
+    go get github.com/aws/aws-durable-execution-sdk-go/durable
+    ```
+
+    Save the function code above as `main.go`. Build a static Linux binary
+    named `bootstrap`, the file the `provided.al2023` runtime runs, then zip
+    it and deploy:
+
+    ```console
+    CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -tags lambda.norpc -o bootstrap .
+    zip function.zip bootstrap
+
+    aws lambda create-function \
+      --function-name my-durable-function \
+      --runtime provided.al2023 \
+      --role arn:aws:iam::123456789012:role/durable-function-role \
+      --handler bootstrap \
+      --architectures x86_64 \
+      --zip-file fileb://function.zip \
+      --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
+    ```
+
+    The SDK has no release tags yet, so `go get` records a pseudo-version of the latest
+    commit.
 
 === "C#"
 

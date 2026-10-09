@@ -34,6 +34,22 @@ different name on subsequent invocations.
     --8<-- "examples/java/patterns/step-design/step-names.java"
     ```
 
+=== "Go"
+
+    The name is the second argument, after the context. A name derived from the input is
+    deterministic. A name built from `time.Now()` breaks replay identity. When you run
+    [durablelint](../../sdk-reference/languages/go/index.md#static-analysis-with-durablelint),
+    the SDK's static analysis tool, its `durablenondeterminism` rule reports the
+    `time.Now()` call.
+
+    ```go
+    --8<-- "examples/go/patterns/step-design/step-names-wrong.go"
+    ```
+
+    ```go
+    --8<-- "examples/go/patterns/step-design/step-names.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -81,6 +97,19 @@ re-run.
     --8<-- "examples/java/patterns/step-design/one-thing-per-step.java"
     ```
 
+=== "Go"
+
+    Give each side effect its own step so each one checkpoints independently. A
+    single step that performs all three repeats all three when it retries.
+
+    ```go
+    --8<-- "examples/go/patterns/step-design/one-thing-per-step-wrong.go"
+    ```
+
+    ```go
+    --8<-- "examples/go/patterns/step-design/one-thing-per-step.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -116,6 +145,15 @@ Define a reusable step function once and reference it repeatedly from the workfl
     --8<-- "examples/java/patterns/step-design/reusable-step.java"
     ```
 
+=== "Go"
+
+    Define the function once, free of SDK types, and wrap it in a `durable.Step` closure
+    wherever you reuse it.
+
+    ```go
+    --8<-- "examples/go/patterns/step-design/reusable-step.go"
+    ```
+
 === "C#"
 
     Define a method returning `Task<T>` and reference it as the step body.
@@ -147,6 +185,24 @@ unit the SDK checkpoints. You cannot call other durable operations such as `step
 
     ```java
     --8<-- "examples/java/patterns/step-design/step-boundary.java"
+    ```
+
+=== "Go"
+
+    A step body receives a `durable.StepContext`, which cannot start an operation. A
+    body that captures the outer `durable.Context` and starts an operation on it
+    compiles. At run time that operation fails with `durable.ErrWrongContext` and
+    records nothing. When you run
+    [durablelint](../../sdk-reference/languages/go/index.md#static-analysis-with-durablelint),
+    its `durablenestedop` rule reports the operation. Group operations with
+    `durable.RunInChildContext`.
+
+    ```go
+    --8<-- "examples/go/patterns/step-design/step-boundary-wrong.go"
+    ```
+
+    ```go
+    --8<-- "examples/go/patterns/step-design/step-boundary.go"
     ```
 
 === "C#"
@@ -194,6 +250,17 @@ options.
 
     ```java
     --8<-- "examples/java/patterns/step-design/handle-errors-in-step.java"
+    ```
+
+=== "Go"
+
+    List the retryable errors in `RetryConfig.RetryableErrors` as matchers.
+    `durable.ErrorAs` matches an error type under `errors.As`, and
+    `durable.ErrorIs` matches a sentinel value under `errors.Is`. A step fails
+    on the first attempt whose error no matcher accepts.
+
+    ```go
+    --8<-- "examples/go/patterns/step-design/handle-errors-in-step.go"
     ```
 
 === "C#"

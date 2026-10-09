@@ -13,6 +13,14 @@ and logged, and never affect the execution outcome.
     future release. Feedback is welcome, please share your input through our
     [GitHub Discussion](https://github.com/aws/aws-durable-execution-docs/discussions/206).
 
+!!! note "Go support"
+
+    The Go SDK has a plugin API, and it is experimental. For the reference, see
+    the Go package documentation for
+    [`durable.Plugin`](https://pkg.go.dev/github.com/aws/aws-durable-execution-sdk-go/durable#Plugin)
+    and
+    [`durable.WithPlugins`](https://pkg.go.dev/github.com/aws/aws-durable-execution-sdk-go/durable#WithPlugins).
+
 ## Define a plugin
 
 A plugin implements any of the following lifecycle hooks, and the SDK calls

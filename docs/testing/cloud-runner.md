@@ -7,9 +7,9 @@ the cloud runner.
 
 ## Set up the cloud runner
 
-Create a `CloudDurableTestRunner` with the qualified function name and region. The
-runner invokes the function, extracts the execution ARN from the response, and polls
-until the execution completes.
+Create a cloud test runner with the qualified function name. The runner's Lambda client
+must target the Region the function runs in. The runner invokes the function, extracts
+the execution ARN from the response, and polls until the execution completes.
 
 === "TypeScript"
 
@@ -27,6 +27,17 @@ until the execution completes.
 
     ```java
     --8<-- "examples/java/testing/cloud-runner/cloud-runner.java"
+    ```
+
+=== "Go"
+
+    Pass `durabletest.NewCloudRunner` a Lambda client and the qualified function name.
+    `config.LoadDefaultConfig` reads the Region and the credentials from the default
+    chain, such as `AWS_REGION` and `~/.aws/config`. Save this as
+    `cloud_runner_test.go`.
+
+    ```go
+    --8<-- "examples/go/testing/cloud-runner/cloud-runner.go"
     ```
 
 === "C#"
@@ -80,6 +91,17 @@ completion.
 
     ```java
     --8<-- "examples/java/testing/cloud-runner/cloud-runner-timeout.java"
+    ```
+
+=== "Go"
+
+    Pass `durabletest.WithPollInterval` and `durabletest.WithTimeout` to
+    `NewCloudRunner`. The defaults are 2 seconds and 5 minutes. When polling
+    exceeds the timeout, `Run` returns an error. To bound a single call, pass
+    `Run` a context with a deadline.
+
+    ```go
+    --8<-- "examples/go/testing/cloud-runner/cloud-runner-timeout.go"
     ```
 
 === "C#"

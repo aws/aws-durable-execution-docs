@@ -51,6 +51,17 @@ and linear backoff.
     --8<-- "examples/java/sdk-reference/error-handling/exponential-backoff.java"
     ```
 
+=== "Go"
+
+    Build a strategy with `MustNewRetryStrategy` and a `RetryConfig`, then pass it with
+    the `WithRetry` step option. `MustNewRetryStrategy` panics for an invalid config.
+    `NewRetryStrategy` returns an error instead. The default strategy is
+    `ExponentialBackoff`.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/exponential-backoff.go"
+    ```
+
 === "C#"
 
     Use `RetryStrategy.Exponential(...)` to build an `IRetryStrategy`, then set it on
@@ -120,6 +131,35 @@ and linear backoff.
     Java does not have built-in error type filtering. Filter by error type manually inside
     the `RetryStrategy` lambda. See [Retrying specific errors](#retry-only-specific-errors).
 
+=== "Go"
+
+    The type is `RetryConfig`. The zero value of each field selects its default. The
+    zero value of the whole struct is not the `ExponentialBackoff` preset.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/retry-strategy-config-signature.go"
+    ```
+
+    **Fields:**
+
+    - `MaxAttempts` Total attempts including the first. Default: `3`. Must not be
+        negative. The zero value selects the default. Use `NoRetry()` or
+        `MaxAttempts: 1` for a single attempt.
+    - `InitialDelay` A `time.Duration`. Default: `5 * time.Second`. At least 1 second
+        when set.
+    - `MaxDelay` A `time.Duration`. Default: `5 * time.Minute`. At least 1 second when
+        set.
+    - `BackoffRate` Multiplier applied to the delay on each retry. Default: `2`. Must be
+        finite and not negative.
+    - `Jitter` A `JitterStrategy` value. Default: `JitterFull`. When set, it must be one
+        of the defined constants.
+    - `RetryableErrors` A slice of `ErrorMatcher`. When empty, every error is retryable.
+        Entries must not be nil. An error that no matcher accepts fails the step on
+        that attempt. See [Retrying specific errors](#retry-only-specific-errors).
+
+    `NewRetryStrategy()` returns one joined error that names every invalid field. The
+    strategy rounds each delay to the nearest whole second, with a minimum of 1 second.
+
 === "C#"
 
     ```csharp
@@ -161,6 +201,15 @@ and linear backoff.
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/jitter-strategy-signature.java"
     ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/jitter-strategy-signature.go"
+    ```
+
+    `RetryConfig` and `WaitConfig` default to `JitterFull`. `LinearRetryConfig` defaults
+    to `JitterNone`.
 
 === "C#"
 
@@ -214,6 +263,17 @@ retries rather than the rapid expansion of exponential backoff.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/linear-retry-strategy.java"
+    ```
+
+=== "Go"
+
+    Build a strategy with `MustLinearBackoff` and a `LinearRetryConfig`, then pass it
+    with `WithRetry`. `MustLinearBackoff` panics for an invalid config. `LinearBackoff`
+    returns an error instead. `LinearBackoff` defaults to no jitter, so this example
+    sets `JitterFull`.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/linear-retry-strategy.go"
     ```
 
 === "C#"
@@ -285,6 +345,32 @@ retries rather than the rapid expansion of exponential backoff.
     - `jitter` A `JitterStrategy` value. The three-argument overload omits both
         `maxDelay` and `jitter`.
 
+=== "Go"
+
+    The type is `LinearRetryConfig`.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/linear-retry-strategy-config-signature.go"
+    ```
+
+    **Fields:**
+
+    - `MaxAttempts` Total attempts including the first. Default: `6`. Must not be
+        negative. The zero value selects the default. Use `NoRetry()` or
+        `MaxAttempts: 1` for a single attempt.
+    - `InitialDelay` A `time.Duration`. Default: `1 * time.Second`. At least 1 second
+        when set.
+    - `Increment` A `time.Duration` added to the delay on each retry. Default:
+        `1 * time.Second`. Must not be negative. A zero value selects the default, so
+        this config cannot express a fixed interval. For a fixed interval, use
+        `NewRetryStrategy` with a `BackoffRate` of 1.
+    - `MaxDelay` A `time.Duration`. Default: `5 * time.Minute`. At least 1 second when
+        set.
+    - `Jitter` A `JitterStrategy` value. Default: `JitterNone`, so the default sequence
+        is exact. When set, it must be one of the defined constants.
+    - `RetryableErrors` A slice of `ErrorMatcher`. When empty, every error is retryable.
+        Entries must not be nil.
+
 === "C#"
 
     There is no linear config type in .NET. Build the delay from `RetryStrategy.FromDelegate`:
@@ -334,6 +420,16 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/java/sdk-reference/error-handling/retry-strategy-signature.java"
     ```
 
+=== "Go"
+
+    A `RetryStrategy` is a function from a `RetryAttempt` to a `RetryDecision`. The
+    strategy receives one struct, with the error and the 1-based attempt number as
+    fields.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/retry-strategy-signature.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -365,6 +461,16 @@ current attempt number after each failure. The attempt number is one-indexed.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/custom-retry-strategy.java"
+    ```
+
+=== "Go"
+
+    Return `RetryDecision{Retry: true, Delay: d}` to retry, or `RetryDecision{}` to
+    stop. A zero delay waits one second. The SDK sends the delay in whole seconds and
+    rounds a fractional delay up. A negative delay fails the step.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/custom-retry-strategy.go"
     ```
 
 === "C#"
@@ -433,6 +539,22 @@ The SDK ships with preset strategies for common cases:
 
     **`RetryStrategies.Presets.NO_RETRY`** Fails immediately on first error.
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/retry-presets.go"
+    ```
+
+    **`ExponentialBackoff()`** 6 attempts, 5s initial delay, 60s max, 2x backoff, full
+    jitter. This is the default when you set no retry strategy.
+
+    **`NoRetry()`** 1 attempt, fails immediately on error.
+
+    **`MustLinearBackoff(LinearRetryConfig{})`** 6 attempts with linear delays of 1s, 2s,
+    3s, 4s, 5s and no jitter.
+
+    The SDK ships no transient, critical, fixed, or resource-availability preset.
+
 === "C#"
 
     ```csharp
@@ -487,6 +609,30 @@ available to `step` to other operations, such as `invoke`, `waitForCallback`, an
     --8<-- "examples/java/sdk-reference/error-handling/with-retry-helper.java"
     ```
 
+=== "Go"
+
+    `Retry(ctx, name, fn, strategy, opts...)` runs `fn` and retries it on failure. `fn`
+    receives a durable context and the 1-based attempt number, and may call any durable
+    operation. By default each attempt runs in its own child context named
+    `<name>-attempt-<n>`. `Retry` records no parent operation around the attempts.
+    Between attempts, `Retry` waits with a `Wait` named `<name>-backoff-<n>`.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/with-retry-helper.go"
+    ```
+
+    When the strategy stops, `Retry` returns a `*RetryError`. Its `Attempts` field holds
+    the number of attempts, and its `Err` field holds the final attempt's error. A zero
+    delay waits one second. A negative delay makes `Retry` return an error. A suspension
+    inside `fn`, such as an unfinished `Wait`, is not a failed attempt, and the strategy
+    never sees it. `Retry` returns an error for a nil `fn`, a nil strategy, or a
+    `Context` the SDK did not create.
+
+    `WithAttemptChildContext(false)` runs `fn` directly in the caller's context. The
+    strategy then receives the error `fn` returned. `WithAttemptChildOptions(opts...)`
+    passes `ChildOption` values, such as `WithChildSerdes`, to each attempt's child
+    context.
+
 === "C#"
 
     The .NET SDK has no separate `withRetry` helper, and `InvokeConfig` does not accept a
@@ -532,6 +678,22 @@ You can retry only certain error types and fail immediately on others.
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/retry-specific-errors.java"
     ```
+
+=== "Go"
+
+    Set `RetryableErrors` on the config to a list of `ErrorMatcher` values. The SDK
+    retries a failed attempt only when at least one matcher reports its error retryable.
+    Any other error fails the step on that attempt.
+    Build matchers with `ErrorAs`, `ErrorIs`, `ErrorTypeIs`, `ErrorContains`, or
+    `ErrorMatches`.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/retry-specific-errors.go"
+    ```
+
+    `ErrorAs` and `ErrorIs` match a live error, such as the one a step returns. Inside a
+    default `Retry` group, match the recorded error with `ErrorTypeIs`, `ErrorContains`,
+    or `ErrorMatches`.
 
 === "C#"
 

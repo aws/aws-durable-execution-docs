@@ -55,6 +55,18 @@ Your durable function receives a `DurableContext` instead of the default Lambda 
     --8<-- "examples/java/getting-started/durable-context.java"
     ```
 
+=== "Go"
+
+    The type is `durable.Context`. The handler receives it in place of the standard
+    Lambda context. It embeds `context.Context`, so you can pass it to any function that
+    takes a `context.Context`. Inside a step, pass the step's `durable.StepContext` to
+    AWS SDK calls. The durable operations are package-level functions that take the
+    `durable.Context` as their first argument, such as `durable.Step(ctx, ...)`.
+
+    ```go
+    --8<-- "examples/go/getting-started/durable-context.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -176,6 +188,12 @@ Let's trace through a simple workflow:
 
     ```java
     --8<-- "examples/java/getting-started/execution-model.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/getting-started/execution-model.go"
     ```
 
 === "C#"

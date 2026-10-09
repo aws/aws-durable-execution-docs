@@ -30,6 +30,15 @@ execute the same operation concurrently for each item in a collection.
     --8<-- "examples/java/operations/parallel/simple-parallel.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/parallel/simple-parallel.go"
+    ```
+
+    All branches must return the same type. For branches of different result
+    types, use [`ParallelMixed`](#contextparallel).
+
 === "C#"
 
     ```csharp
@@ -172,6 +181,41 @@ execute the same operation concurrently for each item in a collection.
         .build()
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/parallel/parallel-signature.go"
+    ```
+
+    **Parameters:**
+
+    - `ctx` The durable context.
+    - `name` (required) A name for the parallel operation. Pass `""` to omit it.
+    - `branches` A `[]Branch[O]`. Each `Branch` has a `Name` (an empty name
+        becomes `parallel-branch-<index>`) and a `Func` that receives the
+        branch's own `durable.Context`.
+    - `opts` (optional) Zero or more `BatchOption` values. See
+        [ParallelConfig](#parallelconfig).
+
+    **Returns:** `(BatchResult[O], error)`. Branch failures are captured in the
+    `BatchResult`.
+
+    **Errors:** The same rules as `Map`. The batch fails as a unit when its
+    `Reason` is `CompletionFailureToleranceExceeded` or `CompletionCustomFailed`.
+    `Parallel` then returns the populated `BatchResult` together with a
+    `*BatchError`. It returns a `*BatchCompletionError` instead when a custom
+    decision failed the batch and no branch failed. A failure within the
+    configured tolerance returns a nil error. Any other error (an invalid
+    option, suspension, a checkpoint failure) comes with a zero `BatchResult`.
+    Return it unchanged. See [Error handling](#error-handling).
+
+    For branches of different result types, use `ParallelMixed` with
+    `NewTypedBranch`. Each branch keeps its own result type, and
+    `TypedBranch.Result` decodes that branch's value from the returned
+    `BatchResult[json.RawMessage]`. For a failed branch it returns the branch's
+    error. For a branch that never started or was abandoned it returns a
+    `*durable.BranchNotCompletedError`.
+
 === "C#"
 
     ```csharp
@@ -289,6 +333,38 @@ execute the same operation concurrently for each item in a collection.
     - `nestingType` (optional) `NestingType.NESTED` (default) or `NestingType.FLAT`. See
         [Nesting](#nesting).
 
+=== "Go"
+
+    Configure `Parallel` with the same `BatchOption` values as `Map`, passed as trailing
+    arguments. Name branches with `Branch.Name`.
+
+    ```go
+    func WithMaxConcurrency(n int) BatchOption
+    func WithCompletion(c CompletionConfig) BatchOption
+    func WithItemNamer(namer func(index int) string) BatchOption
+    func WithNesting(m NestingMode) BatchOption
+    func WithBatchSummary[O any](fn func(result BatchResult[O]) string) BatchOption
+    func WithBatchSerdes(s Serdes) BatchOption
+    func WithBatchResultSerdes(s Serdes) BatchOption
+    ```
+
+    **Parameters:**
+
+    - `WithMaxConcurrency` Maximum branches running at once. Zero or negative is
+        invalid. Default: unlimited.
+    - `WithCompletion` When to stop. Default: fail-fast. See
+        [CompletionConfig](#completionconfig).
+    - `WithItemNamer` Names each branch from its zero-based index. It replaces
+        every `Branch.Name`. Prefer `Branch.Name`.
+    - `WithNesting` `NestingNormal` (default) or `NestingFlat`. See
+        [Nesting](#nesting).
+    - `WithBatchSummary` A summary for an oversized result. See
+        [Checkpointing](#checkpointing).
+    - `WithBatchSerdes` Serializer for each branch result.
+    - `WithBatchResultSerdes` Serializer for the whole `BatchResult`.
+
+    `ToleratedFailurePercentage` is supported for parallel.
+
 === "C#"
 
     ```csharp
@@ -353,6 +429,60 @@ execution and the completion status of the result.
     CompletionConfig.shouldComplete(
         Function<CompletionStatus, CompletionDecision> decision)
     ```
+
+=== "Go"
+
+    Set the fields of a `CompletionConfig` and pass it with `WithCompletion`.
+    The threshold fields and `ShouldComplete` are mutually exclusive.
+
+    ```go
+    type CompletionConfig struct {
+    	MinSuccessful              int
+    	ToleratedFailureCount      *int
+    	ToleratedFailurePercentage *int
+    	ShouldComplete             func(BatchProgress) CompletionDecision
+    }
+
+    type BatchProgress struct {
+    	TotalCount     int
+    	CompletedCount int
+    	SuccessCount   int
+    	FailureCount   int
+    	Items          []BatchItemProgress
+    }
+
+    type BatchItemProgress struct {
+    	Index  int
+    	Name   string
+    	Status BatchItemStatus
+    }
+
+    func ContinueBatch() CompletionDecision
+    func CompleteBatch(outcome CompletionOutcome) CompletionDecision
+
+    type CompletionOutcome int
+
+    const (
+    	CompletionOutcomeSucceeded CompletionOutcome = 1
+    	CompletionOutcomeFailed    CompletionOutcome = 2
+    )
+    ```
+
+    - `MinSuccessful` Completes the batch once this many branches succeed. Zero
+        leaves it unset.
+    - `ToleratedFailureCount` Fails the batch once more than this many branches
+        fail. Nil leaves it unset. `aws.Int(0)` fails on the first failure.
+    - `ToleratedFailurePercentage` Fails the batch once the failure percentage,
+        computed against the total branch count, is strictly greater than this
+        value. Nil leaves it unset. `aws.Int(0)` fails on the first failure.
+    - `ShouldComplete` A custom predicate. It cannot be combined with the
+        threshold fields.
+
+    Set the pointer fields with any `*int`, for example `aws.Int` from
+    `github.com/aws/aws-sdk-go-v2/aws`. The default (no `WithCompletion`) is
+    fail-fast. To run every branch regardless of failures, set
+    `ToleratedFailurePercentage: aws.Int(100)`, which is never exceeded. For
+    first-successful, set `MinSuccessful: 1`.
 
 === "C#"
 
@@ -539,6 +669,85 @@ execution and the completion status of the result.
     the `DurableFuture<T>` returned by each `branch()` call and call `.get()` on it after
     `parallel.get()` returns. Results are available in the order branches were registered.
 
+=== "Go"
+
+    `Parallel` and `Map` return the same `BatchResult[O]`. It carries each
+    branch's result and error.
+
+    ```go
+    type BatchResult[O any] struct {
+    	Items  []BatchItem[O]
+    	Reason CompletionReason
+    }
+
+    func (r BatchResult[O]) Results() []O
+    func (r BatchResult[O]) Succeeded() []BatchItem[O]
+    func (r BatchResult[O]) Failed() []BatchItem[O]
+    func (r BatchResult[O]) Started() []BatchItem[O]
+    func (r BatchResult[O]) Errors() []error
+    func (r BatchResult[O]) HasFailure() bool
+    func (r BatchResult[O]) SuccessCount() int
+    func (r BatchResult[O]) FailureCount() int
+    func (r BatchResult[O]) StartedCount() int
+    func (r BatchResult[O]) TotalCount() int
+    func (r BatchResult[O]) Status() BatchItemStatus
+    func (r BatchResult[O]) Item(name string) *BatchItem[O]
+    func (r BatchResult[O]) Result(name string) (value O, ok bool)
+
+    type BatchItem[O any] struct {
+    	Index  int
+    	Name   string
+    	Status BatchItemStatus
+    	Result O
+    	Err    error
+    }
+
+    type BatchItemStatus int
+
+    const (
+    	BatchItemNotStarted BatchItemStatus = 0
+    	BatchItemSucceeded  BatchItemStatus = 1
+    	BatchItemFailed     BatchItemStatus = 2
+    	BatchItemStarted    BatchItemStatus = 4
+    )
+
+    type CompletionReason int
+
+    const (
+    	CompletionAllCompleted             CompletionReason = 1
+    	CompletionMinSuccessfulReached     CompletionReason = 2
+    	CompletionFailureToleranceExceeded CompletionReason = 3
+    	CompletionCustomSucceeded          CompletionReason = 4
+    	CompletionCustomFailed             CompletionReason = 5
+    )
+    ```
+
+    - **`Items`** per-branch outcomes in input order. A branch started and then
+        abandoned on early completion is included with `BatchItemStarted`.
+        Branches that never started are omitted.
+    - **`Results()`** successful results in input order.
+    - **`Errors()`** errors of failed branches, in input order. Each is rebuilt
+        from its checkpoint record. In `NestingNormal` each is a
+        `*durable.ChildContextError` named after the branch. In `NestingFlat`
+        each is the rebuilt error the branch function returned. `errors.As`
+        matches an SDK error inside, such as `*durable.StepError`, but not your
+        own error types. In `NestingNormal`, match your own types on
+        `ChildContextError.ErrorType`.
+    - **`Succeeded()` / `Failed()` / `Started()`** branches filtered by status.
+    - **`SuccessCount()` / `FailureCount()` / `StartedCount()` / `TotalCount()`**
+        branch counts. `TotalCount()` excludes branches that never started.
+    - **`Status()`** `BatchItemFailed` if any branch failed or the batch failed
+        as a unit, else `BatchItemSucceeded`. A custom decision sets it directly.
+        A failure within tolerance still gives `BatchItemFailed` with a nil
+        error.
+    - **`Item(name)` / `Result(name)`** look up one branch by its name.
+    - **`Reason`** why the batch completed.
+
+    `BatchItemStatus.String()` and `CompletionReason.String()` return the wire
+    forms, such as `SUCCEEDED` and `ALL_COMPLETED`.
+
+    Inspect the returned error and the result.
+
 === "C#"
 
     ```csharp
@@ -645,6 +854,16 @@ the parent context.
     --8<-- "examples/java/operations/parallel/named-branches.java"
     ```
 
+=== "Go"
+
+    A branch is a `Branch[O]` with a `Name` and a `Func`. Set `Name` to name the
+    branch. An empty `Name` is named `parallel-branch-<index>`. The `Func`
+    receives the branch's own `durable.Context`.
+
+    ```go
+    --8<-- "examples/go/operations/parallel/named-branches.go"
+    ```
+
 === "C#"
 
     A branch is a plain `Func<IDurableContext, CancellationToken, Task<T>>`, or a
@@ -682,6 +901,16 @@ the parent context.
     --8<-- "examples/java/operations/parallel/pass-arguments.java"
     ```
 
+=== "Go"
+
+    Capture arguments in the branch closure. In a module that declares Go 1.22
+    or later, each loop iteration has its own variable. So a branch built in a
+    loop captures its own value.
+
+    ```go
+    --8<-- "examples/go/operations/parallel/pass-arguments.go"
+    ```
+
 === "C#"
 
     Capture arguments in the closure. Copy the loop variable to a local so each branch
@@ -708,6 +937,12 @@ Name your parallel operations to make them easier to identify in logs and tests.
     The name is always required. Each `branch()` call also requires a name. Pass `null` to
     omit it.
 
+=== "Go"
+
+    The name is the required second argument. Pass `""` to leave it unnamed. Name
+    each branch with `Branch.Name`. An empty name becomes
+    `parallel-branch-<index>`.
+
 === "C#"
 
     The name is the optional `name` argument. Omit it to infer one from the call site. Use
@@ -733,6 +968,12 @@ Configure parallel behavior using `ParallelConfig`:
 
     ```java
     --8<-- "examples/java/operations/parallel/parallel-config.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/parallel/parallel-config.go"
     ```
 
 === "C#"
@@ -866,6 +1107,37 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
     automatically. Inspect `result.completionStatus().isSucceeded()` to distinguish
     the custom outcomes.
 
+=== "Go"
+
+    `BatchResult.Reason` records the stop condition. Branches that never started
+    are omitted from `Items`. A branch that started but did not complete appears
+    with `BatchItemStarted`. `Parallel` does not leave abandoned branches
+    running. An abandoned branch stops at its next durable operation. `Parallel`
+    returns only after every started branch has stopped.
+
+    | `CompletionConfig`                       | Early exit `Reason`                                     | Full completion `Reason` |
+    | ---------------------------------------- | ------------------------------------------------------- | ------------------------ |
+    | zero value (default, fail-fast)          | `CompletionFailureToleranceExceeded`                    | `CompletionAllCompleted` |
+    | `ToleratedFailureCount: aws.Int(N)`      | `CompletionFailureToleranceExceeded`                    | `CompletionAllCompleted` |
+    | `ToleratedFailurePercentage: aws.Int(N)` | `CompletionFailureToleranceExceeded`                    | `CompletionAllCompleted` |
+    | `MinSuccessful: N`                       | `CompletionMinSuccessfulReached`                        | `CompletionAllCompleted` |
+    | `ShouldComplete: ...`                    | `CompletionCustomSucceeded` or `CompletionCustomFailed` | `CompletionAllCompleted` |
+
+    The default is fail-fast. Set `ShouldComplete` when the threshold fields cannot
+    express the rule. The predicate receives a `BatchProgress` snapshot before the first
+    branch and again after each branch reaches a terminal state, so it must handle the
+    initial zero-progress snapshot. It must be deterministic. Return `ContinueBatch()`,
+    or `CompleteBatch(durable.CompletionOutcomeSucceeded)` or
+    `CompleteBatch(durable.CompletionOutcomeFailed)` to stop and classify the result.
+    With `ShouldComplete` set, a branch failure does not stop the batch by itself. A
+    failed custom outcome returns a `*BatchError`, or a `*BatchCompletionError` when no
+    branch failed. A predicate that panics fails the operation with an error that is not
+    a `*BatchError`.
+
+    ```go
+    --8<-- "examples/go/operations/parallel/custom-completion.go"
+    ```
+
 === "C#"
 
     The `IBatchResult`'s `CompletionReason` indicates the stop condition with which the
@@ -908,6 +1180,12 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
     --8<-- "examples/java/operations/parallel/completion-config.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/parallel/completion-config.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -948,6 +1226,19 @@ propagating it immediately. Other branches continue running.
 
     ```java
     --8<-- "examples/java/operations/parallel/error-handling.java"
+    ```
+
+=== "Go"
+
+    `Parallel` captures each branch error in the result. By default (fail-fast)
+    the first branch failure completes the batch. Branches still running are
+    abandoned, and branches not yet started never run. `Parallel` then returns
+    the populated result together with a `*durable.BatchError`. Match it with
+    `errors.As`. Tolerate failures to keep every branch running, then read the
+    failures from `BatchResult.Errors()` and `BatchResult.Failed()`.
+
+    ```go
+    --8<-- "examples/go/operations/parallel/error-handling.go"
     ```
 
 === "C#"
@@ -1037,6 +1328,18 @@ language-specific details below describe nested mode.
     re-executes the branches to reconstruct the `ParallelResult` from their individual
     checkpoints.
 
+=== "Go"
+
+    `WithNesting` selects the checkpoint shape, as for `Map`. The SDK checkpoints
+    the whole `BatchResult` when it is at most 256KB serialized. On replay, the
+    SDK decodes that `BatchResult` without running the branches. A larger result
+    is not stored. The checkpoint then keeps the child operations plus a compact
+    record, and replay rebuilds each branch from that branch's own checkpoint.
+    The record holds `type`, `totalCount`, `successCount`, `failureCount`,
+    `startedCount`, `completionReason`, `status`, and `itemStatuses`, one
+    character per started branch. Pass `WithBatchSummary` to add your own string
+    under the `summary` key.
+
 === "C#"
 
     In nested mode, the SDK reconstructs `IBatchResult` from per-branch checkpoints.
@@ -1065,6 +1368,12 @@ Each nested parallel creates its own set of child contexts.
 
     ```java
     --8<-- "examples/java/operations/parallel/nested-parallel.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/parallel/nested-parallel.go"
     ```
 
 === "C#"

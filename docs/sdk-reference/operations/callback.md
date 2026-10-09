@@ -49,6 +49,12 @@ You send the callback ID to an external system. The external system uses that ID
     --8<-- "examples/java/operations/callbacks/basic-example.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/callbacks/basic-example.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -80,6 +86,17 @@ function and then waits for the result.
 
     ```java
     --8<-- "examples/java/operations/callbacks/wait-for-callback-example.java"
+    ```
+
+=== "Go"
+
+    The submitter is `func(ctx durable.StepContext, callbackID string) error`.
+    The context is the first argument and the callback ID is the second. The SDK
+    retries the submitter on failure with the step default strategy, exponential
+    backoff.
+
+    ```go
+    --8<-- "examples/go/operations/callbacks/wait-for-callback-example.go"
     ```
 
 === "C#"
@@ -178,6 +195,34 @@ sequenceDiagram
     **Throws:** `CallbackFailedException` if the external system reports failure.
     `CallbackTimeoutException` if the callback times out.
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/callbacks/create-callback-signature.go"
+    ```
+
+    **Parameters:**
+
+    - `ctx` (required) The durable context, always the first argument.
+    - `name` (required) A name for the callback. Pass `""` to omit it.
+    - `opts` (optional) Variadic `CallbackOption` values. See
+        [CallbackConfig](#callbackconfig).
+
+    **Returns:** `(*Callback[O], error)`. Call `cb.ID()` to get the ID to send to
+    the external system, and `cb.Result(ctx)` to suspend until the external system
+    submits a result. The result flows through `RawSerdes` by default, so `O` must
+    be `string`, `[]byte`, or `json.RawMessage` and the handler receives the
+    submitted bytes unchanged. Pass `durable.WithCallbackSerdes(durable.JSONSerdes)`
+    to decode the payload into another type.
+
+    **Errors:** `CreateCallback` returns an error for an invalid option or a
+    checkpoint failure. The callback's own failure surfaces from `cb.Result`, not
+    from `CreateCallback`. A failure the external system sends returns a
+    `*CallbackExternalError` whose `ErrorType` and `Message` are the values the
+    system supplied. A timeout returns a `*CallbackTimeoutError`. Both match
+    `*CallbackError`. A result the deserializer cannot decode into `O` returns a
+    `*SerdesError`.
+
 === "C#"
 
     ```csharp
@@ -235,6 +280,24 @@ The object returned by `createCallback`.
     - `callbackId()` The unique ID to send to the external system.
     - `get()` Blocks until the external system calls back. Throws `CallbackFailedException`
         or `CallbackTimeoutException` on failure.
+
+=== "Go"
+
+    ```go
+    type Callback[O any] struct {
+    	// Has unexported fields.
+    }
+
+    func (c *Callback[O]) ID() string
+    func (c *Callback[O]) Result(ctx Context) (O, error)
+    ```
+
+    - `ID()` The unique ID to send to the external system.
+    - `Result(ctx)` Suspends until the external system submits a result. Returns a
+        `*CallbackExternalError` or `*CallbackTimeoutError` on failure, both matching
+        `*CallbackError`. When the invocation suspends, it returns the suspension
+        signal, which you return unchanged. Pass the context of the code that reads
+        the outcome.
 
 === "C#"
 
@@ -311,6 +374,36 @@ The object returned by `createCallback`.
         callback fails.
     - `serDes` (optional) Custom `SerDes` for the callback result. See
         [Serialization](../state/serialization.md).
+
+=== "Go"
+
+    Pass `CallbackOption` values to `CreateCallback`. The per-operation
+    `WithCallbackSerdes` takes precedence over the handler-level
+    `WithCallbackDeserializer`. When neither is set, the result passes through
+    `RawSerdes`.
+
+    ```go
+    func WithCallbackTimeout(d time.Duration) CallbackOption
+    func WithCallbackHeartbeatTimeout(d time.Duration) CallbackOption
+    func WithCallbackSerdes(s Serdes) CallbackOption
+    func WithCallbackSubType(subType string) CallbackOption
+    ```
+
+    **Parameters:**
+
+    - `WithCallbackTimeout` Maximum time to wait for the result, as a
+        `time.Duration` rounded up to whole seconds. Omit it or pass `0` to disable
+        the timeout. A negative duration is an error. On expiry the callback fails
+        with a `*CallbackTimeoutError`.
+    - `WithCallbackHeartbeatTimeout` Maximum interval between heartbeats, with the
+        same duration handling. On expiry the callback fails with a
+        `*CallbackTimeoutError` whose `Heartbeat` field is true.
+    - `WithCallbackSerdes` Deserializer for the callback result.
+    - `WithCallbackSubType` The operation subtype recorded for the callback. It
+        takes 1 to 32 characters from `A-Z`, `a-z`, `0-9`, `-`, and `_`. An empty
+        value selects the default, and the SDK's own subtypes are rejected. The
+        subtype is part of the operation's identity on replay, so it must not
+        change between invocations.
 
 === "C#"
 
@@ -403,6 +496,32 @@ callback ID rather than coding it yourself.
     `CallbackTimeoutException` if the callback times out. `CallbackSubmitterException` if
     the submitter step fails after exhausting retries.
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/callbacks/wait-for-callback-signature.go"
+    ```
+
+    **Parameters:**
+
+    - `ctx` (required) The durable context, always the first argument.
+    - `name` (required) A name for the operation. Pass `""` to omit it.
+    - `submitter` (required) `func(ctx StepContext, callbackID string) error`. It
+        receives the callback ID and delivers it to the external system. The SDK
+        runs it as a step and retries it on failure.
+    - `opts` (optional) Variadic `WaitForCallbackOption` values. See
+        [WaitForCallbackConfig](#waitforcallbackconfig).
+
+    **Returns:** `(O, error)`, the callback result. The result flows through `RawSerdes`
+    by default. Pass `durable.WithCallbackSerdes(durable.JSONSerdes)` to decode it. The
+    result serializer runs once, at the `WaitForCallback` operation. To run
+    `WaitForCallback` concurrently, wrap it in `durable.Go`.
+
+    **Errors:** `*CallbackExternalError`, `*CallbackTimeoutError`, or
+    `*CallbackSubmitterError` when the submitter step exhausts its retries. All
+    three match `*CallbackError`. A result the deserializer cannot decode returns a
+    `*SerdesError` whose `Operation` is the `WaitForCallback` name.
+
 === "C#"
 
     ```csharp
@@ -466,6 +585,19 @@ submitter step.
         strategy. See [Retry strategies](../error-handling/retries.md).
     - `callbackConfig` (optional) A `CallbackConfig` for the callback wait.
 
+=== "Go"
+
+    `WaitForCallback` accepts every `CallbackOption` plus one submitter-only option.
+
+    ```go
+    func WithSubmitterRetry(s RetryStrategy) WaitForCallbackOption
+    ```
+
+    - `WithSubmitterRetry` A retry strategy for the submitter step. Omit it and the
+        submitter retries with the step default, exponential backoff.
+        `WithSubmitterRetry` is not a `CallbackOption`, so passing it to
+        `CreateCallback` is a compile error.
+
 === "C#"
 
     ```csharp
@@ -523,6 +655,12 @@ help detect stalled external systems sooner.
     --8<-- "examples/java/operations/callbacks/callback-config.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/callbacks/callback-config.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -545,6 +683,10 @@ describes what the callback is waiting for.
 === "Java"
 
     The name is always the first argument. Pass `null` to omit it.
+
+=== "Go"
+
+    The name is the second argument, after the context. Pass `""` to omit it.
 
 === "C#"
 

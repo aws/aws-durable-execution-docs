@@ -3,8 +3,8 @@
 This guide covers how to author documentation for AWS Lambda Durable Functions.
 For setup and contribution workflow, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
-Each SDK reference page must be equally useful to TypeScript, Python, Java, and
-C# developers. No language is the implicit default. Language-specific quirks
+Each SDK reference page must be equally useful to TypeScript, Python, Java, Go,
+and C# developers. No language is the implicit default. Language-specific quirks
 belong inside the relevant tab, not in shared prose.
 
 ## Verify Against SDK Source
@@ -22,11 +22,13 @@ For each code example:
 1. Find the method definition in the SDK source, not tests or docs
 2. For each parameter, find its type definition. Recurse through nested types.
 3. For Java, check both the sync and async variants (e.g. `step()` and `stepAsync()`)
+   For Go, check both the blocking function and its `Async` variant (e.g. `Step` and
+   `StepAsync`) where the SDK has one
 4. Check the testing libraries of each repo for examples to verify your example code actually works
 
 ### SDK repositories
 
-You will need the SDK source for all four languages. Clone them alongside
+You will need the SDK source for all five languages. Clone them alongside
 the docs repo:
 
 | Repository | Source path to read |
@@ -34,15 +36,18 @@ the docs repo:
 | [aws-durable-execution-sdk-js](https://github.com/aws/aws-durable-execution-sdk-js) | `packages/aws-durable-execution-sdk-js/src` |
 | [aws-durable-execution-sdk-python](https://github.com/aws/aws-durable-execution-sdk-python) | `packages/aws-durable-execution-sdk-python/src/aws_durable_execution_sdk_python` |
 | [aws-durable-execution-sdk-java](https://github.com/aws/aws-durable-execution-sdk-java) | `sdk/src/main/java/software/amazon/lambda/durable` |
+| [aws-durable-execution-sdk-go](https://github.com/aws/aws-durable-execution-sdk-go) | `durable` |
 | [aws-lambda-dotnet](https://github.com/aws/aws-lambda-dotnet) | `Libraries/src/Amazon.Lambda.DurableExecution` |
 
 Testing SDKs are useful for confirming example code compiles and runs. The
 JavaScript, Python, Java, and C# testing SDKs all live in the same repos as
 their main SDKs, under `-testing` package paths (or
-`Amazon.Lambda.DurableExecution.Testing` for C#):
+`Amazon.Lambda.DurableExecution.Testing` for C#). The Go testing package,
+`durabletest`, lives in the same module as the Go SDK:
 
 | Repository | Source path to read |
 |---|---|
+| [aws-durable-execution-sdk-go](https://github.com/aws/aws-durable-execution-sdk-go) | `durable/durabletest` |
 | [aws-lambda-dotnet](https://github.com/aws/aws-lambda-dotnet) | `Libraries/src/Amazon.Lambda.DurableExecution.Testing` |
 
 
@@ -54,6 +59,11 @@ their main SDKs, under `-testing` package paths (or
   `StepConfig` and `StepSemantics`. Check `types.py` for `StepContext`.
 - **Java**: `DurableContext.java` for the interface. Check
   `config/StepConfig.java`, `StepContext.java`, `StepSemantics.java`.
+- **Go**: `context.go` for the `Context` and `StepContext` interfaces and `Serdes`.
+  Each operation and its options live in their own file (`step.go`, `wait.go`,
+  `invoke.go`, `callback.go`, `child_context.go`, `wait_for_condition.go`,
+  `batch.go` for `Map` and `Parallel`). Check `retry.go` for `RetryConfig` and
+  `errors.go` for the error types. `go doc -all ./durable` lists the whole API.
 - **C#**: `IDurableContext.cs` for the interface (also defines `IStepContext`,
   `IExecutionContext`). Check `StepConfig.cs`, `RetryStrategy.cs` (also holds
   `StepSemantics` and `JitterStrategy`), `DurableFunction.cs` for `WrapAsync`, and
@@ -92,7 +102,7 @@ as a whole new page can.
 
 ## Language Neutrality
 
-Tab order is always: **TypeScript → Python → Java → C#**.
+Tab order is always: **TypeScript → Python → Java → Go → C#**.
 
 If a language has a quirk, note it inside that language's tab:
 
@@ -121,6 +131,14 @@ If a language has a quirk, note it inside that language's tab:
     --8<-- "examples/java/operations/steps/basic-step.java"
     ```
 
+=== "Go"
+
+    The name is the second argument, after the context. Pass `""` to omit it.
+
+    ```go
+    --8<-- "examples/go/operations/steps/basic-step.go"
+    ```
+
 === "C#"
 
     The name is optional. Omit it to infer one from the call site.
@@ -137,7 +155,7 @@ Durable Execution SDK. Integration pages live under
 `docs/sdk-reference/integrations/`. Some frameworks exist in one language.
 Pydantic AI is Python only.
 
-For a single-language integration, the four-language rules do not apply. State
+For a single-language integration, the five-language rules do not apply. State
 the framework's language in the first sentence. Write the rest of the page in
 that language alone. Use a plain code fence instead of content tabs, because
 tabs separate languages and this page has only one.
@@ -152,7 +170,7 @@ SDK reference pages follow this pattern:
 
 1. One or two short paragraphs explaining what the operation does and when
    to use it
-2. A minimal walkthrough example (tabs, all four languages)
+2. A minimal walkthrough example (tabs, all five languages)
 3. Method signature section with per-language tabs
 4. Parameters listed after the tabs (shared where identical, inside tabs
    where language-specific)
@@ -236,7 +254,7 @@ Model tone and structure on these pages:
 
 All code examples must:
 
-- Include all four languages (TypeScript, Python, Java, C#)
+- Include all five languages (TypeScript, Python, Java, Go, C#)
 - Be functionally equivalent across languages
 - Include necessary imports
 - Be minimal. Show the concept, not a full application.
@@ -250,10 +268,18 @@ examples/
   typescript/{section}/{subsection}/{example-name}.ts
   python/{section}/{subsection}/{example-name}.py
   java/{section}/{subsection}/{example-name}.java
+  go/{section}/{subsection}/{example-name}.go
   csharp/{section}/{subsection}/{example-name}.cs
 ```
 
-Use hyphens in filenames. All four languages must have the same set of files.
+Use hyphens in filenames. All five languages must have the same set of files.
+
+A Go walkthrough example is a complete `package main` program, so a reader can
+build and deploy it as it is. Its `func main` calls `durable.Start` with the
+handler and any handler options, for example `durable.Start(handler)` or
+`durable.Start(handler, durable.WithLogHandler(logHandler))`. A Go test example
+is also `package main` and uses `durabletest`. A reader saves it under a
+`_test.go` name and runs it with `go test`. Format Go examples with `gofmt`.
 
 ### Embedding in Docs
 
@@ -276,6 +302,12 @@ Use the `--8<--` snippet syntax with content tabs:
 
     ```java
     --8<-- "examples/java/operations/steps/basic-step.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/steps/basic-step.go"
     ```
 
 === "C#"
@@ -303,6 +335,21 @@ For Java, show both sync and async variants:
     // async
     <T> DurableFuture<T> stepAsync(String name, Class<T> resultType, Function<StepContext, T> func)
     <T> DurableFuture<T> stepAsync(String name, Class<T> resultType, Function<StepContext, T> func, StepConfig config)
+    ```
+```
+
+For Go, show the blocking function and its `Async` variant where the SDK has
+one. Copy each declaration exactly as `go doc` prints it:
+
+```markdown
+=== "Go"
+
+    ```go
+    // Sync
+    func Step[O any](ctx Context, name string, fn func(StepContext) (O, error), opts ...StepOption) (O, error)
+
+    // Async
+    func StepAsync[O any](ctx Context, name string, fn func(StepContext) (O, error), opts ...StepOption) *Future[O]
     ```
 ```
 
@@ -387,12 +434,14 @@ grammar. The items below cover authoring mechanics.
 
 - [ ] All prose is language-neutral (no Python-only concepts described as universal)
 - [ ] No Table of Contents, no "Back to top" links, no "Back to X" links
-- [ ] Tab order is TypeScript → Python → Java → C# everywhere
+- [ ] Tab order is TypeScript → Python → Java → Go → C# everywhere
 - [ ] Language-specific notes are inside tabs, not outside
-- [ ] All four languages have example files for every `--8<--` reference
+- [ ] All five languages have example files for every `--8<--` reference
 - [ ] Single-language integration pages use one language and a plain code fence instead of tabs
 - [ ] Every example verified against the actual SDK source
 - [ ] Java method signatures show both sync and async variants
+- [ ] Go method signatures show the `Async` variant where the SDK has one
+- [ ] Go examples are `gofmt`-formatted and build against the Go SDK
 - [ ] TypeScript signatures show both overloads where they exist
 - [ ] Topic is not already covered (or duplicated) on another page
 - [ ] No contradictions with other pages

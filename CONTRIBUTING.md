@@ -32,7 +32,7 @@ Common commands:
 
 1. Create the markdown file in `docs/`
 2. Add the page to the nav section in `zensical.toml`
-3. Create corresponding code examples in all four languages under `examples/`
+3. Create corresponding code examples in all five languages under `examples/`
 4. Test locally with `zensical serve`
 
 ## Vendored dependencies
@@ -152,14 +152,14 @@ Edit documentation in the markdown files under `docs/`.
 
 Embed code samples in documentation pages with the `--8<--` snippet syntax with content tabs for multi-language support.
 
-**IMPORTANT**: All code examples MUST include all four languages (TypeScript, Python, Java, C#) and remain functionally equivalent across languages. The tab order must always be TypeScript → Python → Java → C#. Single-language integration pages are the exception.
+**IMPORTANT**: All code examples MUST include all five languages (TypeScript, Python, Java, Go, C#) and remain functionally equivalent across languages. The tab order must always be TypeScript → Python → Java → Go → C#. Single-language integration pages are the exception.
 
 #### Steps to add a new code sample:
 
 1. Create example files under `examples/` following the page folder hierarchy
-2. Use identical names with hyphens across all languages (e.g., `retry-with-backoff.{ts,py,java,cs}`)
+2. Use identical names with hyphens across all languages (e.g., `retry-with-backoff.{ts,py,java,go,cs}`)
 3. Organize by language: `examples/{language}/{section}/{subsection}/{example-name}.{ext}`
-4. Ensure all four language versions demonstrate the same functionality
+4. Ensure all five language versions demonstrate the same functionality
 5. Reference the examples in your documentation using content tabs:
 
 ```markdown
@@ -179,6 +179,12 @@ Embed code samples in documentation pages with the `--8<--` snippet syntax with 
 
     ```java
     --8<-- "examples/java/core/steps/basic-step.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/core/steps/basic-step.go"
     ```
 
 === "C#"
@@ -224,6 +230,17 @@ examples/
 │   └── advanced/
 │       └── error-handling/
 │           └── retry-with-backoff.java
+├── go/
+│   ├── getting-started/
+│   │   └── minimal-example.go
+│   ├── core/
+│   │   ├── steps/
+│   │   │   └── basic-step.go
+│   │   └── parallel/
+│   │       └── parallel-execution.go
+│   └── advanced/
+│       └── error-handling/
+│           └── retry-with-backoff.go
 └── csharp/
     ├── getting-started/
     │   └── minimal-example.cs
@@ -264,8 +281,8 @@ Example:
 ```
 add custom serdes examples
 
-- Add TypeScript, Python, Java, and C# examples for custom
-  serialization
+- Add TypeScript, Python, Java, Go, and C# examples for
+  custom serialization
 - Include encryption-at-rest pattern for sensitive data
 - Update serialization doc page with snippet references
 ```

@@ -79,6 +79,24 @@ CI.
     - `handler` (optional) A `DurableHandler` instance. The runner extracts its
         configuration automatically.
 
+=== "Go"
+
+    Construction is the whole lifecycle. The `opts` are the production handler's
+    `durable.HandlerOption` values, such as `durable.WithSerdes`. The handler has type
+    `durable.Handler[I, O]`, that is `func(durable.Context, I) (O, error)`.
+
+    ```go
+    func NewLocalRunner[I, O any](handler durable.Handler[I, O], opts ...durable.HandlerOption) *LocalRunner[I, O]
+    ```
+
+    **Parameters:**
+
+    - `handler` (required) The durable handler under test.
+    - `opts` (optional) `durable.HandlerOption` values, applied as in production. The
+        runner supplies its own in-memory execution client.
+
+    **Returns:** `*LocalRunner[I, O]`
+
 === "C#"
 
     The local runner type is `DurableTestRunner<TInput, TOutput>`. Construct it with the
@@ -166,6 +184,39 @@ CI.
 
     **Returns:** `TestResult<O>`
 
+=== "Go"
+
+    `Run` performs a single invocation and may return `PENDING`.
+    `RunUntilComplete` loops, advancing timers and running registered invoke
+    targets between invocations. It returns at a terminal status, when the
+    execution is blocked on a callback or chained invoke, or at the invocation
+    cap.
+
+    ```go
+    func (r *LocalRunner[I, O]) Run(event I) (*TestResult, error)
+    func (r *LocalRunner[I, O]) RunUntilComplete(event I, opts ...RunnerOption) (*TestResult, error)
+    ```
+
+    **Parameters:**
+
+    - `event` (required) The handler input, of the runner's input type `I`. The runner
+        encodes it as JSON.
+    - `opts` (optional) `RunnerOption` values. `WithMaxInvocations` sets the invocation cap,
+        which defaults to `DefaultMaxInvocations` (100).
+
+    **Returns:** `*TestResult` and an `error`. When `RunUntilComplete` reaches the cap,
+    the result holds the last state, usually `PENDING`, with `CapReached` set to `true`.
+
+    ```go
+    CapReached bool
+    ```
+
+    **Errors:** The error is non-nil, and the result nil, only when the runner itself
+    fails. That happens when the event does not encode as JSON, the invocation returns
+    an error that indicates an SDK or runner bug, or the response does not parse. A
+    handler that returns an error produces a nil error and a result with status
+    `FAILED`.
+
 === "C#"
 
     ```csharp
@@ -219,6 +270,11 @@ CI.
     Not applicable on the local runner. `run()` runs a single invocation,
     `runUntilComplete()` drives the full loop. The cloud runner exposes `startAsync()`, see
     [CloudDurableTestRunner](#clouddurabletestrunner).
+
+=== "Go"
+
+    For a callback or chained invoke, run to `PENDING`, resolve the pending operation,
+    then call `RunUntilComplete` again.
 
 === "C#"
 
@@ -279,6 +335,29 @@ CI.
 
     **Returns:** `TestOperation`, or `null` if not found.
 
+=== "Go"
+
+    Inspect operations through the result.
+
+    ```go
+    func (r *TestResult) Operation(name string) *TestOperation
+    func (r *TestResult) OperationByNameAndIndex(name string, index int) *TestOperation
+    func (r *TestResult) OperationByIndex(index int) *TestOperation
+    func (r *TestResult) OperationByID(id string) *TestOperation
+    func (r *TestResult) OperationsByType(opType string) []TestOperation
+    ```
+
+    **Parameters:**
+
+    - `name` (required) The operation name. `Operation` returns the first match.
+    - `index` (required) A zero-based index. For `OperationByNameAndIndex` it counts
+        operations with that name. For `OperationByIndex` it counts all operations.
+    - `id` (required) The operation's wire ID.
+    - `opType` (required) An operation type string, such as `"STEP"`.
+
+    **Returns:** A `*TestOperation`, or nil if not found. `OperationsByType` returns a
+    `[]TestOperation`.
+
 === "C#"
 
     The .NET runner does not expose operation lookups; inspect operations through the
@@ -336,6 +415,31 @@ CI.
     void timeoutCallback(String callbackId)
     ```
 
+=== "Go"
+
+    Drive callbacks from the runner by callback ID. Enumerate the pending callbacks with
+    `OpenCallbacks`, then resolve one. A failure takes an `errorType` and an
+    `errorMessage` string.
+
+    ```go
+    func (r *LocalRunner[I, O]) OpenCallbacks() []OpenCallback
+    func (r *LocalRunner[I, O]) SendCallbackSuccess(callbackID string, payload any) error
+    func (r *LocalRunner[I, O]) SendCallbackFailure(callbackID, errorType, errorMessage string) error
+    func (r *LocalRunner[I, O]) SendCallbackHeartbeat(callbackID string) error
+    func (r *LocalRunner[I, O]) TimeoutCallback(callbackID string) error
+
+    type OpenCallback struct {
+    	CallbackID string
+    	Name       string
+    }
+    ```
+
+    `SendCallbackSuccess` encodes `payload` as JSON. So a Go string `"approved"` arrives
+    as `"approved"` with its quote characters.
+    `OpenCallback.Name` is the callback operation's name. A `WaitForCallback` records an
+    unnamed inner callback, so its `Name` is empty. The `WaitForCallback` name is on the
+    callback's parent operation.
+
 === "C#"
 
     Callbacks are driven from the runner. After `StartAsync`, wait for the callback ID, then
@@ -391,6 +495,17 @@ CI.
     void stopChainedInvoke(String name, ErrorObject error)
     ```
 
+=== "Go"
+
+    Resolve a chained invoke by its operation name, or register the target so the invoke
+    runs for real (see the next section).
+
+    ```go
+    func (r *LocalRunner[I, O]) CompleteChainedInvoke(name string, payload any) error
+    func (r *LocalRunner[I, O]) FailChainedInvoke(name, errorType, errorMessage string) error
+    func (r *LocalRunner[I, O]) TimeoutChainedInvoke(name string) error
+    ```
+
 === "C#"
 
     The .NET SDK does not expose per-invoke completion methods. Instead, register the
@@ -419,6 +534,20 @@ CI.
 === "Java"
 
     Not applicable.
+
+=== "Go"
+
+    Register the function identifier the handler passes to `durable.Invoke`.
+    Build the target with `DurableFunction` for a durable handler or
+    `PlainFunction` for a one-shot handler. Registered targets may invoke other
+    registered identifiers up to `MaxInvokeDepth` levels deep.
+
+    ```go
+    func (r *LocalRunner[I, O]) RegisterFunction(functionID string, fn Function)
+    func DurableFunction[I, O any](handler durable.Handler[I, O], opts ...durable.HandlerOption) Function
+    func PlainFunction[I, O any](handler func(context.Context, I) (O, error)) Function
+    const MaxInvokeDepth = 10
+    ```
 
 === "C#"
 
@@ -456,6 +585,17 @@ CI.
     void simulateFireAndForgetCheckpointLoss(String stepName)
     ```
 
+=== "Go"
+
+    To exercise failure and retry, return an error from a step. `OmitTokenOnCheckpoint`
+    withholds the checkpoint token on the n-th checkpoint call, so the invocation ends
+    `PENDING` and resumes on the next run. `n` counts calls from now, starting at 1. A
+    value below 1 panics.
+
+    ```go
+    func (r *LocalRunner[I, O]) OmitTokenOnCheckpoint(n int)
+    ```
+
 === "C#"
 
     The .NET SDK does not expose checkpoint-manipulation methods. To exercise failure and
@@ -490,6 +630,17 @@ CI.
     `runUntilComplete()` calls `advanceTime()` after each invocation. When you call `run()`
     directly, call `advanceTime()` yourself between invocations. `advanceTime()` marks
     PENDING step retries as READY and completes STARTED waits without real-time sleeps.
+
+=== "Go"
+
+    Time is virtual and always skipped. `RunUntilComplete` advances timer-blocked
+    operations between invocations. `CompletePendingTimers` fires every pending retry
+    and wait timer at once and reports whether any fired. To check a wait's duration,
+    read `WaitDetails.WaitSeconds`.
+
+    ```go
+    func (r *LocalRunner[I, O]) CompletePendingTimers() bool
+    ```
 
 === "C#"
 
@@ -526,6 +677,16 @@ See [Authoring: Skip time in tests](authoring.md#skip-time-in-tests) for an over
 === "Java"
 
     Create a new `LocalDurableTestRunner` instance per test.
+
+=== "Go"
+
+    `Reset` discards the checkpoint log, the recorded events, and every open
+    callback and invoke, while keeping the handler, its options, and the
+    registered functions, so one runner serves several cases.
+
+    ```go
+    func (r *LocalRunner[I, O]) Reset()
+    ```
 
 === "C#"
 
@@ -568,6 +729,18 @@ See [Authoring: Skip time in tests](authoring.md#skip-time-in-tests) for an over
 
     Not applicable. Configure with `withDurableConfig`, `withOutputType`, and
     `advanceTime()` on the runner instance.
+
+=== "Go"
+
+    The only run option is `WithMaxInvocations` on `RunUntilComplete`. Handler options
+    come from `durable.HandlerOption` at construction. At the cap, `RunUntilComplete`
+    returns its last result with `CapReached` set to `true`.
+
+    ```go
+    type RunnerOption func(*runnerConfig)
+    func WithMaxInvocations(n int) RunnerOption
+    const DefaultMaxInvocations = 100
+    ```
 
 === "C#"
 
@@ -632,6 +805,15 @@ error, and the full operation history.
 
     **Returns:** `ExecutionStatus` (`SUCCEEDED`, `FAILED`, `PENDING`).
 
+=== "Go"
+
+    Read the `Status` field. It is one of three `ExecutionStatus` values. Compare it
+    against the constants, for example `result.Status == durabletest.Succeeded`.
+
+    ```go
+    Status ExecutionStatus
+    ```
+
 === "C#"
 
     ```csharp
@@ -676,6 +858,17 @@ error, and the full operation history.
 
     **Throws:** `IllegalStateException` if the execution did not succeed.
 
+=== "Go"
+
+    `RawResult` holds the JSON result when the status is `SUCCEEDED`. Deserialize
+    it with the package generic `ResultAs[O]`, which returns an error if the
+    execution did not succeed.
+
+    ```go
+    RawResult string
+    func ResultAs[O any](r *TestResult) (O, error)
+    ```
+
 === "C#"
 
     ```csharp
@@ -714,6 +907,15 @@ error, and the full operation history.
 
     ```java
     Optional<ErrorObject> getError()
+    ```
+
+=== "Go"
+
+    `Error` holds a `*TestError` when the status is `FAILED`. This is
+    durabletest's own error type, not the SDK's `durable.ErrorObject`.
+
+    ```go
+    Error *TestError
     ```
 
 === "C#"
@@ -774,6 +976,18 @@ error, and the full operation history.
 
     `getOperation(name)` returns `null` if not found.
 
+=== "Go"
+
+    `Operations` lists every operation the execution checkpointed, in checkpoint order.
+    It includes nested operations and excludes the execution operation. A nested
+    operation's `ParentID` names its parent. To filter by status, iterate and compare
+    `Status`. `OperationsByType` filters by type string.
+
+    ```go
+    Operations []TestOperation
+    func (r *TestResult) OperationsByType(opType string) []TestOperation
+    ```
+
 === "C#"
 
     ```csharp
@@ -810,6 +1024,17 @@ error, and the full operation history.
     List<Event> getEventsForOperation(String operationName)
     ```
 
+=== "Go"
+
+    `Events` is the execution's history event sequence. `EventTypes` returns the
+    event type names in order. The local runner synthesizes the events and leaves
+    fields it has no source for unset.
+
+    ```go
+    Events []types.Event
+    func (r *TestResult) EventTypes() []string
+    ```
+
 === "C#"
 
     The .NET `TestResult<TOutput>` does not expose raw history events. Assert on the folded
@@ -834,6 +1059,22 @@ error, and the full operation history.
 === "Java"
 
     Not available on the test result.
+
+=== "Go"
+
+    `Invocations` records one entry per completed invocation. Both runners
+    populate it, so a cross-backend test can assert on `len(result.Invocations)`.
+
+    ```go
+    Invocations []TestInvocation
+
+    type TestInvocation struct {
+    	RequestID string
+    	StartTime time.Time
+    	EndTime   time.Time
+    	Error     *TestError
+    }
+    ```
 
 === "C#"
 
@@ -862,6 +1103,18 @@ error, and the full operation history.
 === "Java"
 
     Not applicable.
+
+=== "Go"
+
+    `FormatTree` renders the operations as an indented tree. `WriteTree` writes the same
+    text to an `io.Writer`. Both take optional columns, and `DefaultTreeColumns` returns
+    the default set.
+
+    ```go
+    func (r *TestResult) FormatTree(columns ...TreeColumn) string
+    func (r *TestResult) WriteTree(w io.Writer, columns ...TreeColumn) error
+    func DefaultTreeColumns() []TreeColumn
+    ```
 
 === "C#"
 
@@ -901,6 +1154,20 @@ error, and the full operation history.
     ```java
     ErrorObject.errorMessage()  // String
     ErrorObject.errorType()     // String
+    ```
+
+=== "Go"
+
+    The result error is `TestError`. It carries `Type`, `Message`, `ErrorData`,
+    and `StackTrace`. It is distinct from the SDK's `durable.ErrorObject`.
+
+    ```go
+    type TestError struct {
+    	Type       string
+    	Message    string
+    	ErrorData  string
+    	StackTrace []string
+    }
     ```
 
 === "C#"
@@ -971,6 +1238,31 @@ shared set of accessors.
     String getId()
     ```
 
+=== "Go"
+
+    `TestOperation` exposes public fields and an `IsTerminal` method. `Status`, `Type`,
+    and `SubType` are strings. A detail pointer is non-nil only when the operation is of
+    that kind. Child nesting is through `ParentID`.
+
+    ```go
+    type TestOperation struct {
+    	ID        string
+    	Name      string
+    	Status    string
+    	Type      string
+    	SubType   string
+    	ParentID  string
+    	StartTime time.Time
+    	EndTime   time.Time
+    	StepDetails     *TestStepDetails
+    	CallbackDetails *TestCallbackDetails
+    	InvokeDetails   *TestInvokeDetails
+    	ContextDetails  *TestContextDetails
+    	WaitDetails     *TestWaitDetails
+    }
+    func (o *TestOperation) IsTerminal() bool
+    ```
+
 === "C#"
 
     The docs "Operation" type maps to `TestStep` in .NET. Common accessors:
@@ -1023,6 +1315,29 @@ shared set of accessors.
     int getAttempt()
     ```
 
+=== "Go"
+
+    `op.StepDetails` carries the step's recorded state. `Attempt` counts the
+    attempts that failed. A step that succeeds on its first attempt records 0. A
+    step that fails twice and then succeeds records 2. A step that fails on its
+    only attempt records 1. The cloud runner reads the value from the service's
+    `RetryDetails.CurrentAttempt`. `Attempt` differs from the 1-based
+    `StepContext.Attempt()` that the step body reads. Deserialize the step result
+    with `OperationResultAs[T]`.
+
+    ```go
+    type TestStepDetails struct {
+    	Attempt              int32
+    	Result               string
+    	ErrorType            string
+    	ErrorMessage         string
+    	NextAttemptTimestamp time.Time
+    	ErrorData            string
+    	StackTrace           []string
+    }
+    func OperationResultAs[O any](op *TestOperation) (O, error)
+    ```
+
 === "C#"
 
     `TestStep` exposes step details through kind-aware accessors rather than a separate
@@ -1061,6 +1376,19 @@ shared set of accessors.
 
     `WaitDetails.scheduledEndTimestamp()` returns an `Instant`.
 
+=== "Go"
+
+    `op.WaitDetails` carries `WaitSeconds` and `ScheduledEndTimestamp`.
+    `WaitSeconds` comes from the wait's `WaitStarted` history event and is 0 when
+    the history has no such event.
+
+    ```go
+    type TestWaitDetails struct {
+    	WaitSeconds           int
+    	ScheduledEndTimestamp time.Time
+    }
+    ```
+
 === "C#"
 
     ```csharp
@@ -1092,6 +1420,21 @@ shared set of accessors.
     CallbackDetails getCallbackDetails()
     ```
 
+=== "Go"
+
+    `op.CallbackDetails` carries the callback ID, result, and error fields.
+
+    ```go
+    type TestCallbackDetails struct {
+    	CallbackID   string
+    	Result       string
+    	ErrorType    string
+    	ErrorMessage string
+    	ErrorData    string
+    	StackTrace   []string
+    }
+    ```
+
 === "C#"
 
     ```csharp
@@ -1119,6 +1462,20 @@ shared set of accessors.
 
     ```java
     ChainedInvokeDetails getChainedInvokeDetails()
+    ```
+
+=== "Go"
+
+    `op.InvokeDetails` carries the invoke result and error fields.
+
+    ```go
+    type TestInvokeDetails struct {
+    	Result       string
+    	ErrorType    string
+    	ErrorMessage string
+    	ErrorData    string
+    	StackTrace   []string
+    }
     ```
 
 === "C#"
@@ -1158,6 +1515,22 @@ shared set of accessors.
     ContextDetails getContextDetails()
     ```
 
+=== "Go"
+
+    `op.ContextDetails` carries the context result and error fields. Find the context's
+    children through `ParentID`.
+
+    ```go
+    type TestContextDetails struct {
+    	Result         string
+    	ReplayChildren bool
+    	ErrorType      string
+    	ErrorMessage   string
+    	ErrorData      string
+    	StackTrace     []string
+    }
+    ```
+
 === "C#"
 
     A child context is a `TestStep` with `Kind == OperationKind.Context`. Read its result
@@ -1185,6 +1558,11 @@ shared set of accessors.
     ExecutionDetails getExecutionDetails()
     ```
 
+=== "Go"
+
+    The execution outcome is on the result as `Status`, `RawResult`, and `Error`.
+    `Operations` excludes the execution operation.
+
 === "C#"
 
     The .NET SDK does not expose execution details on a step. The top-level execution
@@ -1209,6 +1587,10 @@ shared set of accessors.
 === "Java"
 
     Driven from the runner. See [LocalDurableTestRunner: Drive callbacks](#drive-callbacks).
+
+=== "Go"
+
+    Drive callbacks from the runner. See [Drive callbacks](#drive-callbacks).
 
 === "C#"
 
@@ -1256,6 +1638,20 @@ The terminal status of a durable execution.
     | `FAILED`    | Execution failed                 |
     | `PENDING`   | Execution is waiting             |
 
+=== "Go"
+
+    `ExecutionStatus` is a string type with three values. The cloud runner reports every
+    terminal status other than `SUCCEEDED` as `Failed`.
+
+    ```go
+    type ExecutionStatus string
+    const (
+    	Succeeded ExecutionStatus = "SUCCEEDED"
+    	Failed    ExecutionStatus = "FAILED"
+    	Pending   ExecutionStatus = "PENDING"
+    )
+    ```
+
 === "C#"
 
     `InvocationStatus` from `Amazon.Lambda.DurableExecution`:
@@ -1296,6 +1692,17 @@ The status of an individual operation.
 
     `OperationStatus` from `software.amazon.awssdk.services.lambda.model`. Same values as
     TypeScript.
+
+=== "Go"
+
+    `TestOperation.Status` is a plain string. Compare it against the literal, for
+    example `op.Status == "SUCCEEDED"`. `IsTerminal` recognizes the terminal set
+    `SUCCEEDED`, `FAILED`, `CANCELLED`, `TIMED_OUT`, and `STOPPED`. Other observed
+    values include `STARTED`, `PENDING`, and `READY`.
+
+    ```go
+    func (o *TestOperation) IsTerminal() bool
+    ```
 
 === "C#"
 
@@ -1342,6 +1749,16 @@ The status of an individual operation.
     `OperationType` from `software.amazon.awssdk.services.lambda.model`. Same values as
     TypeScript.
 
+=== "Go"
+
+    `TestOperation.Type` and `SubType` are strings, and `OperationsByType` takes a
+    string. The type strings are `STEP`, `WAIT`, `CALLBACK`, `CHAINED_INVOKE`,
+    `CONTEXT`, and `EXECUTION`.
+
+    ```go
+    func (r *TestResult) OperationsByType(opType string) []TestOperation
+    ```
+
 === "C#"
 
     `OperationKind` from `Amazon.Lambda.DurableExecution.Testing` (read via `TestStep.Kind`):
@@ -1379,6 +1796,11 @@ The status of an individual operation.
 === "Java"
 
     Not applicable. Use `runner.getCallbackId()` after `run()` returns `PENDING`.
+
+=== "Go"
+
+    The test drives callbacks through the runner by callback ID. Call `OpenCallbacks`
+    after `RunUntilComplete` returns `PENDING`.
 
 === "C#"
 
@@ -1462,6 +1884,28 @@ types, so tests written against the local runner run unchanged against the cloud
     - `lambdaClient` (optional) A configured `LambdaClient`. Defaults to a client using
         `DefaultCredentialsProvider`.
 
+=== "Go"
+
+    `CloudRunner` is not generic. You choose the output type when you call `ResultAs`.
+    It takes a caller-supplied `DurableExecutionAPI` client, typically a real
+    `*lambda.Client`, so a test can pass a fake. `functionName` must be a qualified
+    identifier. Build the client with `config.LoadDefaultConfig` and
+    `lambda.NewFromConfig`.
+
+    ```go
+    func NewCloudRunner(api DurableExecutionAPI, functionName string, opts ...CloudRunnerOption) *CloudRunner
+    ```
+
+    **Parameters:**
+
+    - `api` (required) A `DurableExecutionAPI`, typically a `*lambda.Client`.
+    - `functionName` (required) The function name, ARN, or partial ARN, with a version or
+        alias qualifier.
+    - `opts` (optional) The `CloudRunnerOption` values `WithPollInterval` and
+        `WithTimeout`.
+
+    **Returns:** `*CloudRunner`
+
 === "C#"
 
     ```csharp
@@ -1532,6 +1976,31 @@ types, so tests written against the local runner run unchanged against the cloud
 
     **Returns:** `TestResult<O>`
 
+=== "Go"
+
+    `Run` invokes the function and polls to a terminal status. It takes a
+    `context.Context` and an `any` event. `RunWithArn` polls an execution started
+    elsewhere. The timeout and poll interval are set at construction.
+
+    ```go
+    func (r *CloudRunner) Run(ctx context.Context, event any) (*TestResult, error)
+    func (r *CloudRunner) RunWithArn(ctx context.Context, executionArn string) (*TestResult, error)
+    ```
+
+    **Parameters:**
+
+    - `ctx` (required) A `context.Context`. Its deadline or cancellation ends the run.
+    - `event` (required) The handler input. The runner encodes it as JSON.
+    - `executionArn` (required) The ARN of an execution that is already running.
+
+    **Returns:** `*TestResult` and an `error`.
+
+    **Errors:** The error is non-nil, and the result nil, only when the runner itself
+    fails. That happens when the event does not encode as JSON, the `Invoke` call fails,
+    the invoke response has no `DurableExecutionArn`, polling fails or exceeds the
+    `WithTimeout` limit, or `ctx` ends. An execution that fails produces a nil error and
+    a result with status `FAILED`.
+
 === "C#"
 
     ```csharp
@@ -1582,6 +2051,15 @@ types, so tests written against the local runner run unchanged against the cloud
     `getOperations()`, `getStatus()`, `getExecutionArn()`, `completeCallback()`,
     `failCallback()`, and `heartbeatCallback()`.
 
+=== "Go"
+
+    To poll an execution started elsewhere, for example an async invoke, use
+    `RunWithArn`.
+
+    ```go
+    func (r *CloudRunner) RunWithArn(ctx context.Context, executionArn string) (*TestResult, error)
+    ```
+
 === "C#"
 
     The .NET SDK does not return a dedicated async-execution handle. Use the same
@@ -1620,6 +2098,11 @@ types, so tests written against the local runner run unchanged against the cloud
     TestOperation getOperation(String name)
     ```
 
+=== "Go"
+
+    Inspect operations through the result, the same accessors as the local
+    runner. See [TestResult](#testresult).
+
 === "C#"
 
     Inspect operations through the returned [`TestResult<TOutput>`](#testresult). The cloud
@@ -1648,6 +2131,17 @@ types, so tests written against the local runner run unchanged against the cloud
     `getCallbackId()`, `completeCallback()`, `failCallback()`, and `heartbeatCallback()` on
     the async handle.
 
+=== "Go"
+
+    Drive callbacks from the runner, with a callback ID from the execution's operations
+    or history. These methods make the real `SendDurableExecutionCallback*` API calls.
+
+    ```go
+    func (r *CloudRunner) SendCallbackSuccess(callbackID string, payload any) error
+    func (r *CloudRunner) SendCallbackFailure(callbackID, errorType, errorMessage string) error
+    func (r *CloudRunner) SendCallbackHeartbeat(callbackID string) error
+    ```
+
 === "C#"
 
     Callbacks are driven from the runner, same as the local runner. After `StartAsync`, call
@@ -1671,6 +2165,17 @@ types, so tests written against the local runner run unchanged against the cloud
 
     Use `withPollInterval(Duration)`, `withTimeout(Duration)`, and
     `withInvocationType(InvocationType)` on the runner.
+
+=== "Go"
+
+    Configure with the constructor options `WithPollInterval` (default 2 seconds) and
+    `WithTimeout` (default 5 minutes).
+
+    ```go
+    type CloudRunnerOption func(*cloudRunnerConfig)
+    func WithPollInterval(d time.Duration) CloudRunnerOption
+    func WithTimeout(d time.Duration) CloudRunnerOption
+    ```
 
 === "C#"
 
@@ -1707,6 +2212,10 @@ types, so tests written against the local runner run unchanged against the cloud
 
     Create a new runner instance per test.
 
+=== "Go"
+
+    Create a new `CloudRunner` per test.
+
 === "C#"
 
     There is no `reset()`. Create a new `CloudDurableTestRunner<TInput, TOutput>` per test
@@ -1738,6 +2247,13 @@ types, so tests written against the local runner run unchanged against the cloud
 === "Java"
 
     Not a separate config object. Use the `with*` builder methods on the runner.
+
+=== "Go"
+
+    Configure the runner with the `NewCloudRunner` options `WithPollInterval` and
+    `WithTimeout`, shown under [Configure polling and
+    timeouts](#configure-polling-and-timeouts). The cloud runner calls `Invoke` without
+    an invocation type, so Lambda uses its default, `RequestResponse`.
 
 === "C#"
 

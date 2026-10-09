@@ -55,6 +55,11 @@ CloudWatch.
     The OpenTelemetry plugin for C# is a work in progress. Until it ships, this
     page covers TypeScript, Python, and Java.
 
+!!! note "Go support"
+
+    The OpenTelemetry plugin for Go is a work in progress. Until it ships, this
+    page covers TypeScript, Python, and Java.
+
 ## Install the plugin
 
 === "TypeScript"

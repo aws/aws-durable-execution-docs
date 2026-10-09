@@ -55,6 +55,19 @@ end-to-end, combine at-most-once with a no-retry strategy.
     --8<-- "examples/java/patterns/idempotency/choose-semantics.java"
     ```
 
+=== "Go"
+
+    `durable.AtLeastOncePerRetry` is the default. When an attempt was interrupted, the
+    body runs again under `AtLeastOncePerRetry`. Under `AtMostOncePerRetry`, the retry
+    strategy receives a `*durable.StepInterruptedError`, and when the strategy does not
+    retry, the step returns a `*durable.StepError`. For a call that must run at most
+    once end to end, combine `durable.WithSemantics(durable.AtMostOncePerRetry)` with
+    `durable.WithRetry(durable.NoRetry())`.
+
+    ```go
+    --8<-- "examples/go/patterns/idempotency/choose-semantics.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -94,6 +107,18 @@ at-least-once retries are safe.
 
     ```java
     --8<-- "examples/java/patterns/idempotency/idempotency-tokens.java"
+    ```
+
+=== "Go"
+
+    Generate the key inside the step. A key generated outside a step changes on replay.
+    When you run
+    [durablelint](../../sdk-reference/languages/go/index.md#static-analysis-with-durablelint),
+    the SDK's static analysis tool, its `durablenondeterminism` rule reports the call
+    that generates it.
+
+    ```go
+    --8<-- "examples/go/patterns/idempotency/idempotency-tokens.go"
     ```
 
 === "C#"

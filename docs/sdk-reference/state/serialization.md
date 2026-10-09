@@ -32,6 +32,12 @@ the step result automatically.
     --8<-- "examples/java/sdk-reference/serialization/Walkthrough.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/walkthrough.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -74,6 +80,12 @@ separately.
     configuration applies to both step results and handler return values when you use
     `DurableHandler`.
 
+=== "Go"
+
+    The SDK decodes the handler's input and encodes its return value with
+    `encoding/json`, with HTML escaping disabled. A `Serdes` set with `WithSerdes` or
+    `ConfigureSerdes` does not affect them. It applies only to durable operation results.
+
 === "C#"
 
     The registered `ILambdaSerializer` serializes everything: durable operation results
@@ -106,6 +118,13 @@ Each SDK uses a default SerDes when you do not provide one.
 
     Pass a custom `ObjectMapper` to the `JacksonSerDes` constructor to override the default
     configuration.
+
+=== "Go"
+
+    The default is `JSONSerdes`, which encodes with `encoding/json` and HTML escaping
+    disabled, so `<`, `>`, and `&` stay literal in the stored JSON. Map keys are sorted
+    and a nil value encodes as null. It handles any value `encoding/json` accepts. A
+    type that does not round-trip through `encoding/json` needs a custom `Serdes`.
 
 === "C#"
 
@@ -171,6 +190,29 @@ Each SDK uses a default SerDes when you do not provide one.
     Use `TypeToken<T>` to capture generic type information that Java erases at runtime. For
     example: `new TypeToken<List<String>>() {}`.
 
+=== "Go"
+
+    The interface is `Serdes`. Its methods are `Marshal` and `Unmarshal`, which work
+    with byte slices and take a `context.Context` for external calls.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/serdes-interface.go"
+    ```
+
+    **Methods:**
+
+    - `Marshal(ctx, meta, v)` Converts the value to bytes.
+    - `Unmarshal(ctx, meta, data, v)` Fills the pointer `v` from the bytes.
+
+    **SerdesContext fields:**
+
+    - `OperationID` The operation ID for the current step or operation.
+    - `DurableExecutionArn` The ARN of the current durable execution.
+
+    The interface takes `any`, so one `Serdes` serves every result type. For a serdes
+    written for one type, use `SerdesOf`. A serdes failure is permanent by default.
+    Return `RetryableSerdesError` to make it transient.
+
 === "C#"
 
     .NET has no per-operation SerDes interface. Serialization is controlled by the single
@@ -213,6 +255,15 @@ need special behavior such as encryption or compression.
     --8<-- "examples/java/sdk-reference/serialization/OrderSerDes.java"
     ```
 
+=== "Go"
+
+    Implement `Marshal` and `Unmarshal` on a type. For a serdes that handles one result
+    type, `SerdesOf` is shorter, as the next example shows.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/custom-serdes.go"
+    ```
+
 === "C#"
 
     Implement `ILambdaSerializer` and register it at the host boundary. The custom
@@ -246,6 +297,18 @@ same handler continue to use the default.
 
     ```java
     --8<-- "examples/java/sdk-reference/serialization/StepConfigExample.java"
+    ```
+
+=== "Go"
+
+    Pass `WithStepSerdes` to override the serializer for one step's result. Other
+    operations keep the default. The other per-operation options are `WithChildSerdes`,
+    `WithInvokePayloadSerdes`, `WithInvokeResultSerdes`, and `WithTypedBranchSerdes`. A
+    per-operation option takes precedence over the handler default set with `WithSerdes`
+    or `ConfigureSerdes`.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/step-config.go"
     ```
 
 === "C#"
@@ -282,6 +345,26 @@ system sends when it completes the callback.
 
     ```java
     --8<-- "examples/java/sdk-reference/serialization/CallbackConfigExample.java"
+    ```
+
+=== "Go"
+
+    The default callback deserializer is `RawSerdes`, which returns the submitted bytes
+    unchanged. So by default the result type must be `string`, `[]byte`, or
+    `json.RawMessage`. Any other type fails with a `*SerdesError`. Pass
+    `WithCallbackSerdes(JSONSerdes)` to decode a JSON payload into a struct.
+
+    For a callback payload, the per-operation `WithCallbackSerdes` takes precedence over
+    the handler-wide `Deserializer`. When neither is set, the payload passes through
+    `RawSerdes`. Set the handler-wide `Deserializer` with `WithCallbackDeserializer`, or
+    from inside the handler with the `CallbackDeserializer` field of `ConfigureSerdes`.
+    A `Deserializer` has one method, `Unmarshal(data []byte, v any) error`. The
+    handler-level `WithSerdes` does not apply to callback payloads. `WaitForCallback`
+    accepts the same `WithCallbackSerdes` option and decodes the payload once, at the
+    `WaitForCallback` operation.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/callback-config.go"
     ```
 
 === "C#"
@@ -328,6 +411,18 @@ Map and parallel perations support two SerDes fields that apply at different lev
     - `serDes` applies to each item result.
     - Java `ParallelConfig` does not have a `serDes` field.
 
+=== "Go"
+
+    Two batch options apply to both `Map` and `Parallel`:
+
+    - `WithBatchSerdes` serializes each item result. Default: the handler serdes.
+    - `WithBatchResultSerdes` serializes the aggregated `BatchResult`. Without it, the SDK
+        stores the `BatchResult` through the item serdes.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/map-config.go"
+    ```
+
 === "C#"
 
     `MapConfig` does not expose a serializer, and there is no separate item-level
@@ -368,6 +463,18 @@ Map and parallel perations support two SerDes fields that apply at different lev
 
     ```java
     --8<-- "examples/java/sdk-reference/serialization/PassThroughSerdesExample.java"
+    ```
+
+=== "Go"
+
+    `JSONSerdes` is the default. `RawSerdes` stores the value as-is. The value must be a
+    `string`, `[]byte`, or `json.RawMessage`. `SerdesOf` is a generic adapter that turns
+    typed marshal and unmarshal functions into a `Serdes`. The SDK needs no class
+    serdes, because a struct's methods are available on any value after a JSON round
+    trip.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/builtin-helpers.go"
     ```
 
 === "C#"
@@ -430,6 +537,16 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
     Coming soon. See
     [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
 
+=== "Go"
+
+    Create a FileSystem serdes with `NewFileSystemSerdes` and pass it to one operation
+    with an option such as `WithStepSerdes`. The file holds the value as JSON. The
+    checkpoint holds an envelope with the full file path.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-walkthrough.go"
+    ```
+
 === "C#"
 
     Not available. The .NET SDK has no FileSystem serdes. To keep large payloads out of the
@@ -478,6 +595,24 @@ Create a FileSystem serdes and pass it to an operation's config.
 
     Coming soon.
 
+=== "Go"
+
+    `NewFileSystemSerdes(basePath, cfg...)` returns a `Serdes`. The config is a trailing
+    variadic argument. Omit it for the defaults. The SDK uses only the first config.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-signature.go"
+    ```
+
+    **Parameters:**
+
+    - `basePath` Directory where the SDK writes data files. Set this to your filesystem
+        mount point.
+    - `cfg` (optional) A `FileSystemSerdesConfig` controlling storage mode, path
+        encoding, and preview generation.
+
+    **Returns:** A `Serdes` that reads and writes JSON files under `basePath`.
+
 === "C#"
 
     Not available.
@@ -524,6 +659,24 @@ Create a FileSystem serdes and pass it to an operation's config.
 
     Coming soon.
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-config.go"
+    ```
+
+    **Fields:**
+
+    - `Mode` A `FileSystemSerdesMode` value. Default: `FileSystemSerdesModeAlways`.
+    - `PathEncoding` A `FileSystemPathEncoding` value. Default:
+        `FileSystemPathEncodingURI`.
+    - `GeneratePreview` A function that returns a preview map. The SDK stores the result
+        inline in the checkpoint envelope next to the file reference. Use the
+        [`BuildPreview`](#preview-and-pii-masking) helper or write your own.
+
+    The FileSystem serdes always encodes values with `encoding/json` and HTML escaping
+    disabled, as `JSONSerdes` does.
+
 === "C#"
 
     Not available.
@@ -555,6 +708,16 @@ execution checkpoint size limit. See
 === "Java"
 
     Coming soon.
+
+=== "Go"
+
+    In overflow mode, the FileSystem serdes writes the value to a file when the
+    inline envelope exceeds 255KB. `GeneratePreview` is not called for a value
+    stored inline.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-overflow.go"
+    ```
 
 === "C#"
 
@@ -592,6 +755,27 @@ enough to exceed the name-length limit.
 === "Java"
 
     Coming soon.
+
+=== "Go"
+
+    `FileSystemPathEncodingURI`, the default, writes
+    `<functionName>/<executionName>/<invocationId>/<operationID>.json` under the base
+    path. It takes the first three segments from the execution ARN. It percent-encodes
+    each segment, so bytes other than letters, digits, `-`, `_`, `.`, and `~` become
+    `%XX`.
+
+    `FileSystemPathEncodingHash` writes `<arnHash>/<operationID>.json`. `arnHash` is the
+    hex encoding of the first 16 bytes of the SHA-256 digest of the execution ARN, so it
+    is 32 characters long. `FileSystemPathEncodingHash` does not hash or encode the
+    operation ID. The SDK generates operation IDs such as `1` or `1-2-3`, so the file
+    name is always safe.
+
+    The checkpoint envelope stores the full file path. So the SDK reads a value back
+    correctly after you change the encoding.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-path-encoding.go"
+    ```
 
 === "C#"
 
@@ -667,6 +851,30 @@ default.
 
     Coming soon.
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-preview.go"
+    ```
+
+    **`PreviewConfig` fields:**
+
+    - `Mode` Either `PreviewIncludeAll` or `PreviewExcludeAll`. Sets the starting point
+        before `Exclude` and `Mask`. Default: `PreviewIncludeAll`.
+    - `Include` Fields to add when starting from `PreviewExcludeAll`.
+    - `Exclude` Fields to remove. Always wins over `Include` and `Mask`.
+    - `Mask` Fields whose values become `MaskString`. A masked field is visible under
+        either mode unless it is also excluded.
+    - `MaskString` Replacement for masked fields. Default: `***`.
+    - `MaxPreviewBytes` Maximum JSON size of the preview in bytes. Default: `4096`. When
+        the cap leaves fields out, the preview carries the key `$truncated` set to `true`.
+    - `MaxDepth` How many nested objects and slices are traversed. Default: `32`.
+
+    Each `PreviewField` has a `Name` and a `Match`. Use `FieldMatchAnywhere`, the
+    default, to match the field name at any depth, or `FieldMatchPath` for an exact
+    dot-path from the root. A field name that contains a dot cannot be selected. The
+    preview merges the fields of slice elements under the slice's path.
+
 === "C#"
 
     Not available.
@@ -696,6 +904,18 @@ once with `configureSerdes`.
 
     Coming soon. See
     [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
+
+=== "Go"
+
+    Set the FileSystem serdes handler-wide from inside the handler with
+    `ConfigureSerdes`, or at construction with `durable.Start(handler, WithSerdes(...))`.
+    `ConfigureSerdes` must run identically on every invocation, including replays. The
+    handler serdes also serves `Map` and `Parallel` item results. It does not apply to
+    callback payloads.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-default.go"
+    ```
 
 === "C#"
 

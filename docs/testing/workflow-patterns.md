@@ -28,6 +28,12 @@ that all steps ran and that the final result reflects the full chain.
     --8<-- "examples/java/testing/examples/sequential-workflow.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/testing/examples/sequential-workflow.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -56,6 +62,12 @@ operations.
 
     ```java
     --8<-- "examples/java/testing/examples/child-context.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/testing/examples/child-context.go"
     ```
 
 === "C#"
@@ -87,6 +99,12 @@ branches completed.
     --8<-- "examples/java/testing/examples/parallel-workflow.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/testing/examples/parallel-workflow.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -115,6 +133,12 @@ steps to verify which ones ran before the failure.
 
     ```java
     --8<-- "examples/java/testing/examples/partial-failures.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/testing/examples/partial-failures.go"
     ```
 
 === "C#"
@@ -156,6 +180,16 @@ skipping. Each SDK handles this differently.
     --8<-- "examples/java/testing/examples/long-waits.java"
     ```
 
+=== "Go"
+
+    The local runner's virtual clock advances the wait between invocations,
+    so a day-long wait resolves in milliseconds.
+    `op.WaitDetails.WaitSeconds` reports the scheduled duration.
+
+    ```go
+    --8<-- "examples/go/testing/examples/long-waits.go"
+    ```
+
 === "C#"
 
     `TestRunnerOptions.SkipTime` defaults to `true`, so the runner completes STARTED
@@ -187,6 +221,12 @@ the polling loop the same way it drives retries.
 
     ```java
     --8<-- "examples/java/testing/examples/polling.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/testing/examples/polling.go"
     ```
 
 === "C#"

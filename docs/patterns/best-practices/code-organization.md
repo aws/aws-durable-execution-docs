@@ -28,6 +28,16 @@ than inline in the operation. Keep `DurableContext` out of your domain logic.
     --8<-- "examples/java/patterns/code-organization/separate-logic.java"
     ```
 
+=== "Go"
+
+    Domain functions take plain arguments and return `(T, error)`. Only the step
+    body closure receives a `durable.StepContext`, so the domain logic stays free
+    of SDK types.
+
+    ```go
+    --8<-- "examples/go/patterns/code-organization/separate-logic.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -66,6 +76,18 @@ operations.
     --8<-- "examples/java/patterns/code-organization/child-context.java"
     ```
 
+=== "Go"
+
+    The body receives its own child `durable.Context`. Call every durable operation on
+    that child. An operation on the outer context from inside the body fails with
+    `durable.ErrWrongContext` and records nothing. When you run
+    [durablelint](../../sdk-reference/languages/go/index.md#static-analysis-with-durablelint),
+    the SDK's static analysis tool, its `durablechildctx` rule reports this call.
+
+    ```go
+    --8<-- "examples/go/patterns/code-organization/child-context.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -94,6 +116,15 @@ intent clear.
 
     ```java
     --8<-- "examples/java/patterns/code-organization/group-config.java"
+    ```
+
+=== "Go"
+
+    `Step` takes functional options. Collect the options in a `[]durable.StepOption`
+    once and pass it to each step with `opts...`.
+
+    ```go
+    --8<-- "examples/go/patterns/code-organization/group-config.go"
     ```
 
 === "C#"
@@ -125,6 +156,15 @@ sandbox crashes, unlike language-specific constructs such as `Promise.all`,
 
     ```java
     --8<-- "examples/java/patterns/code-organization/parallelism.java"
+    ```
+
+=== "Go"
+
+    Use `durable.Parallel` for a fixed set of named branches and `durable.Map`
+    for a variable-length list. The map function also receives the item index.
+
+    ```go
+    --8<-- "examples/go/patterns/code-organization/parallelism.go"
     ```
 
 === "C#"

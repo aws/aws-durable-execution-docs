@@ -104,6 +104,17 @@ SDK is being deployed in your function code, rather than relying on which is bei
     </dependency>
     ```
 
+=== "Go"
+
+    Requires Go 1.24 or later. Inside a module:
+
+    ```console
+    go get github.com/aws/aws-durable-execution-sdk-go/durable
+    ```
+
+    The preview has no release tags. `go get` records a pseudo-version of the latest
+    commit in `go.mod`, and that entry pins the SDK version you build with.
+
 === "C#"
 
     Requires the .NET 10 SDK.
@@ -116,11 +127,8 @@ SDK is being deployed in your function code, rather than relying on which is bei
 
 Drive your handler with the testing SDK. The runner executes the handler through the
 same replay-and-checkpoint loop the Lambda service uses, so local behavior matches the
-cloud. TypeScript, Java, and C# ship a `LocalDurableTestRunner`; Python uses
-`DurableFunctionTestRunner`.
-
-The runner ships in a separate, dev-only testing package. Install it before you write
-tests (see [Authoring tests](../testing/authoring.md) for the full testing workflow):
+cloud. Each SDK has a local test runner that you can use. See
+[Authoring tests](../testing/authoring.md) for the full testing workflow.
 
 === "TypeScript"
 
@@ -151,6 +159,12 @@ tests (see [Authoring tests](../testing/authoring.md) for the full testing workf
     </dependency>
     ```
 
+=== "Go"
+
+    Nothing to install. The local runner is in the main SDK module, in package
+    `github.com/aws/aws-durable-execution-sdk-go/durable/durabletest`. Import
+    it from your test.
+
 === "C#"
 
     ```console
@@ -175,6 +189,12 @@ A minimal test creates a runner with your handler, runs it, and asserts on the r
 
     ```java
     --8<-- "examples/java/testing/authoring/minimal-test.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/testing/authoring/minimal-test.go"
     ```
 
 === "C#"
@@ -203,6 +223,12 @@ To drive an input-based handler, pass an event to the runner:
     runner.runUntilComplete(input);
     ```
 
+=== "Go"
+
+    ```go
+    res, err := runner.RunUntilComplete(Order{ID: "A-1"})
+    ```
+
 === "C#"
 
     ```csharp
@@ -229,6 +255,12 @@ Run the suite with your language's test runner:
 
     ```console
     mvn test
+    ```
+
+=== "Go"
+
+    ```console
+    go test ./...
     ```
 
 === "C#"
@@ -359,6 +391,31 @@ in production.
     === "Java"
 
         `sam build` builds with Maven or Gradle from your `pom.xml` or `build.gradle`.
+
+    === "Go"
+
+        Add the `go1.x` build method so `sam build` compiles your module into the
+        `bootstrap` binary that the `provided.al2023` runtime runs. Point `CodeUri` at
+        the module directory:
+
+        ```yaml
+        DurableFunction:
+          Type: AWS::Serverless::Function
+          Properties:
+            Runtime: provided.al2023
+            Handler: bootstrap
+            Architectures: [x86_64]
+            CodeUri: ./src
+            # Other properties as above
+          Metadata:
+            BuildMethod: go1.x
+        ```
+
+        Run `sam build` with `CGO_ENABLED=0` so the binary is statically linked:
+
+        ```console
+        CGO_ENABLED=0 sam build
+        ```
 
     === "C#"
 

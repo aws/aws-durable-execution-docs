@@ -72,6 +72,15 @@ sequenceDiagram
     --8<-- "examples/java/operations/invoke/process-order.java"
     ```
 
+=== "Go"
+
+    The output type is written first and explicitly, because the compiler
+    cannot infer a return type. The input type is inferred from the argument.
+
+    ```go
+    --8<-- "examples/go/operations/invoke/process-order.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -153,6 +162,32 @@ When this function runs:
     - `InvokeTimedOutException` if the invocation reaches its service-side timeout.
     - `InvokeStoppedException` if the invocation was stopped.
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/invoke/invoke-method-signature.go"
+    ```
+
+    **Parameters:**
+
+    - `ctx` (required) The durable `Context`, the first argument.
+    - `name` (required) A name for the invoke. Pass `""` to omit it.
+    - `functionID` (required) The function name or ARN. A durable target needs a version
+        or alias qualifier. An on-demand target does not.
+    - `input` (required) The payload sent to the invoked function.
+    - `opts` (optional) Zero or more `InvokeOption` values.
+
+    The type parameters are `[O, I]`, with the output type `O` written first and
+    the input type `I` inferred from `input`.
+
+    **Returns:** `(O, error)` from `Invoke`, or `*durable.Future[O]` from
+    `InvokeAsync`.
+
+    **Errors:** `*durable.InvokeError` when the target fails, times out, is stopped, or
+    is cancelled. Its `Status` field reports which. For a timeout, a stop, or a
+    cancellation, `errors.Is` also matches `durable.ErrInvokeTimedOut`,
+    `durable.ErrExecutionStopped`, or `durable.ErrExecutionCancelled`.
+
 === "C#"
 
     ```csharp
@@ -231,6 +266,26 @@ When this function runs:
     - `serDes` (optional) Custom `SerDes` for the result. Defaults to JSON serialization.
     - `tenantId` (optional) Tenant identifier for multi-tenant isolation.
 
+=== "Go"
+
+    Pass options to `Invoke`.
+
+    ```go
+    func WithInvokePayloadSerdes(s Serdes) InvokeOption
+    func WithInvokeResultSerdes(s Serdes) InvokeOption
+    func WithTenantID(tenantID string) InvokeOption
+    ```
+
+    **Parameters:**
+
+    - `WithInvokePayloadSerdes` (optional) A custom `Serdes` for the payload. Defaults
+        to the handler-level serializer, which is JSON unless you set
+        `durable.WithSerdes` or call `durable.ConfigureSerdes`.
+    - `WithInvokeResultSerdes` (optional) A custom `Serdes` for the result. Defaults to
+        the handler-level serializer, which is JSON unless you set `durable.WithSerdes`
+        or call `durable.ConfigureSerdes`.
+    - `WithTenantID` (optional) Tenant identifier for multi-tenant isolation.
+
 === "C#"
 
     ```csharp
@@ -265,6 +320,10 @@ names to describe what the invocation does rather than which function it calls.
 
     The name is always the first argument. Pass `null` to omit it.
 
+=== "Go"
+
+    The name is the second argument, after the context. Pass `""` to omit it.
+
 === "C#"
 
     The name is the optional `name` argument. Omit it to infer one from the call site.
@@ -289,6 +348,12 @@ Configure invoke behavior using `InvokeConfig`:
 
     ```java
     --8<-- "examples/java/operations/invoke/invoke-with-config.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/invoke/invoke-with-config.go"
     ```
 
 === "C#"
@@ -318,6 +383,20 @@ failures without letting them terminate the calling function.
 
     ```java
     --8<-- "examples/java/operations/invoke/handle-invocation-error.java"
+    ```
+
+=== "Go"
+
+    The SDK reports one `*durable.InvokeError`. Match it with `errors.As`, then
+    read its `Status` field to tell the failure modes apart. The values are
+    `durable.OperationStatusFailed`, `durable.OperationStatusTimedOut`,
+    `durable.OperationStatusStopped`, and `durable.OperationStatusCancelled`.
+    `Message` holds the invoked function's recorded error message. `Err` is a
+    stand-in rebuilt from `ErrorType` and `Message`, so match on `ErrorType` or
+    `Status`.
+
+    ```go
+    --8<-- "examples/go/operations/invoke/handle-invocation-error.go"
     ```
 
 === "C#"

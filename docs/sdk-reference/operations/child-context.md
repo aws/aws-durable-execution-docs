@@ -35,6 +35,12 @@ multiple child contexts concurrently.
     --8<-- "examples/java/operations/child-contexts/basic-child-context.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/child-contexts/basic-child-context.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -100,6 +106,36 @@ multiple child contexts concurrently.
 
     **Throws:** The original exception re-thrown after deserialization if possible,
     otherwise `ChildContextFailedException`.
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/child-contexts/run-in-child-context-signature.go"
+    ```
+
+    The three child-context functions are the blocking `RunInChildContext`, the async
+    `RunInChildContextAsync`, and `Go`, a shorthand for `RunInChildContextAsync`. `Go`
+    provides replay-safe concurrency.
+
+    **Parameters:**
+
+    - `ctx` (required) The durable context, always the first argument.
+    - `name` (required) A name for the child context. Pass `""` to omit it.
+    - `fn` (required) `func(durable.Context) (O, error)`. It receives the child
+        context and must run its operations on that context.
+    - `opts` (optional) Variadic `ChildOption` values. See [Child Config](#child-config).
+
+    **Returns:** `(O, error)` for `RunInChildContext`, or `*Future[O]` for
+    `RunInChildContextAsync` and `Go`. Read an async result with `future.Result(ctx)`.
+    The SDK does not store a result whose serialized form exceeds 256KB. On replay
+    it runs `fn` again to rebuild that result, and the operations inside return
+    their checkpointed results.
+
+    **Errors:** `*ChildContextError` wrapping the failure that escaped the body, or
+    the error a `WithChildErrorMapper` mapper derives from it. Its `ErrorType` names
+    the escaping error, for example `"StepError"`. `errors.As` against an inner SDK
+    error type such as `*StepError` succeeds. Your own error types do not match, so
+    match them on `ErrorType`.
 
 === "C#"
 
@@ -173,6 +209,31 @@ multiple child contexts concurrently.
     - `serDes` (optional) Custom `SerDes` for the child context result. See
         [Serialization](../state/serialization.md).
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/child-contexts/child-config-signature.go"
+    ```
+
+    Pass variadic `ChildOption` values.
+
+    **Parameters:**
+
+    - `WithChildSerdes` Custom `Serdes` for the child context result.
+    - `WithChildErrorMapper` Maps the child's `*ChildContextError` to another error
+        before the operation returns. The mapper must be deterministic.
+    - `WithChildSummary` A summary function the SDK calls only when the result
+        exceeds the 256KB checkpoint limit. The SDK stores the summary as the
+        checkpoint payload and never reads it back.
+    - `WithChildSubType` An operation subtype for observability. It takes 1 to 32
+        characters from `A-Z`, `a-z`, `0-9`, `-`, and `_`, and the SDK's own
+        subtypes are rejected. The subtype is part of the operation's identity on
+        replay, so it must not change between invocations.
+    - `WithChildVirtual` Makes the child virtual. The SDK records no operation for the
+        wrapper, and the operations inside it record the nearest checkpointed ancestor
+        as their parent. Replay runs the body again on every invocation that reaches it.
+        `Map` and `Parallel` use the same mechanism for `NestingFlat` items.
+
 === "C#"
 
     ```csharp
@@ -229,6 +290,18 @@ corrupt execution state and cause non-deterministic behaviour.
     --8<-- "examples/java/operations/child-contexts/context-function.java"
     ```
 
+=== "Go"
+
+    Pass the function directly. It receives its own child `durable.Context` and must run
+    operations on that context. Using the captured parent context returns
+    `ErrWrongContext`. When you run
+    [durablelint](../languages/go/index.md#static-analysis-with-durablelint), the SDK's
+    static analysis tool, its `durablechildctx` rule reports that call.
+
+    ```go
+    --8<-- "examples/go/operations/child-contexts/context-function.go"
+    ```
+
 === "C#"
 
     Pass an `async (child, ct) => ...` lambda directly. The function receives its own
@@ -262,6 +335,17 @@ corrupt execution state and cause non-deterministic behaviour.
 
     ```java
     --8<-- "examples/java/operations/child-contexts/pass-arguments.java"
+    ```
+
+=== "Go"
+
+    Capture read-only arguments in the closure. Do not write back to captured variables.
+    The result must flow through the return value, which the SDK checkpoints. When you
+    run [durablelint](../languages/go/index.md#static-analysis-with-durablelint), its
+    `durableclosure` rule reports writes to captured variables.
+
+    ```go
+    --8<-- "examples/go/operations/child-contexts/pass-arguments.go"
     ```
 
 === "C#"
@@ -299,6 +383,14 @@ Name child contexts to make them easier to identify in logs and tests.
 
     ```java
     --8<-- "examples/java/operations/child-contexts/named-child-context.java"
+    ```
+
+=== "Go"
+
+    The name is the second argument, after the context. Pass `""` to omit it.
+
+    ```go
+    --8<-- "examples/go/operations/child-contexts/named-child-context.go"
     ```
 
 === "C#"
@@ -365,6 +457,18 @@ sequentially in the parent.
     --8<-- "examples/java/operations/child-contexts/concurrent-child-contexts.java"
     ```
 
+=== "Go"
+
+    Use `durable.Go` (or `RunInChildContextAsync`) for each branch, then await each
+    future. Do not use a bare `go` statement. A durable operation on a context from
+    another goroutine returns `ErrWrongGoroutine`. When you run
+    [durablelint](../languages/go/index.md#static-analysis-with-durablelint), its
+    `durablegoroutine` rule reports a durable operation inside a `go` statement.
+
+    ```go
+    --8<-- "examples/go/operations/child-contexts/concurrent-child-contexts.go"
+    ```
+
 === "C#"
 
     Don't `await` each child context immediately. Start them all, then await together.
@@ -394,6 +498,12 @@ them to verify the child context ran and produced the expected result.
 
     ```java
     --8<-- "examples/java/operations/child-contexts/test-child-context.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/child-contexts/test-child-context.go"
     ```
 
 === "C#"

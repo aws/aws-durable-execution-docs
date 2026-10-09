@@ -43,6 +43,7 @@ Language-specific installation and configuration:
 - [TypeScript](languages/typescript/index.md)
 - [Python](languages/python/index.md)
 - [Java](languages/java/index.md)
+- [Go (Preview)](languages/go/index.md)
 - [C#](languages/csharp/index.md)
 
 ## Integrations

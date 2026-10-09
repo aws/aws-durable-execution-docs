@@ -68,7 +68,7 @@ block's result.
 
 After updating your code, publish a new version and point your alias to it.
 
-=== "Zip (TypeScript/Python/C#)"
+=== "Zip (TypeScript/Python/Go/C#)"
 
     ```console
     aws lambda update-function-code \

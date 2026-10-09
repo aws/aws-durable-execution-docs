@@ -30,6 +30,12 @@ Use map to apply the same operation to every item in a collection. Use
     --8<-- "examples/java/operations/map/simple-map.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/map/simple-map.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -103,6 +109,34 @@ Use map to apply the same operation to every item in a collection. Use
     non-deterministic iteration order. Item exceptions are captured in `MapResult`.
     Inspect `failed()` to detect failures. If the SDK cannot reconstruct the original
     exception, it throws `MapIterationFailedException`.
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/map/map-signature.go"
+    ```
+
+    **Parameters:**
+
+    - `ctx` The durable context.
+    - `name` (required) A name for the map operation. Pass `""` to omit it.
+    - `items` The `[]I` slice of items to process.
+    - `fn` The item function called for each item. See
+        [Map Function](#map-function).
+    - `opts` (optional) Zero or more `BatchOption` values. See
+        [MapConfig](#mapconfig).
+
+    **Returns:** `(BatchResult[O], error)`. Item failures are captured in the
+    `BatchResult`.
+
+    **Errors:** The batch fails as a unit when its `Reason` is
+    `CompletionFailureToleranceExceeded` or `CompletionCustomFailed`. `Map` then
+    returns the populated `BatchResult` together with a `*BatchError`. It returns
+    a `*BatchCompletionError` instead when a custom decision failed the batch and
+    no item failed. A failure within the configured tolerance returns a nil
+    error. Any other error (an invalid option, suspension, a checkpoint failure)
+    comes with a zero `BatchResult`. Return it unchanged. See
+    [Error handling](#error-handling).
 
 === "C#"
 
@@ -179,6 +213,23 @@ Use map to apply the same operation to every item in a collection. Use
     - `context` The child `DurableContext` for this item's execution.
 
     **Returns:** `O`.
+
+=== "Go"
+
+    The item function is the `fn` parameter of [`durable.Map`](#contextmap), with the
+    signature `func(ctx durable.Context, item I, index int) (O, error)`.
+
+    **Parameters:**
+
+    - `ctx` The child `durable.Context` for this item's execution.
+    - `item` The current item.
+    - `index` The zero-based index of the item.
+
+    **Returns:** `(O, error)`.
+
+    The function takes no fourth argument for the full collection. The slice is
+    in scope at the call site, so close over it when an item depends on the rest
+    of the collection.
 
 === "C#"
 
@@ -281,6 +332,37 @@ Use map to apply the same operation to every item in a collection. Use
         the item strongly typed instead of as `Object`. Java does not support `itemNamer`
         with `NestingType.FLAT`.
 
+=== "Go"
+
+    Configure `Map` with `BatchOption` values passed as trailing arguments. The same
+    options configure `Parallel`.
+
+    ```go
+    func WithMaxConcurrency(n int) BatchOption
+    func WithCompletion(c CompletionConfig) BatchOption
+    func WithItemNamer(namer func(index int) string) BatchOption
+    func WithNesting(m NestingMode) BatchOption
+    func WithBatchSummary[O any](fn func(result BatchResult[O]) string) BatchOption
+    func WithBatchSerdes(s Serdes) BatchOption
+    func WithBatchResultSerdes(s Serdes) BatchOption
+    ```
+
+    **Parameters:**
+
+    - `WithMaxConcurrency` Maximum items running at once. Zero or negative is
+        invalid. Default: unlimited.
+    - `WithCompletion` When to stop. Default: fail-fast. See
+        [CompletionConfig](#completionconfig).
+    - `WithItemNamer` Names each item from its zero-based index. The namer receives only
+        the index. An index whose namer returns `""` is named `map-item-<index>`. The
+        namer must be deterministic.
+    - `WithNesting` `NestingNormal` (default) or `NestingFlat`. See
+        [Nesting](#nesting).
+    - `WithBatchSummary` A summary for an oversized result. See
+        [Checkpointing](#checkpointing).
+    - `WithBatchSerdes` Serializer for each item result.
+    - `WithBatchResultSerdes` Serializer for the whole `BatchResult`.
+
 === "C#"
 
     ```csharp
@@ -352,6 +434,59 @@ execution and the completion status of the result.
     CompletionConfig.shouldComplete(
         Function<CompletionStatus, CompletionDecision> decision)
     ```
+
+=== "Go"
+
+    Set the fields of a `CompletionConfig` and pass it with `WithCompletion`.
+    The threshold fields and `ShouldComplete` are mutually exclusive.
+
+    ```go
+    type CompletionConfig struct {
+    	MinSuccessful              int
+    	ToleratedFailureCount      *int
+    	ToleratedFailurePercentage *int
+    	ShouldComplete             func(BatchProgress) CompletionDecision
+    }
+
+    type BatchProgress struct {
+    	TotalCount     int
+    	CompletedCount int
+    	SuccessCount   int
+    	FailureCount   int
+    	Items          []BatchItemProgress
+    }
+
+    type BatchItemProgress struct {
+    	Index  int
+    	Name   string
+    	Status BatchItemStatus
+    }
+
+    func ContinueBatch() CompletionDecision
+    func CompleteBatch(outcome CompletionOutcome) CompletionDecision
+
+    type CompletionOutcome int
+
+    const (
+    	CompletionOutcomeSucceeded CompletionOutcome = 1
+    	CompletionOutcomeFailed    CompletionOutcome = 2
+    )
+    ```
+
+    - `MinSuccessful` Completes the batch once this many items succeed. Zero
+        leaves it unset.
+    - `ToleratedFailureCount` Fails the batch once more than this many items
+        fail. Nil leaves it unset. `aws.Int(0)` fails on the first failure.
+    - `ToleratedFailurePercentage` Fails the batch once the failure percentage,
+        computed against the total item count, is strictly greater than this
+        value. Nil leaves it unset. `aws.Int(0)` fails on the first failure.
+    - `ShouldComplete` A custom predicate. It cannot be combined with the
+        threshold fields.
+
+    Set the pointer fields with any `*int`, for example `aws.Int` from
+    `github.com/aws/aws-sdk-go-v2/aws`. The default (no `WithCompletion`) is fail-fast.
+    For all-completed, set `ToleratedFailurePercentage: aws.Int(100)`, which is never
+    exceeded. For first-successful, set `MinSuccessful: 1`.
 
 === "C#"
 
@@ -515,6 +650,85 @@ execution and the completion status of the result.
     Items that did not start before the operation reached its completion criteria have
     status `SKIPPED` (not `STARTED` as in TypeScript and Python).
 
+=== "Go"
+
+    `Map` and `Parallel` return the same `BatchResult[O]`.
+
+    ```go
+    type BatchResult[O any] struct {
+    	Items  []BatchItem[O]
+    	Reason CompletionReason
+    }
+
+    func (r BatchResult[O]) Results() []O
+    func (r BatchResult[O]) Succeeded() []BatchItem[O]
+    func (r BatchResult[O]) Failed() []BatchItem[O]
+    func (r BatchResult[O]) Started() []BatchItem[O]
+    func (r BatchResult[O]) Errors() []error
+    func (r BatchResult[O]) HasFailure() bool
+    func (r BatchResult[O]) SuccessCount() int
+    func (r BatchResult[O]) FailureCount() int
+    func (r BatchResult[O]) StartedCount() int
+    func (r BatchResult[O]) TotalCount() int
+    func (r BatchResult[O]) Status() BatchItemStatus
+    func (r BatchResult[O]) Item(name string) *BatchItem[O]
+    func (r BatchResult[O]) Result(name string) (value O, ok bool)
+
+    type BatchItem[O any] struct {
+    	Index  int
+    	Name   string
+    	Status BatchItemStatus
+    	Result O
+    	Err    error
+    }
+
+    type BatchItemStatus int
+
+    const (
+    	BatchItemNotStarted BatchItemStatus = 0
+    	BatchItemSucceeded  BatchItemStatus = 1
+    	BatchItemFailed     BatchItemStatus = 2
+    	BatchItemStarted    BatchItemStatus = 4
+    )
+
+    type CompletionReason int
+
+    const (
+    	CompletionAllCompleted             CompletionReason = 1
+    	CompletionMinSuccessfulReached     CompletionReason = 2
+    	CompletionFailureToleranceExceeded CompletionReason = 3
+    	CompletionCustomSucceeded          CompletionReason = 4
+    	CompletionCustomFailed             CompletionReason = 5
+    )
+    ```
+
+    - **`Items`** per-item outcomes in input order. An item started and then
+        abandoned on early completion is included with `BatchItemStarted`.
+        Items that never started are omitted.
+    - **`Results()`** successful results in input order.
+    - **`Errors()`** errors of failed items, in input order. Each is rebuilt
+        from its checkpoint record. In `NestingNormal` each is a
+        `*durable.ChildContextError` named after the item. In `NestingFlat` each
+        is the rebuilt error the item function returned. `errors.As` matches an
+        SDK error inside, such as `*durable.StepError`, but not your own error
+        types. In `NestingNormal`, match your own types on
+        `ChildContextError.ErrorType`.
+    - **`Succeeded()` / `Failed()` / `Started()`** items filtered by status.
+    - **`SuccessCount()` / `FailureCount()` / `StartedCount()` / `TotalCount()`**
+        item counts. `TotalCount()` excludes items that never started.
+    - **`Status()`** `BatchItemFailed` if any item failed or the batch failed as
+        a unit, else `BatchItemSucceeded`. A custom decision sets it directly. A
+        failure within tolerance still gives `BatchItemFailed` with a nil error.
+    - **`Item(name)` / `Result(name)`** look up one item by its recorded name.
+    - **`Reason`** why the batch completed.
+
+    `BatchItemStatus.String()` and `CompletionReason.String()` return the wire
+    forms, such as `SUCCEEDED` and `ALL_COMPLETED`.
+
+    Inspect the returned error and the result. Each `BatchItem` holds `Result` (set when
+    `Status` is `BatchItemSucceeded`) and `Err` (set when `Status` is
+    `BatchItemFailed`).
+
 === "C#"
 
     Map returns the same `IBatchResult<TResult>` type as parallel. It holds per-item
@@ -598,6 +812,12 @@ state with each other or with the parent context.
     --8<-- "examples/java/operations/map/map-function.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/map/map-function.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -659,6 +879,26 @@ Name your map operations to make them easier to identify in logs and tests.
     context.map("process-orders", orders, ProcessedOrder.class, this::processOrder, config);
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/map/named-map.go"
+    ```
+
+    The name is the required second argument. Pass `""` to leave it unnamed.
+
+    Use `WithItemNamer` to give each item a custom name. The namer receives only
+    the item's zero-based index, so close over the input slice to name from the
+    item value:
+
+    ```go
+    durable.Map(ctx, "process-orders", orders, processOrder,
+    	durable.WithItemNamer(func(i int) string { return "order-" + orders[i].ID }))
+    ```
+
+    The namer must be deterministic. An index whose namer returns `""` is named
+    `map-item-<index>`.
+
 === "C#"
 
     ```csharp
@@ -696,6 +936,12 @@ Configure map behavior using `MapConfig`:
 
     ```java
     --8<-- "examples/java/operations/map/map-config.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/map/map-config.go"
     ```
 
 === "C#"
@@ -825,6 +1071,40 @@ abandoned items, but cancellation is not guaranteed.
     `CUSTOM_COMPLETION_FAILED` does not throw automatically. Inspect
     `result.completionReason().isSucceeded()` to distinguish the custom outcomes.
 
+=== "Go"
+
+    `BatchResult.Reason` records the stop condition. Items that never started are
+    omitted from `Items`. An item that started but did not complete appears with
+    `BatchItemStarted`. `Map` does not leave abandoned items running. An abandoned
+    item stops at its next durable operation. `Map` returns only after every
+    started item has stopped.
+
+    | `CompletionConfig`                       | Early exit `Reason`                                     | Full completion `Reason` |
+    | ---------------------------------------- | ------------------------------------------------------- | ------------------------ |
+    | zero value (default, fail-fast)          | `CompletionFailureToleranceExceeded`                    | `CompletionAllCompleted` |
+    | `ToleratedFailureCount: aws.Int(N)`      | `CompletionFailureToleranceExceeded`                    | `CompletionAllCompleted` |
+    | `ToleratedFailurePercentage: aws.Int(N)` | `CompletionFailureToleranceExceeded`                    | `CompletionAllCompleted` |
+    | `MinSuccessful: N`                       | `CompletionMinSuccessfulReached`                        | `CompletionAllCompleted` |
+    | `ShouldComplete: ...`                    | `CompletionCustomSucceeded` or `CompletionCustomFailed` | `CompletionAllCompleted` |
+
+    The default is fail-fast. Set `ToleratedFailurePercentage: aws.Int(100)` to run
+    every item regardless of failures.
+
+    Set `ShouldComplete` when the threshold fields cannot express the rule. The
+    predicate receives a `BatchProgress` snapshot before the first item and again
+    after each item reaches a terminal state, so it must handle the initial
+    zero-progress snapshot. It must be deterministic. Return `ContinueBatch()` to
+    keep going, or `CompleteBatch(durable.CompletionOutcomeSucceeded)` or
+    `CompleteBatch(durable.CompletionOutcomeFailed)` to stop and classify the
+    result. With `ShouldComplete` set, an item failure does not stop the batch by
+    itself. A failed custom outcome returns a `*BatchError`, or a
+    `*BatchCompletionError` when no item failed. A predicate that panics fails the
+    operation with an error that is not a `*BatchError`.
+
+    ```go
+    --8<-- "examples/go/operations/map/custom-completion.go"
+    ```
+
 === "C#"
 
     The `IBatchResult`'s `CompletionReason` indicates the stop condition. Items that were
@@ -861,6 +1141,12 @@ abandoned items, but cancellation is not guaranteed.
 
     ```java
     --8<-- "examples/java/operations/map/completion-config.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/map/completion-config.go"
     ```
 
 === "C#"
@@ -902,6 +1188,21 @@ propagating it immediately. Other items continue running.
 
     ```java
     --8<-- "examples/java/operations/map/error-handling.java"
+    ```
+
+=== "Go"
+
+    `Map` captures each item error in the result. By default (fail-fast) the
+    first item failure completes the batch. Items still running are abandoned,
+    and items not yet started never run. `Map` then returns the populated
+    result together with a `*durable.BatchError`, whose `Errors` holds the
+    per-item errors. Match it with `errors.As` and read the failures from
+    `BatchResult.Errors()` and `BatchResult.Failed()`. Return any other error
+    unchanged. To run every item despite failures, set a tolerance with
+    `WithCompletion`.
+
+    ```go
+    --8<-- "examples/go/operations/map/error-handling.go"
     ```
 
 === "C#"
@@ -993,6 +1294,23 @@ details below describe nested mode.
     flag. On replay, the SDK re-executes the items to reconstruct the `MapResult` from their
     individual checkpoints.
 
+=== "Go"
+
+    `WithNesting` selects the checkpoint shape. In `NestingNormal` (the default)
+    each item checkpoints its result in its own child context. In `NestingFlat`
+    the SDK omits the per-item context and records the item outcome with the
+    parent map. Durable operations inside an item still checkpoint in both modes.
+
+    The SDK checkpoints the whole `BatchResult` when it is at most 256KB
+    serialized. On replay, the SDK decodes that `BatchResult` without running the
+    items. A larger result is not stored. The checkpoint then keeps the child
+    operations plus a compact record, and replay rebuilds each item from that
+    item's own checkpoint. The record holds `type`, `totalCount`, `successCount`,
+    `failureCount`, `completionReason`, `status`, and `itemStatuses`, one
+    character per started item. Pass `WithBatchSummary` to add your own string
+    under the `summary` key. `WithBatchSerdes` sets the per-item serializer and
+    `WithBatchResultSerdes` the whole-result serializer.
+
 === "C#"
 
     In nested mode, the SDK reconstructs `IBatchResult` from the per-item child-context
@@ -1023,6 +1341,12 @@ operations. Each nested map creates its own set of child contexts.
 
     ```java
     --8<-- "examples/java/operations/map/nested-map.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/map/nested-map.go"
     ```
 
 === "C#"
