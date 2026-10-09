@@ -9,9 +9,9 @@ Because durable functions pin the specific version of the Lambda function during
 ## How it works
 
 1. **Dedicated Debug Version:** When initiating a remote debugging session, Lambda publishes a unique, dedicated version of the function for the session.
-2. **Dedicated Sandbox:** The Lambda placement service provisions a new sandbox instance dedicated to that specific version. The VS Code debugger attaches directly to this sandbox.
-3. **Replay Re-attachment:** As your durable execution proceeds through steps and subsequent replay invocations are triggered, the placement service directs the execution to the same sandbox, allowing breakpoints to hit across replay cycles.
-4. **Best-Effort Lifecycle:** Sandbox preservation relies on low concurrency during debugging, ensuring only the debugged execution targets that version instance.
+1. **Dedicated Sandbox:** The Lambda placement service provisions a new sandbox instance dedicated to that specific version. The VS Code debugger attaches directly to this sandbox.
+1. **Replay Re-attachment:** As your durable execution proceeds through steps and subsequent replay invocations are triggered, the placement service directs the execution to the same sandbox, allowing breakpoints to hit across replay cycles.
+1. **Best-Effort Lifecycle:** Sandbox preservation relies on low concurrency during debugging, ensuring only the debugged execution targets that version instance.
 
 ## Caveats and limitations
 
