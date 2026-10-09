@@ -35,6 +35,15 @@ Look up a step by name and check its status and result.
     --8<-- "examples/java/testing/assertions/assert-step.java"
     ```
 
+=== "Go"
+
+    Look up the step with `result.Operation(name)`, read `Status`, and
+    deserialize the result with `durabletest.OperationResultAs[T]`.
+
+    ```go
+    --8<-- "examples/go/testing/assertions/assert-step.go"
+    ```
+
 === "C#"
 
     Use `result.GetStep(name)` to get the `TestStep`, then call `GetResult<T>()` to
@@ -72,6 +81,14 @@ Look up a wait operation and check that it was scheduled with the expected durat
 
     ```java
     --8<-- "examples/java/testing/assertions/assert-wait.java"
+    ```
+
+=== "Go"
+
+    `op.WaitDetails` carries `WaitSeconds` and `ScheduledEndTimestamp`.
+
+    ```go
+    --8<-- "examples/go/testing/assertions/assert-wait.go"
     ```
 
 === "C#"
@@ -116,6 +133,19 @@ then completes it from the test.
     --8<-- "examples/java/testing/assertions/assert-callback.java"
     ```
 
+=== "Go"
+
+    Run to `PENDING`, read the callback ID from `OpenCallbacks()`, complete it
+    with `SendCallbackSuccess()`, then run again to finish. `SendCallbackSuccess`
+    marshals its payload to JSON. The default callback deserializer, `RawSerdes`,
+    returns those bytes unchanged, so the handler receives the raw JSON string and
+    the test parses it. To decode the payload into a Go value at the callback,
+    pass `durable.WithCallbackSerdes(durable.JSONSerdes)` instead.
+
+    ```go
+    --8<-- "examples/go/testing/assertions/assert-callback.go"
+    ```
+
 === "C#"
 
     Use `StartAsync()` to drive the workflow to the callback, `WaitForCallbackAsync()` to
@@ -147,6 +177,14 @@ operations to assert on what ran inside the context.
 
     ```java
     --8<-- "examples/java/testing/assertions/assert-child-context.java"
+    ```
+
+=== "Go"
+
+    A child context is a `CONTEXT` operation. Match its children by `ParentID`.
+
+    ```go
+    --8<-- "examples/go/testing/assertions/assert-child-context.go"
     ```
 
 === "C#"
@@ -187,6 +225,16 @@ status to count failures and successes separately.
 
     ```java
     --8<-- "examples/java/testing/assertions/filter-by-status.java"
+    ```
+
+=== "Go"
+
+    The SDK records one operation per step, so a retried step is a single
+    record whose `StepDetails.Attempt` counts the failed attempts. Filter by
+    iterating `result.Operations` and comparing `Status`.
+
+    ```go
+    --8<-- "examples/go/testing/assertions/filter-by-status.go"
     ```
 
 === "C#"

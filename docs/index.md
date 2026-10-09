@@ -3,9 +3,9 @@
 !!! note
 
     This guide covers the **AWS Durable Execution SDK**, the client library you use to write
-    durable functions in TypeScript, Python, Java, and C#. For service-level topics including
-    IAM permissions, service quotas, infrastructure-as-code configuration, and monitoring,
-    see
+    durable functions in TypeScript, Python, Java, Go (Preview), and C#. For service-level
+    topics including IAM permissions, service quotas, infrastructure-as-code configuration,
+    and monitoring, see
     [Lambda durable functions](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html)
     in the Lambda Developer Guide.
 
@@ -60,6 +60,8 @@ For detailed programming language reference, see [SDK Reference](sdk-reference/)
         [aws-durable-execution-sdk-python](https://github.com/aws/aws-durable-execution-sdk-python)
     - :simple-github:
         [aws-durable-execution-sdk-java](https://github.com/aws/aws-durable-execution-sdk-java)
+    - :simple-github:
+        [aws-durable-execution-sdk-go (Preview)](https://github.com/aws/aws-durable-execution-sdk-go)
     - :simple-github:
         [aws-lambda-dotnet (C#)](https://github.com/aws/aws-lambda-dotnet/tree/master/Libraries/src/Amazon.Lambda.DurableExecution)
 

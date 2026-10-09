@@ -54,6 +54,19 @@ code.
     --8<-- "examples/java/patterns/determinism/non-deterministic-in-step.java"
     ```
 
+=== "Go"
+
+    When you run
+    [durablelint](../../sdk-reference/languages/go/index.md#static-analysis-with-durablelint),
+    the SDK's static analysis tool, its `durablenondeterminism` rule reports a
+    non-deterministic call outside a step, such as `time.Now` or a read from `math/rand`
+    or `crypto/rand`. Wrapping the call in a step checkpoints the value and silences the
+    rule.
+
+    ```go
+    --8<-- "examples/go/patterns/determinism/non-deterministic-in-step.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -97,6 +110,22 @@ state there.
 
     ```java
     --8<-- "examples/java/patterns/determinism/return-value-passing.java"
+    ```
+
+=== "Go"
+
+    When you run
+    [durablelint](../../sdk-reference/languages/go/index.md#static-analysis-with-durablelint),
+    its `durableclosure` rule reports a write to a variable captured from outside the
+    step body. Replay skips the body, so the write never happens again. Return the value
+    instead.
+
+    ```go
+    --8<-- "examples/go/patterns/determinism/return-value-passing-wrong.go"
+    ```
+
+    ```go
+    --8<-- "examples/go/patterns/determinism/return-value-passing.go"
     ```
 
 === "C#"
@@ -143,6 +172,36 @@ non-deterministic decision into a step and branch on the step's return value.
     ```java
     --8<-- "examples/java/patterns/determinism/stable-branches.java"
     ```
+
+=== "Go"
+
+    When you run
+    [durablelint](../../sdk-reference/languages/go/index.md#static-analysis-with-durablelint),
+    its `durablenondeterminism` rule reports a branch on `time.Now()` outside a step.
+    Capture the decision in a step, or read `durable.ExecutionStartTime(ctx)` when a
+    stable timestamp is all you need.
+
+    ```go
+    --8<-- "examples/go/patterns/determinism/stable-branches-wrong.go"
+    ```
+
+    ```go
+    --8<-- "examples/go/patterns/determinism/stable-branches.go"
+    ```
+
+    Map iteration and the `go` statement are two more sources of non-determinism. When
+    you run
+    [durablelint](../../sdk-reference/languages/go/index.md#static-analysis-with-durablelint),
+    its `durablenondeterminism` rule reports a range over a map that starts durable
+    operations, because map iteration order is randomized. Sort the keys and range over
+    the slice. The `durablegoroutine` rule reports a durable operation inside a `go`
+    statement. At run time that call fails with `durable.ErrWrongGoroutine` and records
+    nothing. Use `durable.Go`, which gives the goroutine its own context.
+
+    A `//durable:ignore` comment suppresses a durablelint diagnostic. The
+    `durablenocheck` build tag is a separate mechanism. It compiles out the run-time
+    goroutine and context checks. See [Goroutines and
+    `durable.Go`](../../sdk-reference/languages/go/index.md#goroutines-and-durablego).
 
 === "C#"
 

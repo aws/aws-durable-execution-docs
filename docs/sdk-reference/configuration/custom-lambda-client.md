@@ -31,6 +31,29 @@ custom client to control the region, retry settings, credentials, or other optio
     --8<-- "examples/java/configuration/custom-client.java"
     ```
 
+=== "Go"
+
+    The SDK takes no AWS Lambda client directly. `durable.WithExecutionClient`
+    takes a `durable.ExecutionClient`, an SDK-owned interface. Implement it
+    over a configured `*lambda.Client` to control the region, retry policy, or
+    credentials. The example wraps a client built with a custom region and
+    retry mode, and maps each call onto the `GetDurableExecutionState` and
+    `CheckpointDurableExecution` Lambda APIs.
+
+    The SDK's default client sets a 5 second connect timeout, a 50 second
+    response timeout, and a 55 second total request timeout, and adds the
+    SDK's user agent. A client you build gets none of these. Set the timeouts
+    on its HTTP client if you need them.
+
+    The SDK builds its default client from the default AWS config. To change
+    only the region, credentials, or retry settings of the default client,
+    set the standard AWS environment variables or shared config files, such as
+    `AWS_REGION`, `AWS_MAX_ATTEMPTS`, and `AWS_RETRY_MODE`.
+
+    ```go
+    --8<-- "examples/go/configuration/custom-client.go"
+    ```
+
 === "C#"
 
     Build an `AmazonLambdaConfig` (region, retry settings, and so on), construct an

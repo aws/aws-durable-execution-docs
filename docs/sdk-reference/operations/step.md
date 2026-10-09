@@ -37,6 +37,12 @@ The step will checkpoint the last error after exhausting all retry attempts.
     --8<-- "examples/java/operations/steps/add-numbers.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/steps/add-numbers.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -104,6 +110,34 @@ The step will checkpoint the last error after exhausting all retry attempts.
     **Throws:** The original exception re-thrown after deserialization if possible,
     otherwise `StepFailedException`. `StepInterruptedException` if an at-most-once step was
     interrupted.
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/steps/step-signature.go"
+    ```
+
+    **Parameters:**
+
+    - `ctx` (required) The durable `Context`, always the first argument.
+    - `name` (required) A name for the step. Pass `""` to omit it.
+    - `fn` A `func(durable.StepContext) (O, error)` to execute. The result type
+        `O` is inferred from its return value.
+    - `opts` (optional) Zero or more `StepOption` values.
+
+    **Returns:** `(O, error)` from `Step`, or `*durable.Future[O]` from
+    `StepAsync`. Read the async result with `fut.Result(ctx)`.
+
+    **Errors:** `*durable.StepError` when the step body fails and the retry
+    strategy stops. Its `Err` field is a stand-in rebuilt from `ErrorType` and
+    `Message`, the same on the first run and on replay. So match on `ErrorType`,
+    not with `errors.As` against the body's own error type. An interrupted
+    `AtMostOncePerRetry` step that the retry strategy stops returns a
+    `*durable.StepError` whose `ErrorType` is `"StepInterruptedError"`.
+    `errors.As` reaches a `*durable.StepInterruptedError` through it. A result
+    the serializer cannot convert fails the step at once, without a retry. The
+    `*durable.StepError` then has `ErrorType` `"SerdesError"`. An invalid `WithStepSubType` value returns a
+    plain `error` before the step runs.
 
 === "C#"
 
@@ -189,6 +223,39 @@ The step will checkpoint the last error after exhausting all retry attempts.
     - `serDes` (optional) Custom `SerDes` for the step result. See
         [Serialization](../state/serialization.md).
 
+=== "Go"
+
+    Pass options to `Step`.
+
+    ```go
+    func WithRetry(s RetryStrategy) StepOption
+    func WithSemantics(s StepSemantics) StepOption
+    func WithStepSerdes(s Serdes) StepOption
+    func WithStepSubType(subType string) StepOption
+    ```
+
+    **Parameters:**
+
+    - `WithRetry` (optional) A `RetryStrategy`. Build one with
+        `durable.NewRetryStrategy`, `durable.ExponentialBackoff`, or
+        `durable.LinearBackoff`. The default is `durable.ExponentialBackoff()`. It makes
+        6 attempts in total, with a 5-second first delay that doubles on each retry up
+        to 60 seconds, and full jitter. So a step retries unless you pass
+        `durable.NoRetry()`. See [Retry strategies](../error-handling/retries.md).
+    - `WithSemantics` (optional) `durable.AtLeastOncePerRetry` (default) or
+        `durable.AtMostOncePerRetry`.
+    - `WithStepSerdes` (optional) A custom `Serdes` for the step result. The default is
+        the handler-level serializer, which is JSON unless you set `durable.WithSerdes`
+        or call `durable.ConfigureSerdes`. See
+        [Serialization](../state/serialization.md).
+    - `WithStepSubType` (optional) The operation subtype the step records in the
+        checkpoint. The default is `"Step"`, and an empty string selects it. A
+        subtype has 1 to 32 characters from `A-Z`, `a-z`, `0-9`, hyphen, and
+        underscore. The subtypes the SDK records for its own operations are
+        reserved. An invalid value makes `Step` return an error. The subtype is
+        part of the step's replay identity, so a different subtype on replay
+        returns a `*durable.NonDeterministicExecutionError`.
+
 === "C#"
 
     ```csharp
@@ -254,6 +321,23 @@ The step will checkpoint the last error after exhausting all retry attempts.
     Java `StepContext` does not expose replay state. Use `DurableContext.isReplaying()`
     in orchestration code outside the step function.
 
+=== "Go"
+
+    ```go
+    type StepContext interface {
+        context.Context
+        Logger() *slog.Logger
+        Attempt() int
+    }
+    ```
+
+    - `Logger()` Returns the step's `*slog.Logger` from the standard library
+        `log/slog`. See [Logging](../observability/logging.md).
+    - `Attempt()` The 1-based attempt number of the current execution.
+
+    `StepContext` embeds `context.Context`, so you can pass it directly to AWS
+    SDK calls. It exposes no durable operations and no operation ID.
+
 === "C#"
 
     ```csharp
@@ -317,6 +401,28 @@ The step will checkpoint the last error after exhausting all retry attempts.
         function replays before the result is checkpointed, the SDK skips the step and
         throws `StepInterruptedException`. Use for operations with side effects.
 
+=== "Go"
+
+    ```go
+    type StepSemantics int
+
+    const (
+        AtLeastOncePerRetry StepSemantics = iota
+        AtMostOncePerRetry
+    )
+    ```
+
+    - `AtLeastOncePerRetry` (default) Re-executes a step whose previous
+        invocation was interrupted before it recorded an outcome. Safe for
+        idempotent operations.
+    - `AtMostOncePerRetry` Never re-executes an interrupted attempt. The SDK
+        passes a `*durable.StepInterruptedError` to the retry strategy as the
+        failed attempt's error, so the interruption consumes one attempt. If the
+        strategy retries, the next attempt runs the step body after the retry
+        delay. If the strategy stops, `Step` returns a `*durable.StepError`
+        whose `ErrorType` is `"StepInterruptedError"`. Use for operations with
+        side effects.
+
 === "C#"
 
     ```csharp
@@ -365,6 +471,15 @@ A step function receives a `StepContext` as its first parameter.
     --8<-- "examples/java/operations/steps/validate-order.java"
     ```
 
+=== "Go"
+
+    A step body is an ordinary synchronous `func(durable.StepContext) (O, error)`. Use
+    `durable.StepAsync` to get a `*durable.Future[O]`.
+
+    ```go
+    --8<-- "examples/go/operations/steps/validate-order.go"
+    ```
+
 === "C#"
 
     Pass an `async (ctx, ct) => ...` lambda directly. Step bodies are async; `await`
@@ -399,6 +514,14 @@ You can also use inline lambdas.
     --8<-- "examples/java/operations/steps/lambda-step-no-name.java"
     ```
 
+=== "Go"
+
+    Pass `""` as the name for an unnamed inline step.
+
+    ```go
+    --8<-- "examples/go/operations/steps/lambda-step-no-name.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -431,6 +554,15 @@ You can also use inline lambdas.
     --8<-- "examples/java/operations/steps/multi-argument-step.java"
     ```
 
+=== "Go"
+
+    Capture arguments in the closure. The step body takes only a
+    `durable.StepContext`.
+
+    ```go
+    --8<-- "examples/go/operations/steps/multi-argument-step.go"
+    ```
+
 === "C#"
 
     Capture arguments in the closure:
@@ -458,6 +590,10 @@ debugging easier.
 
     The name is always the first argument. Pass `null` for no name.
 
+=== "Go"
+
+    The name is the second argument, after the context. Pass `""` to omit it.
+
 === "C#"
 
     The name is the optional `name` argument. Omit it to infer one from the call site.
@@ -482,6 +618,12 @@ Configure step behavior using `StepConfig`:
 
     ```java
     --8<-- "examples/java/operations/steps/process-data.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/steps/process-data.go"
     ```
 
 === "C#"
@@ -516,6 +658,12 @@ lost.
     --8<-- "examples/java/operations/steps/passing-data-wrong.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/steps/passing-data-wrong.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -540,6 +688,12 @@ lost.
 
     ```java
     --8<-- "examples/java/operations/steps/passing-data-correct.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/operations/steps/passing-data-correct.go"
     ```
 
 === "C#"

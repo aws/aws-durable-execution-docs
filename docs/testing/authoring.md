@@ -27,6 +27,16 @@
     </dependency>
     ```
 
+=== "Go"
+
+    `durabletest` ships in the same module as the runtime SDK. Add the SDK, then import
+    `github.com/aws/aws-durable-execution-sdk-go/durable/durabletest` from your test
+    files.
+
+    ```bash
+    go get github.com/aws/aws-durable-execution-sdk-go
+    ```
+
 === "C#"
 
     Add the testing package to your test project:
@@ -68,6 +78,16 @@ Create a runner with your handler, call `run()`, and assert on the result.
     --8<-- "examples/java/testing/authoring/minimal-test.java"
     ```
 
+=== "Go"
+
+    Create a runner with `NewLocalRunner`, drive it with `RunUntilComplete`,
+    and read the typed result with `durabletest.ResultAs[T]`. The runner needs
+    no test handle, setup, or teardown.
+
+    ```go
+    --8<-- "examples/go/testing/authoring/minimal-test.go"
+    ```
+
 === "C#"
 
     Construct `DurableTestRunner<TIn, TOut>` with your workflow delegate and
@@ -101,6 +121,12 @@ fails. Assert on the status and inspect the error.
     --8<-- "examples/java/testing/authoring/test-failure.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/testing/authoring/test-failure.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -128,6 +154,12 @@ step, and the runner re-invokes the handler as many times as needed.
 
     ```java
     --8<-- "examples/java/testing/authoring/test-retries.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/testing/authoring/test-retries.go"
     ```
 
 === "C#"
@@ -174,6 +206,16 @@ runner collapses these delays so tests finish in milliseconds.
     runner.runUntilComplete(input); // advanceTime() runs after each invocation
     ```
 
+=== "Go"
+
+    The local runner uses a virtual clock that is always on. `RunUntilComplete` fires
+    wait and retry timers on that clock between invocations. If you call `Run` directly,
+    call `CompletePendingTimers` yourself between invocations.
+
+    ```go
+    result, err := runner.RunUntilComplete(input) // fires timers between invocations
+    ```
+
 === "C#"
 
     `TestRunnerOptions.SkipTime` defaults to `true`, so `RunAsync()` completes both
@@ -210,6 +252,12 @@ own runner instance.
 
     ```java
     --8<-- "examples/java/testing/authoring/test-branching.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/testing/authoring/test-branching.go"
     ```
 
 === "C#"

@@ -39,6 +39,18 @@ it to your handler. You can catch it there and handle it as required.
     --8<-- "examples/java/sdk-reference/error-handling/basic-error-handling.java"
     ```
 
+=== "Go"
+
+    The step body returns an error, and `Step` returns a `*durable.StepError` when no
+    retry remains. Match it with `errors.As(err, &stepErr)` and read `stepErr.Message`.
+    The wrapped `Err` is a stand-in rebuilt from the record, so matching the step body's
+    own error type never succeeds. Return any other error unchanged. It can be the
+    signal that the invocation is suspending, which matches no public type.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/basic-error-handling.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -191,6 +203,56 @@ error and the operation details.
     interrupted before the SDK checkpointed the result. See
     [Step interrupted](#step-interrupted) below.
 
+=== "Go"
+
+    ```mermaid
+    graph TD
+      OE["OperationError"]
+      SE[StepError]
+      SIE[StepInterruptedError]
+      IE[InvokeError]
+      CE[CallbackError]
+      CCE[ChildContextError]
+      WCE[WaitForConditionError]
+      RE[RetryError]
+      CbE[CombinatorError]
+      BE[BatchError]
+      BCE[BatchCompletionError]
+      NDE[NonDeterministicExecutionError]
+      SE -. errors.As .-> OE
+      SIE -. errors.As .-> OE
+      IE -. errors.As .-> OE
+      CE -. errors.As .-> OE
+      CCE -. errors.As .-> OE
+      WCE -. errors.As .-> OE
+      RE -. errors.As .-> OE
+      CbE -. errors.As .-> OE
+      BE -. errors.As .-> OE
+      BCE -. errors.As .-> OE
+      NDE -. errors.As .-> OE
+      CEE[CallbackExternalError] -->|embeds| CE
+      CTE[CallbackTimeoutError] -->|embeds| CE
+      CSE[CallbackSubmitterError] -->|embeds| CE
+    ```
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/exception-hierarchy.go"
+    ```
+
+    `errors.As(err, &opErr)` against `*OperationError` matches any operation failure.
+    The dotted edges in the diagram show these `errors.As` matches. Read `opErr.Name`,
+    `opErr.ErrorType`, and `opErr.Message`. The wrapped `Err` is a stand-in rebuilt from
+    the record, so matching the body's own error type never succeeds.
+
+    The three callback error types embed `CallbackError`, so one `errors.As` against
+    `*CallbackError` matches an external failure, a timeout, and a submitter failure.
+    `StepInterruptedError` and `StepError` are separate types. See [Step
+    interrupted](#step-interrupted). `SerdesError`, `ClientError`, and `CheckpointError`
+    are not operation errors, so a bare value of one does not match `*OperationError`. A
+    step serdes failure surfaces as a `*StepError` whose `ErrorType` is `"SerdesError"`.
+    Sentinels such as `ErrCallbackTimedOut`, `ErrInvokeTimedOut`, `ErrWrongGoroutine`,
+    and `ErrWrongContext` match with `errors.Is`.
+
 === "C#"
 
     ```mermaid
@@ -240,9 +302,8 @@ error and the operation details.
 
 ## Validation errors
 
-The SDK does not retry validation errors. The SDK throws validation errors when you pass
-invalid arguments to an SDK operation, such as a negative duration or an empty operation
-name.
+The SDK does not retry validation errors. It reports a validation error when you pass an
+invalid argument to an SDK operation, such as a negative duration.
 
 === "TypeScript"
 
@@ -266,6 +327,17 @@ name.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/validation-error.java"
+    ```
+
+=== "Go"
+
+    A constructor such as `NewRetryStrategy` returns a plain `error` for an invalid
+    configuration, and its `Must` form, such as `MustNewRetryStrategy`, panics. An
+    operation such as `Wait`, `Map`, or `Parallel` returns a plain `error` for an
+    invalid argument or option. `Start` and `Wrap` panic on an invalid handler option.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/validation-error.go"
     ```
 
 === "C#"
@@ -306,6 +378,20 @@ succeeded before deciding how to proceed.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/step-interrupted.java"
+    ```
+
+=== "Go"
+
+    Use `durable.WithSemantics(durable.AtMostOncePerRetry)` for a step with side effects
+    that shouldn't run more than once. The SDK counts an interrupted attempt as a failed
+    attempt, so the step's retry strategy decides whether a new attempt runs. When no
+    retry remains, the step returns a `*StepError` whose `ErrorType` is
+    `"StepInterruptedError"`. Match the rebuilt cause with
+    `errors.As(err, &interruptedErr)`. `errors.As(err, &stepErr)` matches every step
+    failure, so it alone does not identify an interruption.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/step-interrupted.go"
     ```
 
 === "C#"
@@ -349,6 +435,17 @@ exception type when they encounter a value they cannot handle.
 
     ```java
     --8<-- "examples/java/sdk-reference/error-handling/serdes-error.java"
+    ```
+
+=== "Go"
+
+    A custom `Serdes` returns an error from `Marshal` or `Unmarshal`. By default the
+    failure is permanent. The operation fails with a `*SerdesError`, and a step serdes
+    failure surfaces as a `*StepError` whose `ErrorType` is `"SerdesError"`. Return
+    `durable.RetryableSerdesError(err)` to mark it transient so the backend re-invokes.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/serdes-error.go"
     ```
 
 === "C#"

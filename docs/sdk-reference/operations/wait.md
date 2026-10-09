@@ -57,6 +57,12 @@ Here's a simple example of using a wait operation:
     --8<-- "examples/java/core/wait/basic-wait.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/core/wait/basic-wait.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -92,6 +98,14 @@ When this function runs:
 
     Set `name` to `null` to omit it.
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/core/wait/wait-signature.go"
+    ```
+
+    Pass `""` to omit the name.
+
 === "C#"
 
     ```csharp
@@ -122,6 +136,12 @@ When this function runs:
 
     `DurableFuture<Void>` (async)
 
+=== "Go"
+
+    `error` (sync, `nil` on success)
+
+    `*durable.Future[durable.Void]` (async)
+
 === "C#"
 
     `Task`
@@ -139,6 +159,14 @@ When this function runs:
 === "Java"
 
     `IllegalArgumentException`
+
+=== "Go"
+
+    `Wait` returns a plain `error` for a duration under one second, including
+    zero and negative durations. It then records no operation and writes no
+    checkpoint. `WaitAsync` returns a future that fails with the same error.
+    The SDK rounds a duration of one second or more up to whole seconds. It does
+    not check the one-year maximum.
 
 === "C#"
 
@@ -164,6 +192,14 @@ When this function runs:
 
     ```java
     --8<-- "examples/java/core/wait/duration-signature.java"
+    ```
+
+=== "Go"
+
+    The SDK uses the standard library `time.Duration`.
+
+    ```go
+    --8<-- "examples/go/core/wait/duration-signature.go"
     ```
 
 === "C#"
@@ -192,6 +228,12 @@ When this function runs:
     --8<-- "examples/java/core/wait/duration-helpers.java"
     ```
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/core/wait/duration-helpers.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -218,6 +260,12 @@ Name wait operations to make them easier to identify in logs and tests.
 
     ```java
     --8<-- "examples/java/core/wait/named-wait.java"
+    ```
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/core/wait/named-wait.go"
     ```
 
 === "C#"
@@ -249,7 +297,7 @@ of a parent is ready to suspend due to a wait, the durable function will wait fo
 child operations of that parent to complete or suspend before terminating the
 invocation.
 
-In TypeScript and Java, you can run a wait concurrently with other operations. This is
+You can run a wait concurrently with other operations. This is
 useful for enforcing a minimum duration — for example, ensuring at least 5 seconds pass
 while a step runs in parallel.
 
@@ -274,6 +322,18 @@ while a step runs in parallel.
 
     ```java
     --8<-- "examples/java/core/wait/async-wait.java"
+    ```
+
+=== "Go"
+
+    Await the futures with `durable.Join`, not with one `Result` call after
+    another. A sequence of `Result` calls that returns on the first error leaves
+    the other futures unawaited. Their progress is then not checkpointed when the
+    invocation suspends. `Join` runs in a child context, so it records one more
+    operation.
+
+    ```go
+    --8<-- "examples/go/core/wait/async-wait.go"
     ```
 
 === "C#"
@@ -305,6 +365,14 @@ You can verify wait operations in your tests by inspecting the operations list:
 
     ```java
     --8<-- "examples/java/core/wait/test-multiple-waits.java"
+    ```
+
+=== "Go"
+
+    Save this as `wait_test.go`. It uses the `durabletest` in-memory runner.
+
+    ```go
+    --8<-- "examples/go/core/wait/test-multiple-waits.go"
     ```
 
 === "C#"

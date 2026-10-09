@@ -38,6 +38,16 @@ suspended.
     --8<-- "examples/java/patterns/pause-resume/wait-vs-sleep.java"
     ```
 
+=== "Go"
+
+    `durable.Wait` takes a `time.Duration`. A duration under one second makes
+    `Wait` return an error and record nothing. A longer duration rounds up to
+    whole seconds.
+
+    ```go
+    --8<-- "examples/go/patterns/pause-resume/wait-vs-sleep.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -71,6 +81,22 @@ up to the execution timeout, holding the resource slot until an operator interve
 
     ```java
     --8<-- "examples/java/patterns/pause-resume/callback-timeout.java"
+    ```
+
+=== "Go"
+
+    `durable.WaitForCallback` takes the operation name, a submitter that
+    receives the callback ID, and callback options. Set the timeout with
+    `durable.WithCallbackTimeout`. `WaitForCallback` runs the submitter in a
+    step, then blocks until the external system submits a result. The default
+    `durable.RawSerdes` returns the submitted bytes unchanged, so the result type
+    is `string`, `[]byte`, or `json.RawMessage`. To decode JSON, pass
+    `durable.WithCallbackSerdes(durable.JSONSerdes)`. When the timeout elapses,
+    `WaitForCallback` returns a `*durable.CallbackTimeoutError` that matches
+    `durable.ErrCallbackTimedOut`.
+
+    ```go
+    --8<-- "examples/go/patterns/pause-resume/callback-timeout.go"
     ```
 
 === "C#"
@@ -113,6 +139,17 @@ is in progress.
     --8<-- "examples/java/patterns/pause-resume/heartbeat-timeout.java"
     ```
 
+=== "Go"
+
+    Add `durable.WithCallbackHeartbeatTimeout` alongside the overall timeout. A
+    missed heartbeat fails the callback with a `*durable.CallbackTimeoutError`
+    whose `Heartbeat` field is true. The error matches
+    `durable.ErrCallbackTimedOut`.
+
+    ```go
+    --8<-- "examples/go/patterns/pause-resume/heartbeat-timeout.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -153,6 +190,18 @@ create a retry storm.
 
     ```java
     --8<-- "examples/java/patterns/pause-resume/wait-for-condition.java"
+    ```
+
+=== "Go"
+
+    The check receives the `durable.StepContext` first and the state second.
+    `WaitForCondition` takes a `durable.ConditionConfig` as a positional
+    argument, because its state-typed fields need the type parameter that
+    options cannot carry. For a configured exponential backoff, build the
+    strategy with `durable.MustNewWaitStrategy`.
+
+    ```go
+    --8<-- "examples/go/patterns/pause-resume/wait-for-condition.go"
     ```
 
 === "C#"

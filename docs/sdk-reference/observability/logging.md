@@ -29,6 +29,16 @@ IDs, log sampling, and X-Ray tracing integration.
     --8<-- "examples/java/sdk-reference/observability/basic-usage.java"
     ```
 
+=== "Go"
+
+    `ctx.Logger()` returns a `*slog.Logger`. Its records carry `requestId`,
+    `executionArn`, and `tenantId` when the invocation has one. The default
+    handler writes one JSON object per record to stderr.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/observability/basic-usage.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -84,6 +94,26 @@ IDs, log sampling, and X-Ray tracing integration.
 
     The Java logger uses SLF4J format strings. Pass `{}` placeholders and positional
     arguments.
+
+=== "Go"
+
+    `ctx.Logger()` and `stepCtx.Logger()` return `*slog.Logger`, so the log
+    methods are the standard library's. Pass structured fields as alternating
+    key and value arguments, or as `slog.Attr` values. With the SDK's default
+    handler, an attribute whose value is an `error` expands into `errorType`,
+    `errorMessage`, and, when the error carries recorded frames, `stackTrace`.
+
+    ```go
+    logger := ctx.Logger()
+    logger.Debug("message", "key", value)
+    logger.Info("message", "key", value)
+    logger.Warn("message", "key", value)
+    logger.Error("message", "err", err)
+    logger.Log(ctx, slog.LevelInfo, "message", "key", value)
+    ```
+
+    The four named `slog` levels are `LevelDebug`, `LevelInfo`, `LevelWarn`, and
+    `LevelError`.
 
 === "C#"
 
@@ -163,6 +193,40 @@ IDs, log sampling, and X-Ray tracing integration.
     }
     ```
 
+=== "Go"
+
+    The SDK's default handler always writes one JSON object per record to
+    stderr. The field names are the SDK's own, and they do not depend on
+    Lambda advanced logging controls. A record from a step looks like:
+
+    ```json
+    {
+      "timestamp": "2025-11-21T18:39:24.743Z",
+      "level": "INFO",
+      "message": "Running step",
+      "requestId": "72171fff-...",
+      "executionArn": "arn:aws:lambda:...",
+      "operationId": "abc123",
+      "operationName": "process",
+      "attempt": 1
+    }
+    ```
+
+    `timestamp` is ISO 8601 UTC with millisecond precision and a `Z` suffix.
+    `level` is `DEBUG`, `INFO`, `WARN`, or `ERROR`. An attribute whose value
+    is an `error` expands into `errorType`, `errorMessage`, and `stackTrace`
+    when the error carries recorded frames. The default handler reads its
+    minimum level from `AWS_LAMBDA_LOG_LEVEL`. An unset or unrecognized value
+    selects `INFO`. A handler you supply applies its own level.
+
+    The SDK also writes records of its own through the installed handler.
+    When a checkpoint response without a token suspends the invocation, the
+    SDK writes one `WARN` record. A handler enabled at `DEBUG` also receives
+    the SDK's trace of its own work, with the messages `operation claimed`,
+    `replay complete; executing live`, `checkpoint enqueued`,
+    `checkpoint flushed`, `invocation suspending`, and `operation completed`.
+    The handler's level is the only switch for these `DEBUG` records.
+
 === "C#"
 
     The SDK writes through `Microsoft.Extensions.Logging.ILogger` and attaches
@@ -219,6 +283,14 @@ All DurableContext fields, plus:
     - `operationId` the operation ID of the child context operation
     - `operationName` the name given to the child context, when you provide one
 
+=== "Go"
+
+    - `operationId` the ID of the child context operation
+    - `operationName` the name given to the child context, when you provide one
+
+    The SDK has one `Context` type. A child context comes from
+    `RunInChildContext`, `Go`, `Map`, `Parallel`, or `WaitForCallback`.
+
 === "C#"
 
     - `operationId` the deterministic operation ID of the child context operation
@@ -261,6 +333,19 @@ instead of DurableContext's logger adds step-specific fields (`operationId`,
 
     ```java
     --8<-- "examples/java/sdk-reference/observability/step-context-logger.java"
+    ```
+
+=== "Go"
+
+    `stepCtx.Logger()` returns a `*slog.Logger` whose records add this
+    operation's `operationId`, its `operationName` when it has one, and the
+    `attempt` number. The step body, the condition check, and the callback
+    submitter all receive the same `StepContext` type, and `attempt` is set
+    for all three. Inside a child context, a step's records report the step's
+    `operationId` and `operationName` in place of the child's.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/observability/step-context-logger.go"
     ```
 
 === "C#"
@@ -311,6 +396,25 @@ Logs inside a retrying step body always emit, because the step has not completed
     Pass `LoggerConfig.withReplayLogging()` to `DurableConfig` to emit logs on every replay.
     See [Configure logger](#configure-logger).
 
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/sdk-reference/observability/replay-suppression.go"
+    ```
+
+    Suppression is a `ReplayLogMode`. Its three values are `ReplayLogModeSuppress` (the
+    default), `ReplayLogModeEmit`, and `ReplayLogModeUnchanged`.
+    `ReplayLogModeUnchanged` is the zero value. `WithReplayLogMode` treats it as
+    `ReplayLogModeSuppress`. To emit replayed records, each tagged `replay=true`, set
+    the mode at `durable.Start`:
+
+    ```go
+    durable.Start(handler, durable.WithReplayLogMode(durable.ReplayLogModeEmit))
+    ```
+
+    To change the mode from inside the handler, call `ConfigureLogging`. See
+    [Configure logger](#configure-logger).
+
 === "C#"
 
     ```csharp
@@ -322,8 +426,7 @@ Logs inside a retrying step body always emit, because the step has not completed
 
 ## Custom logger
 
-You can replace the default logger with any logger that implements the SDK's logger
-interface.
+You can change where the SDK's logger sends its entries.
 
 === "TypeScript"
 
@@ -348,6 +451,16 @@ interface.
     an SLF4J logger obtained from `LoggerFactory`. To change logging behavior, configure
     your SLF4J implementation (Logback, Log4j2) or adjust `LoggerConfig` via
     `DurableConfig`. See [Configure logger](#configure-logger).
+
+=== "Go"
+
+    Install any `slog.Handler` with `durable.WithLogHandler` at `durable.Start`, or call
+    `ConfigureLogging` from inside the handler. The SDK attaches its structured
+    attributes to the handler you supply and keeps its replay suppression.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/observability/custom-logger.go"
+    ```
 
 === "C#"
 
@@ -422,6 +535,45 @@ interface.
         .build();
     ```
 
+=== "Go"
+
+    Set the handler and the replay mode at construction with `WithLogHandler`
+    and `WithReplayLogMode`. To choose them inside the handler, for example
+    from the event payload, call `ConfigureLogging`. At `durable.Start`, a
+    `nil` handler selects the default handler, and `ReplayLogModeUnchanged`
+    selects `ReplayLogModeSuppress`.
+
+    ```go
+    func WithLogHandler(h slog.Handler) HandlerOption
+    func WithReplayLogMode(mode ReplayLogMode) HandlerOption
+
+    type LogConfig struct {
+        Handler       slog.Handler
+        ReplayLogMode ReplayLogMode
+        // Has unexported fields.
+    }
+
+    func ConfigureLogging(ctx Context, cfg LogConfig) error
+    ```
+
+    **`LogConfig` fields:**
+
+    - `Handler` (`slog.Handler`) The handler behind `Context.Logger` and
+        `StepContext.Logger`. The SDK attaches its execution and operation
+        attributes to it and wraps it with replay suppression. `nil` keeps the
+        current handler.
+    - `ReplayLogMode` (`ReplayLogMode`) The treatment of records emitted during
+        replay. `ReplayLogModeUnchanged`, the zero value, keeps the current mode.
+
+    `ConfigureLogging` applies to `ctx` and to every child context and branch
+    derived after the call, for the current invocation only. A logger you
+    obtained before the call keeps the previous handler. A new replay mode
+    reaches every logger of `ctx`, including loggers obtained before the call.
+    `ConfigureLogging` claims no operation ID and writes no checkpoint, so a
+    conditional call does not make replay non-deterministic. Called off the goroutine that owns `ctx`, it
+    returns an error that wraps `ErrWrongGoroutine`. It also returns an error
+    for a `Context` the SDK did not create. It returns no other error.
+
 === "C#"
 
     Configure the logger on the handler's `IDurableContext`.
@@ -470,6 +622,12 @@ interface.
     The Java SDK wraps any SLF4J `Logger` in `DurableLogger`. There is no interface to
     implement.
 
+=== "Go"
+
+    The logger interface is the standard library `slog.Handler`. Implement it, or wrap
+    an existing handler, and install it with `durable.WithLogHandler`. The SDK attaches
+    its structured attributes through the handler's `WithAttrs` method.
+
 === "C#"
 
     The C# SDK uses `Microsoft.Extensions.Logging.ILogger` directly. There is no
@@ -512,6 +670,12 @@ structured logger that works as a drop-in replacement for the SDK's default logg
     ```java
     --8<-- "examples/java/sdk-reference/observability/powertools-logger.java"
     ```
+
+=== "Go"
+
+    Powertools for AWS Lambda has no Go version. For structured JSON output, install any
+    `slog.Handler`, such as `slog.NewJSONHandler` or a third-party handler, with
+    `durable.WithLogHandler`. See [Custom logger](#custom-logger).
 
 === "C#"
 

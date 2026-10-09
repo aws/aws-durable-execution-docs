@@ -41,6 +41,15 @@ Here's a simple example that polls until a job completes:
     --8<-- "examples/java/core/wait/wait-for-condition.java"
     ```
 
+=== "Go"
+
+    The check receives the `durable.StepContext` first, then the state, and
+    returns the next state. The stop decision is in the strategy, not the check.
+
+    ```go
+    --8<-- "examples/go/core/wait/wait-for-condition.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -103,6 +112,23 @@ applied.
     --8<-- "examples/java/core/wait/wait-for-condition-signature.java"
     ```
 
+=== "Go"
+
+    The configuration is a `ConditionConfig[S]` struct passed positionally.
+    `cfg.WaitStrategy` is required. A nil strategy makes `WaitForCondition` return an
+    error at the call, before any check runs.
+
+    In a check, `StepContext.Attempt()` returns the 1-based poll attempt, the
+    same number the wait strategy receives. A check that returns an error fails
+    the operation at once, with no retry. `WaitForCondition` returns a
+    `*durable.WaitForConditionError` when the check returns an error and when
+    the strategy stops with `Err` set. A negative `Delay` makes it return an
+    error.
+
+    ```go
+    --8<-- "examples/go/core/wait/wait-for-condition-signature.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -150,6 +176,16 @@ provide.
     --8<-- "examples/java/core/wait/wait-strategy-signature.java"
     ```
 
+=== "Go"
+
+    The strategy returns a `WaitDecision` struct. To poll again, set `Continue` and a
+    `Delay`. To stop and succeed, leave `Continue` false and `Err` nil. To stop and
+    fail, leave `Continue` false and set `Err`.
+
+    ```go
+    --8<-- "examples/go/core/wait/wait-strategy-signature.go"
+    ```
+
 === "C#"
 
     ```csharp
@@ -181,6 +217,15 @@ continue polling or not.
 
     ```java
     --8<-- "examples/java/core/wait/custom-strategy.java"
+    ```
+
+=== "Go"
+
+    To stop and fail, return a `WaitDecision` with `Err` set and `Continue` false, or
+    return an error from the check.
+
+    ```go
+    --8<-- "examples/go/core/wait/custom-strategy.go"
     ```
 
 === "C#"
@@ -234,6 +279,26 @@ re-use common wait strategy logic without having to code your own function.
     Java's strategy factories do not accept `shouldContinuePolling`. The check function
     controls completion by returning `WaitForConditionResult.stopPolling(...)` or
     `WaitForConditionResult.continuePolling(...)`.
+
+=== "Go"
+
+    ```go
+    --8<-- "examples/go/core/wait/strategy-helper.go"
+    ```
+
+    `ShouldContinue` is the `shouldContinuePolling` predicate. It returns `false`
+    when the condition is met. When `ShouldContinue` is nil, the strategy never
+    stops early, so the operation can only fail at `MaxAttempts`. The jitter
+    constants are `durable.JitterFull`, `durable.JitterHalf`, and
+    `durable.JitterNone`. For a constant delay, set `BackoffRate` to `1`.
+
+    A zero `WaitConfig` field selects the default listed below. So `MaxAttempts: 0`
+    means 60 checks. For one check, set `MaxAttempts` to `1`. `InitialDelay` and
+    `MaxDelay` must be at least one second when set. `BackoffRate` must be finite and
+    not negative. `Jitter` must be one of the jitter constants.
+    `durable.NewWaitStrategy` returns an error for an invalid configuration, and
+    `durable.MustNewWaitStrategy` panics. When the strategy reaches `MaxAttempts` with
+    the condition unmet, the operation fails with a `*durable.WaitForConditionError`.
 
 === "C#"
 
