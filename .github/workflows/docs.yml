@@ -1,4 +1,4 @@
-name: publish Documentation to github pages
+name: Build and publish documentation
 on:
   push:
     branches:
