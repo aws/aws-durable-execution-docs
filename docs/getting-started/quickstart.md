@@ -1,7 +1,7 @@
 # Quickstart
 
 Create and deploy your first durable function using the AWS CLI. This guide covers
-TypeScript, Python, Java, Go (Preview), and C#.
+TypeScript, Python, Java, Go, and C#.
 
 !!! note "Adding all your dependencies to the deployment package"
 
@@ -246,9 +246,6 @@ execution role you just created.
       --zip-file fileb://function.zip \
       --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
     ```
-
-    The SDK has no release tags yet, so `go get` records a pseudo-version of the latest
-    commit.
 
 === "C#"
 

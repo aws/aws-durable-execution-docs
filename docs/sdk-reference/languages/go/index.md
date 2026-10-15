@@ -1,10 +1,5 @@
 # Go SDK
 
-!!! note
-
-    The Go SDK is an experimental preview, not intended for production use. The API may
-    change without notice, and the final version may differ from what you see today.
-
 The Go SDK (`github.com/aws/aws-durable-execution-sdk-go`) runs in your Lambda function.
 It provides `durable.Context`, the durable operations as package-level generic
 functions, replay-aware logging, and pluggable serialization. The operations are
@@ -21,10 +16,7 @@ Add the SDK to a module:
 go get github.com/aws/aws-durable-execution-sdk-go/durable
 ```
 
-The preview has no release tags. `go get` records a pseudo-version of the latest commit
-on `main`, such as `v0.0.0-20260920051622-7f3b62f70004`, and
-`go get github.com/aws/aws-durable-execution-sdk-go/durable@latest` moves to a newer
-commit. The local runner is package
+The local runner is package
 `github.com/aws/aws-durable-execution-sdk-go/durable/durabletest`, in the same module.
 
 ## The handler
@@ -115,17 +107,22 @@ such calls go undetected.
 ## Futures and combinators
 
 `StepAsync`, `WaitAsync`, `InvokeAsync`, `RunInChildContextAsync`, and `Go` return a
-`*durable.Future`. A `StepAsync`, `WaitAsync`, or `InvokeAsync` future that the handler
-never awaits records no start operation. `RunInChildContextAsync` and `Go` record the
-child context's start before they return, unless you pass `WithChildVirtual`. Await a
-set of futures with a combinator, not with a sequence of `Result` calls. A sequence that
-returns on the first error leaves the other futures unawaited. When the invocation then
-suspends, their branches never reach a blocking point, so their progress is not
-checkpointed. Once a combinator observes a suspension, it awaits all remaining futures
-before it suspends. Before any suspension, `All` returns on the first failure, and `Any`
-and `Race` return on the first winning outcome, without awaiting the remaining futures.
-`Join` and `AllSettled` always await every future. Each combinator records its outcome
-as one operation, so replay returns the same outcome.
+`*durable.Future`. Each queues its operation's start before it returns, and the SDK
+sends the start before the invocation responds. So the execution records the start even
+when the handler never awaits the future, and an unawaited `InvokeAsync` still invokes
+the function. A child context created with `WithChildVirtual` records no operation. The
+invocation does not wait for a future that nothing awaits. It responds with the
+handler's outcome, so the body of an unawaited step or child context may not run to
+completion.
+
+Await a set of futures with a combinator, not with a sequence of `Result` calls. A
+sequence that returns on the first error leaves the other futures unawaited. When the
+invocation then suspends, their branches never reach a blocking point, so their progress
+is not checkpointed. Once a combinator observes a suspension, it awaits all remaining
+futures before it suspends. Before any suspension, `All` returns on the first failure,
+and `Any` and `Race` return on the first winning outcome, without awaiting the remaining
+futures. `Join` and `AllSettled` always await every future. Each combinator records its
+outcome as one operation, so replay returns the same outcome.
 
 ```go
 --8<-- "examples/go/sdk-reference/languages/combinator-signature.go"
