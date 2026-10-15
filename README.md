@@ -48,7 +48,7 @@ For writing style and Markdown formatting syntax, please see the [Authoring Guid
 - [JavaScript SDK Repository](https://github.com/aws/aws-durable-execution-sdk-js)
 - [Python SDK Repository](https://github.com/aws/aws-durable-execution-sdk-python)
 - [Java SDK Repository](https://github.com/aws/aws-durable-execution-sdk-java)
-- [Go SDK Repository (Preview)](https://github.com/aws/aws-durable-execution-sdk-go)
+- [Go SDK Repository](https://github.com/aws/aws-durable-execution-sdk-go)
 - [C# SDK Repository](https://github.com/aws/aws-lambda-dotnet/tree/master/Libraries/src/Amazon.Lambda.DurableExecution)
 
 ## Feedback & Support

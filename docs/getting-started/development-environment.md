@@ -112,9 +112,6 @@ SDK is being deployed in your function code, rather than relying on which is bei
     go get github.com/aws/aws-durable-execution-sdk-go/durable
     ```
 
-    The preview has no release tags. `go get` records a pseudo-version of the latest
-    commit in `go.mod`, and that entry pins the SDK version you build with.
-
 === "C#"
 
     Requires the .NET 10 SDK.
