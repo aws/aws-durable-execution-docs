@@ -3,14 +3,22 @@ name: AI PR Review
 on:
   pull_request_target:
     types: [opened, synchronize, reopened, ready_for_review]
+  pull_request_review:
+    types: [submitted, edited, dismissed]
+  pull_request_review_comment:
+    types: [created, edited, deleted]
+  issue_comment:
+    types: [created]
 
 permissions: {}
 
 jobs:
   ai-pr-review:
     permissions:
-      contents: read
+      contents: write
       id-token: write
       pull-requests: write
-    uses: aws/aws-durable-execution-ci/.github/workflows/ai-pr-review.yml@ac55d9f4b027e193aba9fa5a69c70bfa1bdc38ed
+    uses: aws/aws-durable-execution-ci/.github/workflows/ai-pr-review.yml@8a06a1e5c82083a9224af9d489ddd030be44d978
+    with:
+      run-claude: true
     secrets: inherit
