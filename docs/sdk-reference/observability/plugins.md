@@ -162,7 +162,9 @@ snapshot of all operations.
 ## Use a plugin
 
 Provide plugins in the durable handler configuration. The SDK calls each plugin
-in the order you provide.
+in the order you provide. The [OpenTelemetry](opentelemetry.md) plugins and the
+[Durable Execution Telemetry Exporter](telemetry/exporter.md) are ready-made
+plugins that you register the same way.
 
 === "TypeScript"
 
