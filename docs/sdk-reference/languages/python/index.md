@@ -38,6 +38,56 @@ The SDK provides decorators to mark functions as durable:
 
 The Python SDK uses synchronous methods and does not support `await`.
 
+## Upgrade from 2.x to 3.0
+
+Core 3.0 creates a fresh instrumentation plugin for each Lambda invocation. This isolates
+plugin state when invocations run concurrently. Applications that register no plugins,
+select none through `DURABLE_EXECUTION_PLUGINS`, and ship no plugin providers can update
+their dependencies without changing handler or durable operation calls.
+
+### Upgrade dependencies together
+
+Use these coordinated versions after publication:
+
+| Package                                    | Version |
+| ------------------------------------------ | ------- |
+| `aws-durable-execution-sdk-python`         | `3.0.0` |
+| `aws-durable-execution-sdk-python-otel`    | `2.0.0` |
+| `aws-durable-execution-sdk-python-testing` | `1.3.0` |
+
+Upgrade Core and OTel together in your requirements, lock file, deployment bundle, and
+Lambda layers. OTel remains optional, but OTel 2 requires Core 3. Testing SDK 1.3.0 already
+declares a compatible Core range and does not need a major version bump. Run
+`python -m pip check` in the built application environment.
+
+### Update plugin registrations
+
+Replace plugin instances in `plugins` with factory objects. Each factory's synchronous
+`create_plugin(info)` method must return a fresh `DurableInstrumentationPlugin` subclass
+instance. Pass a factory instance, not a bare lambda or an uninstantiated factory class
+with an ordinary instance method. Keep shared resources on the factory and invocation
+state on the plugin.
+
+Replace `InvocationOtelPlugin(...)` with `InvocationOtelPluginFactory(...)`, or
+`ExecutionOtelPlugin(...)` with `ExecutionOtelPluginFactory(...)`. Choose one OTel view
+across the decorator and `DURABLE_EXECUTION_PLUGINS`.
+
+Replace the removed `DurableInstrumentationPluginProvider` wrapper with a factory
+object. Update the distribution's `aws_durable_execution.plugins` entry point to name
+that object, then rebuild and reinstall the provider package or layer.
+
+### Validate the upgrade
+
+Check the package versions imported by the deployed function and its layers. Test a
+workflow that suspends and resumes, then test concurrent invocations and parallel
+branches. Confirm fresh plugin instances and telemetry for each invocation. Plugin
+fields do not survive suspension, and shared resources still need synchronization.
+Preserve operation names, order, nesting, and serialization while executions remain
+in flight.
+
+For all API changes and before/after examples, see the
+[Python 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-python/blob/df8951032df6e4fbbb0468bafd2ac09e9a2fdbd4/docs/migration-2.x-to-3.0.md).
+
 ## 2.x Upgrade
 
 When upgrading from `1.x` to `2.x`, review the Python SDK migration guide in the
