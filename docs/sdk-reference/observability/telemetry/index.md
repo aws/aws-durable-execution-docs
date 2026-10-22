@@ -68,8 +68,28 @@ on its own, and a later record for the same execution supersedes earlier ones.
 `recordType` is always `"DurableExecutionTelemetry"`. Filter on it to separate
 telemetry records from other data in the same log group or table. `status` is `RUNNING`,
 `SUCCEEDED`, or `FAILED`. A suspended or retrying execution reports `RUNNING`. `endTime`
-and `durationMs` appear only once the execution finishes. `error` holds the execution's
-error `name` and `message` when it fails.
+and `durationMs` appear only once the execution finishes.
+
+An error in a record has the same shape in the execution `error`, in `operations[].error`,
+and in `operationsByName.<name>.error`:
+
+```json
+"error": {
+  "name": "StepError",
+  "message": "card declined",
+  "cause": { "name": "PaymentError", "message": "card declined" }
+}
+```
+
+`name` and `message` are the error's own type name and message. `cause` holds the error
+inside it, with the same shape, when the SDK provides one. The chain stops after 16
+levels.
+
+Error names are not the same across languages. Each SDK reports its own type names, so
+the same failure can be `StepError` in TypeScript,
+`aws_durable_execution_sdk_python.exceptions.StepError` in Python, and
+`StepFailedException` in Java. Query `error.name` per SDK, or query on `message` and the
+`cause` chain.
 
 Each entry in `operations` describes one durable operation, with its `name`, `type`,
 `status`, timing, `attempt` count, and `error`. The SDK's internal `EXECUTION` operation
@@ -91,7 +111,8 @@ exporters for EventBridge, Data Firehose, SQS, OTLP, HTTP, and files accept an
 
 === "Python"
 
-    The record is a plain `dict` with the fields shown above.
+    The record is a plain `dict` with the fields shown above. Errors never include
+    `cause`, because the plugin receives only the checkpointed error, which has no cause.
 
 === "Java"
 
