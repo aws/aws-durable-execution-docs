@@ -208,18 +208,21 @@ return DurableConfig.builder()
 
 ### Load plugins dynamically
 
-`withPlugins(...)` registers plugin instances in application code. Java can also load
-plugin providers from the application class path. Set `DURABLE_EXECUTION_PLUGINS` to an
-ordered, comma-separated list of provider names:
+In 2.x, `withPlugins(...)` registers plugin instances in application code. In 3.x, it
+registers factories that create one plugin per invocation. See
+[Upgrade from 2.x to 3.0](#upgrade-from-2x-to-30) for the new contract.
+
+Java can also load plugin providers from the application class path. Set
+`DURABLE_EXECUTION_PLUGINS` to an ordered, comma-separated list of provider names:
 
 ```text
 DURABLE_EXECUTION_PLUGINS=otel-invocation,com.example.audit
 ```
 
-The SDK discovers `DurableExecutionPluginProvider` implementations with
-`ServiceLoader`, but creates only the providers named in the environment variable.
-Dynamically loaded plugins run first in the listed order, followed by plugins supplied
-through `withPlugins(...)`.
+The SDK discovers `DurableExecutionPluginProvider` implementations with `ServiceLoader`
+and selects the providers named in the environment variable. Selected dynamically loaded
+plugins run first in the listed order, followed by plugins supplied through
+`withPlugins(...)`.
 
 For a Lambda layer, place the provider JAR under `java/lib`. The JAR must contain this
 service-provider configuration file:
@@ -230,9 +233,60 @@ META-INF/services/software.amazon.lambda.durable.plugin.DurableExecutionPluginPr
 
 The file contains the provider implementation class name. If you shade multiple
 providers into one JAR, configure the build to merge `META-INF/services` entries.
-Invalid or missing providers, duplicate configured or discovered provider names, and
-incompatible provider API versions cause `DurableConfig` construction to throw
-`IllegalStateException`.
+Invalid or missing providers and duplicate configured or discovered provider names cause
+`DurableConfig` construction to throw `IllegalStateException`. In 2.x, this includes
+incompatible provider API versions. In 3.x, selected providers must implement
+`createPlugin(InvocationInfo)`; rebuild providers compiled against the old interface.
+
+## Upgrade from 2.x to 3.0
+
+Core 3.0 creates a fresh instrumentation plugin for each Lambda invocation. This isolates
+plugin state when invocations run concurrently. Applications that register no plugins,
+select none through `DURABLE_EXECUTION_PLUGINS`, and ship no plugin providers or plugin
+JARs can update their dependencies without changing handler or durable operation calls.
+
+### Upgrade dependencies together
+
+Use these coordinated versions after publication. All three artifacts use group ID
+`software.amazon.lambda.durable`:
+
+| Artifact                                     | Version |
+| -------------------------------------------- | ------- |
+| `aws-durable-execution-sdk-java`             | `3.0.0` |
+| `aws-durable-execution-sdk-java-plugin-otel` | `3.0.0` |
+| `aws-durable-execution-sdk-java-testing`     | `3.0.0` |
+
+Update the artifacts your application uses together, including test dependencies and
+Lambda layers. OTel remains optional. Java's durable OTel plugin follows the SDK version
+and uses `3.0.0`. Check `mvn dependency:tree` for older transitive SDK or plugin artifacts.
+
+### Update plugin registrations
+
+Replace `withPlugins(pluginInstance)` with a `DurableExecutionPluginFactory`, such as
+`withPlugins(info -> new MyPlugin())`. Keep shared exporters and connection pools outside
+the factory lambda, and keep invocation state on the new plugin.
+
+Replace OTel plugin constructors with `InvocationOtelPlugin.factory(...)` or
+`ExecutionOtelPlugin.factory(...)`. Choose one OTel view across code and environment
+configuration.
+
+Rebuild plugin registration code and all provider JARs against 3.x. Providers now
+implement `createPlugin(InvocationInfo)`; remove `API_VERSION`, `getApiVersion()`, and
+`getPluginType()`. Update provider layers as well as the function package. Replace
+`DurableConfig.getPluginRunner()` with `getPluginFactories()` when inspecting configured
+plugins.
+
+### Validate the upgrade
+
+Compile and test the application with the coordinated artifacts. Exercise suspension,
+resume, and concurrent invocations, then verify plugin output. A stale discovered
+provider fails startup, while a stale directly registered provider can log a warning and
+produce no telemetry. Hooks within one invocation can still run on multiple threads.
+Preserve operation names, order, nesting, and serialization while executions remain
+in flight.
+
+For all API changes and before/after examples, see the
+[Java 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/51222863a604910b8d6da97b00e7dde581803a87/docs/migration-2.x-to-3.x.md).
 
 ## 2.x Upgrade
 
