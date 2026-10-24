@@ -129,7 +129,9 @@ column casing, and quoting differ between destinations, so an agent should call 
 it writes a query.
 
 `list_executions` lists records filtered by `status`, `functionName`, `since`, and
-`until`, with an optional `limit`. It needs no query language and answers most
+`until`, with an optional `limit`. `since` and `until` accept an ISO 8601 date or date
+and time. A value with no offset is read as UTC. The server converts each bound to the
+stored timestamp format before it compares. It needs no query language and answers most
 questions, so an agent should prefer it to `query`.
 
 `get_execution` fetches one record by its execution ARN. A missing record returns

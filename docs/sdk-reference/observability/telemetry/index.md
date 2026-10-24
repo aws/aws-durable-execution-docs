@@ -70,6 +70,16 @@ telemetry records from other data in the same log group or table. `status` is `R
 `SUCCEEDED`, or `FAILED`. A suspended or retrying execution reports `RUNNING`. `endTime`
 and `durationMs` appear only once the execution finishes.
 
+Every timestamp in a record has the format `YYYY-MM-DDTHH:MM:SS.sssZ`. This covers
+`emittedAt`, `startTime`, `endTime`, and each operation's `startTime` and `endTime`. The
+value is in UTC, has exactly 3 fraction digits, and ends with `Z`. DynamoDB and
+CloudWatch Logs Insights compare these values as text. Text order equals time order only
+when every value has the same width, so the format never drops a zero fraction.
+Destinations with a time type store the value in that type. Aurora and Redshift use
+`TIMESTAMPTZ` columns, OpenSearch maps the fields as `date`, and the Athena table that
+ships with the exporter declares them as `timestamp`. `emittedAt` strictly increases
+within one invocation, so two records for the same execution never share an `emittedAt`.
+
 An error in a record has the same shape in the execution `error`, in `operations[].error`,
 and in `operationsByName.<name>.error`:
 
@@ -109,6 +119,12 @@ exporters for EventBridge, Data Firehose, SQS, OTLP, HTTP, and files accept an
 
     The record type is `DurableExecutionTelemetryRecord`.
 
+    A failed step keeps one level of cause. The SDK checkpoints the thrown error's type,
+    message, and data, and rebuilds the `StepError` from that checkpoint. So the
+    rebuilt error's `cause` is the thrown error without its own `cause`. The handler's
+    `catch` receives the same rebuilt error. If the root cause matters, put it in the
+    message of the error that the step throws.
+
 === "Python"
 
     The record is a plain `dict` with the fields shown above. Errors never include
@@ -119,13 +135,18 @@ exporters for EventBridge, Data Firehose, SQS, OTLP, HTTP, and files accept an
     The record type is `DurableExecutionTelemetryRecord`. A custom exporter reads the
     full record through `toWireMap()`.
 
+    The execution `error` keeps the cause's message, with the name `Throwable`.
+    Operation errors have no `cause`.
+
 === "Go"
 
     The record type is `telemetry.Record`. Its field set differs from the other SDKs.
     It uses `startTimestamp` and `endTimestamp` instead of `startTime` and `endTime`. It
     has no `functionQualifier`, `region`, or `accountId`. It adds `invocationCount` and
     `custom`. `input` and `output` are objects with a string `value` and a `truncated`
-    flag, and `error` holds `type`, `message`, and `stackTrace`.
+    flag, and `error` holds `type`, `message`, and `stackTrace`. Timestamps use Go's
+    default `time.Time` format, which drops trailing zero fraction digits. So their
+    width varies, and text order does not always equal time order.
 
 ## Explore records in an editor or desktop app
 
