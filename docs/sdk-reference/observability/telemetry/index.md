@@ -140,8 +140,10 @@ exporters for EventBridge, Data Firehose, SQS, OTLP, HTTP, and files accept an
 ## Explore records in an editor or desktop app
 
 Two experimental apps let you browse and query telemetry records without an AI agent. The
-Durable Execution Telemetry VSCode extension and the Durable Execution Telemetry Desktop
-app connect to the same destinations as the MCP server and turn a question in plain
+[Durable Execution Telemetry VSCode extension](https://github.com/aws/aws-durable-execution-sdk-js/tree/main/packages/aws-durable-execution-sdk-js-telemetry-vscode)
+and the
+[Durable Execution Telemetry Desktop app](https://github.com/aws/aws-durable-execution-sdk-js/tree/main/packages/aws-durable-execution-sdk-js-telemetry-desktop)
+connect to the same destinations as the MCP server and turn a question in plain
 English into a read-only query. Both are previews. The VS Code extension is available as
 a `.vsix` file on the
 [aws-durable-execution-sdk-js releases page](https://github.com/aws/aws-durable-execution-sdk-js/releases),
