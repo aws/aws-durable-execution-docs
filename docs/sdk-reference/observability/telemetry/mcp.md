@@ -6,6 +6,12 @@ The Durable Execution Telemetry MCP server lets an AI agent query the
 [Model Context Protocol](https://modelcontextprotocol.io) (MCP) over stdio, so any
 MCP-capable agent, such as Kiro, Claude Code, or Cursor, can use it.
 
+The tools read the record shape that the TypeScript, Python, and Java exporters write.
+They do not support Go records yet. Go writes `startTimestamp` instead of `startTime`, so
+the `since` and `until` filters skip Go records. Go's Lambda log line also has no
+`level` and `message` envelope, so `list_executions` on `lambda-log-exporter` returns no
+Go records.
+
 Answering "why did last night's batch fail" requires knowing where the records live,
 which query language that store uses, and how the record schema maps onto it. DynamoDB
 PartiQL, Athena SQL, Aurora PostgreSQL, Redshift, OpenSearch, and CloudWatch Logs Insights
@@ -50,8 +56,8 @@ as environment variables. This example points the server at a DynamoDB table.
       -- npx -y @aws/durable-execution-sdk-js-telemetry-mcp
     ```
 
-    `--scope project` writes `.mcp.json` at the repository root. The default user scope
-    writes `~/.claude.json`.
+    `--scope project` writes `.mcp.json` at the repository root. The default scope,
+    `local`, stores the server in `~/.claude.json` for this project only.
 
 === "JSON"
 
@@ -130,7 +136,7 @@ it writes a query.
 
 `list_executions` lists records filtered by `status`, `functionName`, `since`, and
 `until`, with an optional `limit`. `since` and `until` accept an ISO 8601 date or date
-and time. A value with no offset is read as UTC. The server converts each bound to the
+and time. The server reads a value with no offset as UTC, and converts each bound to the
 stored timestamp format before it compares. It needs no query language and answers most
 questions, so an agent should prefer it to `query`.
 
@@ -149,15 +155,18 @@ from `describe_schema`.
 
 ## Results
 
-Every result holds at most 1,000 rows. A smaller `limit` returns fewer rows. A result
-with `truncated: true` means the store may hold more matching data, so narrow the
-filters instead of assuming the result is complete.
+Most results hold at most 1,000 rows. The server adds `| limit 1000` to a CloudWatch Logs
+Insights `query` only when the query has no `limit` and no `stats` of its own, so such a
+query can return more rows. A smaller `limit` returns fewer rows. A result with
+`truncated: true` means the store may hold more matching data, so narrow the filters
+instead of assuming the result is complete.
 
 CloudWatch Logs Insights queries always cover a time window. `list_executions` derives
 the window from `since`. `query` covers the last 24 hours and `get_execution` the last 7
-days unless you pass `lookbackHours`. Each tool reports the window it searched in
-`searchedLookbackHours`. So on a log destination, `found: false` from `get_execution`
-means the record is not in that window.
+days unless you pass `lookbackHours`. `list_executions` and `get_execution` report the
+window they searched in `searchedLookbackHours`. On a log destination, `get_execution`
+returns `found: false` when the record is not in that window, and also when the Logs
+Insights call fails, for example with `AccessDenied`.
 
 ## Read-only access and data handling
 

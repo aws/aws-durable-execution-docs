@@ -26,6 +26,6 @@ public class RedactContentExample extends DurableHandler<Map<String, String>, Ma
     public Map<String, String> handleRequest(Map<String, String> event, DurableContext context) {
         String order = context.step("fetch-order", String.class, ctx -> event.get("orderId"));
         context.wait("cooldown", Duration.ofSeconds(5));
-        return Map.of("orderId", order, "status", "processed");
+        return context.step("process", Map.class, ctx -> Map.of("orderId", order, "status", "processed"));
     }
 }

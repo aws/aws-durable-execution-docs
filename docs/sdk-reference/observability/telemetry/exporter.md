@@ -17,8 +17,16 @@ exporter failure never fails the execution.
 
     The exporter requires Node.js 22 or later. The AWS SDK clients that the AWS
     exporters use are optional peer dependencies. The Lambda Node.js runtime already
-    provides them. Install them only when you bundle your own dependencies or run
-    outside Lambda.
+    provides them. The package imports all 12 of them when it loads, so when you bundle
+    your own dependencies or run outside Lambda, install all 12, even for exporters you
+    do not use:
+
+    ```bash
+    npm install @aws-sdk/client-s3 @aws-sdk/client-dynamodb @aws-sdk/util-dynamodb \
+      @aws-sdk/client-rds-data @aws-sdk/client-cloudwatch-logs @aws-sdk/client-firehose \
+      @aws-sdk/client-eventbridge @aws-sdk/client-redshift-data @aws-sdk/client-sqs \
+      @aws-sdk/credential-provider-node @smithy/signature-v4 @aws-crypto/sha256-js
+    ```
 
 === "Python"
 
@@ -62,9 +70,12 @@ exporter failure never fails the execution.
 ## Register the exporter
 
 Create the plugin and register it in your handler configuration. With no configuration,
-the exporter uses `LambdaLogExporter`, which writes each record as one line of JSON to
+the exporter uses `LambdaLogExporter`, which writes each record as one `INFO` log line to
 your function's own CloudWatch log group. Your function already has permission to write
-its own logs, so this needs no new infrastructure and no new IAM permission.
+its own logs, so this needs no new infrastructure and no new IAM permission. This
+exporter writes the `operationsByName` map, not the `operations` array. With the JSON log
+format and an application log level of `WARN` or higher, Lambda drops these `INFO` lines,
+so no records arrive.
 
 === "TypeScript"
 
@@ -105,7 +116,7 @@ fields executionName, status, durationMs
     ```typescript
     function durableExecutionTelemetry(
       config: DurableExecutionTelemetryConfig,
-    ): DurableInstrumentationPlugin
+    ): DurableInstrumentationPluginFactory
     ```
 
     **Parameters:**
@@ -113,14 +124,14 @@ fields executionName, status, durationMs
     - `config` (required): A `DurableExecutionTelemetryConfig`. Pass `{}` to use every
         default.
 
-    **Returns:** A plugin to pass in the `plugins` array of `withDurableExecution`.
+    **Returns:** A plugin factory for the `plugins` array of `withDurableExecution`.
 
 === "Python"
 
     ```python
     def durable_execution_telemetry(
         config: DurableExecutionTelemetryConfig,
-    ) -> DurableExecutionTelemetryPlugin
+    ) -> DurableExecutionTelemetryPluginFactory
     ```
 
     **Parameters:**
@@ -128,7 +139,7 @@ fields executionName, status, durationMs
     - `config` (required): A `DurableExecutionTelemetryConfig`. Pass
         `DurableExecutionTelemetryConfig()` to use every default.
 
-    **Returns:** A plugin to pass in the `plugins` list of `@durable_execution`.
+    **Returns:** A plugin factory for the `plugins` list of `@durable_execution`.
 
 === "Java"
 
@@ -179,9 +190,10 @@ where those questions are cheap to answer:
 | Any HTTPS endpoint        | `HttpExporter`           | Custom backends and webhooks                 |
 | File system or Amazon EFS | `FileExporter`           | Local development and EFS persistence        |
 
-The plugin sends each record to every configured exporter in parallel. If one exporter
-fails, the others still receive the record. A common setup uses one store for analytics,
-one for lookup, and one for alerting:
+The plugin sends each record to every configured exporter. If one exporter fails, the
+others still receive the record. TypeScript, Java, and Go send to the exporters
+concurrently. Python calls them one at a time on a single worker thread. A common setup
+uses one store for analytics, one for lookup, and one for alerting:
 
 === "TypeScript"
 
@@ -197,7 +209,8 @@ one for lookup, and one for alerting:
 
     Each AWS exporter creates its `boto3` client when you construct it, so it needs a
     region at that point. Lambda sets `AWS_REGION`. Pass `region` or `client` to
-    override it.
+    override it. `OpenSearchExporter` is the exception: its `region` is required, and it
+    takes no `client`.
 
 === "Java"
 
@@ -211,17 +224,22 @@ one for lookup, and one for alerting:
     --8<-- "examples/go/sdk-reference/observability/telemetry/multiple-exporters.go"
     ```
 
-    Each AWS exporter takes its client in the `API` field. The Go module has no
+    Each AWS exporter takes its client in the `API` field, except `OpenSearchExporter`,
+    which takes an HTTP client in `Client`. The Go module has no
     `OTelExporter`. Its Aurora exporter is named `RDSExporter`. Use `NewFileExporter`
     and `NewHTTPExporter` to create the file and HTTP exporters.
 
 Each exporter has defaults that match the [MCP server](mcp.md) defaults. `S3Exporter`
 writes under the prefix `durable-execution-telemetry/` in Hive-style date partitions
-(`year=YYYY/month=MM/day=DD/`), so an AWS Glue crawler can discover the table for Athena.
-It writes one object per execution, and later records overwrite it. `DynamoDBExporter`
-writes the execution ARN to the `pk` attribute and the emit time to the `sk` attribute,
-so the table keeps every record. Turn the sort key off to keep only the latest record per
-execution. `AuroraExporter` and `RedshiftExporter` write to the
+(`year=YYYY/month=MM/day=DD/`). The TypeScript exporter's
+[CDK stack](https://github.com/aws/aws-durable-execution-sdk-js/tree/main/packages/aws-durable-execution-sdk-js-telemetry-exporter/cdk)
+creates a Glue table with partition projection over that prefix, so Athena can query it
+without a crawler. `S3Exporter` writes one object per execution, and later records
+overwrite it. `DynamoDBExporter` writes the execution ARN to the `pk` attribute and the
+emit time to the `sk` attribute, so the table keeps every record. To keep only the latest
+record per execution, turn the sort key off with `sortKey: ""` in TypeScript,
+`sort_key=None` in Python, `.sortKey("")` in Java, or `SortKeyField: telemetry.NoSortKey`
+in Go. `AuroraExporter` and `RedshiftExporter` write to the
 `durable_execution_telemetry` table, and `OpenSearchExporter` writes to the
 `durable-execution-telemetry` index. `EventBridgeExporter` sends events to the default
 bus with the source `software.amazon.lambda.durable.telemetry` and the record status as
@@ -233,7 +251,7 @@ For example, this Athena query finds the steps that fail most often in June:
 SELECT op.name, COUNT(*) AS failures, AVG(op.durationms) AS avg_ms
 FROM durable_execution_telemetry
 CROSS JOIN UNNEST(operations) AS t(op)
-WHERE status = 'FAILED' AND year = '2026' AND month = '06'
+WHERE op.type = 'STEP' AND op.status = 'FAILED' AND year = '2026' AND month = '06'
 GROUP BY op.name
 ORDER BY failures DESC;
 ```
@@ -280,17 +298,17 @@ a sampled-out execution emits none. You never receive a partly recorded executio
 
 === "TypeScript"
 
-    Set `samplingRate`. A value outside 0 to 1, or a non-numeric value, becomes 1 and
-    logs a warning.
+    Set `samplingRate`. The plugin clamps a value outside 0 to 1, and uses 1 for a
+    non-numeric value or `NaN`. Both cases log a warning.
 
 === "Python"
 
-    Set `sampling_rate`. A value outside 0 to 1 is clamped, and a non-numeric value
-    becomes 1.
+    Set `sampling_rate`. The plugin clamps a value outside 0 to 1, and uses 1 for a
+    non-numeric value.
 
 === "Java"
 
-    Set `samplingRate`. A value outside 0 to 1 is clamped, and `NaN` becomes 1.
+    Set `samplingRate`. The plugin clamps a value outside 0 to 1, and uses 1 for `NaN`.
 
 === "Go"
 
@@ -360,8 +378,8 @@ the status from the output:
 
     `input` and `output` accept `true`, `false`, or a transform function.
     `operations.overrides` takes entries with an `operationName`, and either
-    `exclude: true` or a `result` transform. Operation results are left out unless an
-    override opts one in. The transform receives the checkpointed result, parsed as
+    `exclude: true` or a `result` transform. The plugin omits operation results unless
+    an override opts one in. The transform receives the checkpointed result, parsed as
     JSON. It does not run your custom `Serdes`. `operations.includeErrors` controls
     operation errors.
 
@@ -375,7 +393,7 @@ the status from the output:
     callable. `ContentConfig.operations` takes a `ContentOperations` with a list of
     `OperationOverride` entries and an `include_errors` flag. An `OperationOverride`
     matches an `operation_name` and sets `exclude=True` or a `result` callable.
-    Operation results are left out unless an override opts one in.
+    The plugin omits operation results unless an override opts one in.
 
 === "Java"
 
@@ -387,7 +405,7 @@ the status from the output:
     `output(boolean)`, `outputTransform`, and `includeErrors`. A transform receives a
     JSON-compatible copy, so an object arrives as a `Map`. `addOverride` takes an
     `OperationOverride.exclude(name)` or an `OperationOverride.withResult(name, fn)`.
-    Operation results are left out unless an override opts one in.
+    The plugin omits operation results unless an override opts one in.
 
 === "Go"
 
@@ -406,21 +424,23 @@ the status from the output:
 ## Record size and truncation
 
 Every destination limits the size of a payload. For example, a CloudWatch Logs event can
-be 256 KB and a DynamoDB item 400 KB. Each exporter has a maximum record size. When a
+be 1 MB and a DynamoDB item 400 KB. Each exporter has a maximum record size. When a
 record is larger, the plugin trims a copy for that exporter only, so the same record can
 reach one exporter whole and another trimmed.
 
 The plugin trims in this order until the record fits:
 
+1. Every error `cause`
 1. Operation results, oldest operation first
 1. Whole operations, oldest first
 1. The execution input, then the output
 
 The plugin never removes the identity and timeline fields. A trimmed record has
 `truncated: true`. Each operation that lost its result has `truncated: true`, and the
-record counts what it removed in `droppedOperations`, `droppedInput`, and
-`droppedOutput`. So you can always tell a trimmed record from a complete one. Content
-transforms run before truncation, so prefer them to bound input and output on purpose.
+record counts what it removed in `droppedCauses`, `droppedOperations`, `droppedInput`,
+and `droppedOutput`. So you can always tell a trimmed record from a complete one.
+Content transforms run before truncation, so prefer them to bound input and output on
+purpose.
 
 The default limits sit below each destination's hard limit, for example 256 KB for
 CloudWatch Logs and 400 KB for DynamoDB. The HTTP and file exporters have no default
@@ -429,9 +449,11 @@ limit. Override a limit with the exporter's maximum record size setting.
 ## Custom exporters
 
 To send records somewhere else, implement the exporter interface. The plugin calls
-`export` with each record. It calls `flush` at most once at the end of each sampled-in
-invocation, and never at the same time as `export`. An exporter that sets a maximum
-record size receives a trimmed copy when a record is larger.
+`export` with each record. It calls `flush` at the end of each sampled-in invocation,
+and never at the same time as `export`. In TypeScript's `on-change` mode, an operation
+change that arrives during or after that flush triggers another `flush`, so write
+`flush` to allow repeated calls. An exporter that sets a maximum record size receives a
+trimmed copy when a record is larger.
 
 === "TypeScript"
 
@@ -440,8 +462,11 @@ record size receives a trimmed copy when a record is larger.
       export(record: DurableExecutionTelemetryRecord): Promise<void>;
       flush?(): Promise<void>;
       maxRecordSizeBytes?: number;
+      render?(record: DurableExecutionTelemetryRecord): unknown;
     }
     ```
+
+    The size limit measures the output of `render` when you provide it.
 
 === "Python"
 
@@ -485,13 +510,13 @@ The exporter runs inside your function, so it can emit a record only when your f
 runs. Two terminal states start in the Lambda service without an invocation, so the
 exporter never sees them. A manual stop ends the execution as `STOPPED`, and an exceeded
 execution timeout ends it as `TIMED_OUT`. To record those states too, add an EventBridge
-rule on the default bus for Lambda durable execution state changes. Point it at a small
+rule on the default bus for Lambda durable execution status changes. Point it at a small
 function that updates your destination:
 
 ```json
 {
   "source": ["aws.lambda"],
-  "detail-type": ["Lambda Durable Execution State Change"],
+  "detail-type": ["Durable Execution Status Change"],
   "detail": { "status": ["STOPPED", "TIMED_OUT"] }
 }
 ```
