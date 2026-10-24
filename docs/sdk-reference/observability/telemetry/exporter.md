@@ -101,13 +101,25 @@ so no records arrive.
     --8<-- "examples/go/sdk-reference/observability/telemetry/basic-usage.go"
     ```
 
-You can query the records with CloudWatch Logs Insights right away:
+You can query the records with CloudWatch Logs Insights right away. Durable functions
+always use the JSON log format, so each record arrives as a JSON string in the `message`
+field of an `INFO` log line. Match the line, then parse the fields you need out of the
+string:
 
 ```
-fields executionName, status, durationMs
-| filter recordType = "DurableExecutionTelemetry" and status = "FAILED"
+filter level = "INFO" and message like /DurableExecutionTelemetry/
+| parse message '"executionName":"*"' as executionName
+| parse message '"status":"*"' as status
+| parse message '"durationMs":*,' as duration
+| filter status = "FAILED"
+| fields tonumber(duration) as durationMs
+| display executionName, status, durationMs
 | sort durationMs desc
 ```
+
+Each `parse` takes the first match in the record. The record writes the execution's
+`executionName`, `status`, and `durationMs` before its operations, so the query reads the
+execution's values and not those of an operation.
 
 ## Method signature
 
