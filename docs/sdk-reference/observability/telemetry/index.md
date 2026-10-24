@@ -21,17 +21,6 @@ telemetry record answers questions about the whole execution, such as which step
 how many attempts it took, and how long the execution ran. Because one record describes
 one execution, those questions become ordinary queries against a table or an index.
 
-!!! note "Experimental feature"
-
-    Durable Execution Telemetry is experimental and may change in a future release.
-    Feedback is welcome through our
-    [GitHub Discussion](https://github.com/aws/aws-durable-execution-docs/discussions/206).
-
-!!! note "C# support"
-
-    The Durable Execution Telemetry Exporter is available for TypeScript, Python, Java,
-    and Go. It is not yet available for C#.
-
 ## The execution record
 
 The exporter builds a cumulative snapshot of the execution on each invocation. The
