@@ -11,12 +11,14 @@ The SDK supports Java 17 and newer. Virtual threads require Java 21.
 Add the execution SDK to the Lambda function package. Replace the version with the
 latest release from
 [Maven Central](https://central.sonatype.com/artifact/software.amazon.lambda.durable/aws-durable-execution-sdk-java).
+The examples use the published 2.3.0 release. For the proposed 3.0 release, see
+[Upgrade from 2.x to 3.0](#upgrade-from-2x-to-30).
 
 ```xml
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java</artifactId>
-    <version>2.2.0</version>
+    <version>2.3.0</version>
 </dependency>
 <dependency>
     <groupId>com.amazonaws</groupId>
@@ -31,7 +33,7 @@ For local and cloud tests, add the testing SDK in test scope:
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
-    <version>2.2.0</version>
+    <version>2.3.0</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -247,8 +249,9 @@ JARs can update their dependencies without changing handler or durable operation
 
 ### Upgrade dependencies together
 
-Use these coordinated versions after publication. All three artifacts use group ID
-`software.amazon.lambda.durable`:
+Java 3.0.0 is proposed and has not yet been published to Maven Central. The latest
+published version is 2.3.0. Use these coordinated versions after publication; all three
+artifacts use group ID `software.amazon.lambda.durable`:
 
 | Artifact                                     | Version |
 | -------------------------------------------- | ------- |
@@ -258,7 +261,8 @@ Use these coordinated versions after publication. All three artifacts use group 
 
 Update the artifacts your application uses together, including test dependencies and
 Lambda layers. OTel remains optional. Java's durable OTel plugin follows the SDK version
-and uses `3.0.0`. Check `mvn dependency:tree` for older transitive SDK or plugin artifacts.
+and uses `3.0.0`, while TypeScript and Python version their OTel packages separately as
+`2.0.0`. Check `mvn dependency:tree` for older transitive SDK or plugin artifacts.
 
 ### Update plugin registrations
 
@@ -276,6 +280,14 @@ implement `createPlugin(InvocationInfo)`; remove `API_VERSION`, `getApiVersion()
 `DurableConfig.getPluginRunner()` with `getPluginFactories()` when inspecting configured
 plugins.
 
+Use `config.toBuilder()` when copying a configuration so the effective factory list is
+preserved without repeating environment discovery. Move custom exclusivity metadata
+from instance `@ExclusivePluginGroup` annotations to the factory's `getExclusiveGroup()`.
+
+If you use `DurableExecutionTelemetry.durableExecutionTelemetry(config)`, upgrade the
+optional telemetry-exporter artifact to 3.0.0 too. Its return type changes to a factory,
+so recompile the registration code even though the source call stays the same.
+
 ### Validate the upgrade
 
 Compile and test the application with the coordinated artifacts. Exercise suspension,
@@ -286,7 +298,7 @@ Preserve operation names, order, nesting, and serialization while executions rem
 in flight.
 
 For all API changes and before/after examples, see the
-[Java 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/51222863a604910b8d6da97b00e7dde581803a87/docs/migration-2.x-to-3.x.md).
+[proposed Java 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/6b36c1688c500721ee9effc1622acfa059a32a89/docs/migration-2.x-to-3.x.md).
 
 ## 2.x Upgrade
 
