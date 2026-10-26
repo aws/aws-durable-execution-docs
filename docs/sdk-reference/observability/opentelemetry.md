@@ -912,5 +912,6 @@ one canonical fallback trace, not one trace per invocation.
 ## See also
 
 - [Plugins](plugins.md)
+- [Durable Execution Telemetry](telemetry/index.md)
 - [Logging](logging.md)
 - [Steps](../operations/step.md)

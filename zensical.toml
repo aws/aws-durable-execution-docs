@@ -83,6 +83,11 @@ nav = [
       { "Logging" = "sdk-reference/observability/logging.md" },
       { "Plugins" = "sdk-reference/observability/plugins.md" },
       { "OpenTelemetry" = "sdk-reference/observability/opentelemetry.md" },
+      { "Durable Execution Telemetry" = [
+        { "Durable Execution Telemetry" = "sdk-reference/observability/telemetry/index.md" },
+        { "Exporter" = "sdk-reference/observability/telemetry/exporter.md" },
+        { "MCP Server" = "sdk-reference/observability/telemetry/mcp.md" },
+      ]},
     ]},
     { "Configuration" = [
       { "Configuration" = "sdk-reference/configuration/index.md" },
