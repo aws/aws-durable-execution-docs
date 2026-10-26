@@ -25,7 +25,7 @@ exporter failure never fails the execution.
     npm install @aws-sdk/client-s3 @aws-sdk/client-dynamodb @aws-sdk/util-dynamodb \
       @aws-sdk/client-rds-data @aws-sdk/client-cloudwatch-logs @aws-sdk/client-firehose \
       @aws-sdk/client-eventbridge @aws-sdk/client-redshift-data @aws-sdk/client-sqs \
-      @aws-sdk/credential-provider-node @smithy/signature-v4 @aws-crypto/sha256-js
+      @aws-sdk/credential-provider-node "@smithy/signature-v4@^4" @aws-crypto/sha256-js
     ```
 
 === "Python"
@@ -72,10 +72,10 @@ exporter failure never fails the execution.
 Create the plugin and register it in your handler configuration. With no configuration,
 the exporter uses `LambdaLogExporter`, which writes each record as one `INFO` log line to
 your function's own CloudWatch log group. Your function already has permission to write
-its own logs, so this needs no new infrastructure and no new IAM permission. This
-exporter writes the `operationsByName` map, not the `operations` array. With the JSON log
-format and an application log level of `WARN` or higher, Lambda drops these `INFO` lines,
-so no records arrive.
+its own logs, so this needs no new infrastructure and no new IAM permission. In
+TypeScript, Python, and Java, this exporter writes the `operationsByName` map, not the
+`operations` array. With an application log level of `WARN` or higher, Lambda drops
+these `INFO` lines, so no records arrive.
 
 === "TypeScript"
 
@@ -102,9 +102,9 @@ so no records arrive.
     ```
 
 You can query the records with CloudWatch Logs Insights right away. Durable functions
-always use the JSON log format, so each record arrives as a JSON string in the `message`
-field of an `INFO` log line. Match the line, then parse the fields you need out of the
-string:
+always use the JSON log format. In TypeScript, Python, and Java, each record arrives as
+a JSON string in the `message` field of an `INFO` log line. Match the line, then parse
+the fields you need out of the string:
 
 ```
 filter level = "INFO" and message like /DurableExecutionTelemetry/
@@ -120,6 +120,15 @@ filter level = "INFO" and message like /DurableExecutionTelemetry/
 Each `parse` takes the first match in the record. The record writes the execution's
 `executionName`, `status`, and `durationMs` before its operations, so the query reads the
 execution's values and not those of an operation.
+
+Go is the exception. Lambda leaves Go's application log lines as they are, so each Go
+record arrives as a bare JSON object, and Logs Insights discovers its fields directly:
+
+```
+fields executionName, status, durationMs
+| filter recordType = "DurableExecutionTelemetry" and status = "FAILED"
+| sort durationMs desc
+```
 
 ## Method signature
 
@@ -248,14 +257,16 @@ writes under the prefix `durable-execution-telemetry/` in Hive-style date partit
 creates a Glue table with partition projection over that prefix, so Athena can query it
 without a crawler. `S3Exporter` writes one object per execution, and later records
 overwrite it. `DynamoDBExporter` writes the execution ARN to the `pk` attribute and the
-emit time to the `sk` attribute, so the table keeps every record. To keep only the latest
-record per execution, turn the sort key off with `sortKey: ""` in TypeScript,
-`sort_key=None` in Python, `.sortKey("")` in Java, or `SortKeyField: telemetry.NoSortKey`
-in Go. `AuroraExporter` and `RedshiftExporter` write to the
-`durable_execution_telemetry` table, and `OpenSearchExporter` writes to the
-`durable-execution-telemetry` index. `EventBridgeExporter` sends events to the default
-bus with the source `software.amazon.lambda.durable.telemetry` and the record status as
-the detail type.
+emit time to the `sk` attribute. So a table keyed on `pk` and `sk` keeps every record,
+and a table keyed on `pk` alone, like the CDK stack's, keeps only the latest one. On a
+`pk`-only table, you can stop writing `sk` with `sortKey: ""` in TypeScript,
+`sort_key=None` in Python, `.sortKey("")` in Java, or
+`SortKeyField: telemetry.NoSortKey` in Go. On a table keyed on `pk` and `sk`, keep
+writing `sk`, because every write fails without it. `AuroraExporter` and
+`RedshiftExporter` write to the `durable_execution_telemetry` table, and
+`OpenSearchExporter` writes to the `durable-execution-telemetry` index.
+`EventBridgeExporter` sends events to the default bus with the source
+`software.amazon.lambda.durable.telemetry` and the record status as the detail type.
 
 For example, this Athena query finds the steps that fail most often in June:
 

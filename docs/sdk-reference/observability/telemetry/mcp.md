@@ -20,7 +20,9 @@ agent can ask a question without writing a query for that store by hand. You ask
 agent a question, such as which steps in `order-processor` failed most often in the last
 24 hours, and the agent picks the tools.
 
-The server runs on your machine and makes only read-only AWS API calls. It makes no
+The server runs on your machine and checks that each query reads data. Your credentials
+decide what it can actually do, as described in
+[Read-only access and data handling](#read-only-access-and-data-handling). It makes no
 model calls of its own. It is a Node.js package and requires Node.js 22.12 or later.
 
 ## Add the server to your agent
@@ -170,10 +172,19 @@ Insights call fails, for example with `AccessDenied`.
 
 ## Read-only access and data handling
 
-Every query is read-only. On the SQL destinations, the server rejects any statement that
-is not `SELECT` or `WITH` before it resolves credentials or calls AWS. The CloudWatch Logs
-Insights language has no statements that write data. So the server has no way to change
-the data in your destination.
+The server refuses a SQL query that does not start with `SELECT` or `WITH`, contains a
+write keyword or a second statement, or uses SQL syntax its validator does not support.
+It refuses before it resolves credentials or calls AWS. The CloudWatch Logs Insights
+language has no statements that write data.
+
+The validator reads query text, and a database can perform writes it cannot see, for
+example through a function called from a `SELECT`. So your credentials are what prevent
+writes. Give the server credentials that can only read, and grant only the read actions
+for your destination. For Aurora and Redshift, point
+`DURABLE_TELEMETRY_AURORA_SECRET_ARN`, `DURABLE_TELEMETRY_REDSHIFT_SECRET_ARN`, or
+`DURABLE_TELEMETRY_REDSHIFT_DB_USER` at a database user that has only `SELECT` on the
+telemetry table, not the user the exporter writes with. For OpenSearch, map the identity
+to a role with read-only permissions on the telemetry index.
 
 The tools return record data as it is stored, including execution input and output. When
 an agent queries production records, those payloads enter the agent's context and reach

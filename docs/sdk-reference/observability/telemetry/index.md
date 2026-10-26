@@ -56,8 +56,9 @@ on its own, and a later record for the same execution supersedes earlier ones.
 
 `recordType` is always `"DurableExecutionTelemetry"`. Use it to separate telemetry
 records from other data in the same table or log group. In your function's own log group,
-the record is a JSON string inside the log line, so filter on the text instead, as shown
-in [Register the exporter](exporter.md#register-the-exporter). `status` is `RUNNING`,
+a TypeScript, Python, or Java record is a JSON string inside the log line, so filter on
+the text instead, as shown in
+[Register the exporter](exporter.md#register-the-exporter). `status` is `RUNNING`,
 `SUCCEEDED`, or `FAILED`. A suspended or retrying execution reports `RUNNING`. `endTime`
 and `durationMs` appear once the execution finishes. In `on-change` mode, TypeScript and
 Java also set them on the `RUNNING` record they send at the end of each invocation.
