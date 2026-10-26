@@ -41,24 +41,32 @@ The Python SDK uses synchronous methods and does not support `await`.
 ## Upgrade from 2.x to 3.0
 
 Core 3.0 creates a fresh instrumentation plugin for each Lambda invocation. This isolates
-plugin state when invocations run concurrently. Applications that register no plugins,
-select none through `DURABLE_EXECUTION_PLUGINS`, and ship no plugin providers can update
-their dependencies without changing handler or durable operation calls.
+plugin state when invocations run concurrently. The release also changes operation
+subtypes to strings and preserves `None` results in `BatchResult`. Review those changes
+even if your application uses no plugins.
 
 ### Upgrade dependencies together
 
-Use these coordinated versions after publication:
+The [Core 3.0 and OTel 2.0 release](https://github.com/aws/aws-durable-execution-sdk-python/releases/tag/sdk-v3.0.0%2Cotel-v2.0.0%2Ctesting-v1.4.0%2Ctelemetry-exporter-v0.0.2)
+is available on PyPI and requires Python 3.11 or later. Use these coordinated versions:
 
-| Package                                    | Version |
-| ------------------------------------------ | ------- |
-| `aws-durable-execution-sdk-python`         | `3.0.0` |
-| `aws-durable-execution-sdk-python-otel`    | `2.0.0` |
-| `aws-durable-execution-sdk-python-testing` | `1.3.0` |
+| Package                                               | Version |
+| ----------------------------------------------------- | ------- |
+| `aws-durable-execution-sdk-python`                    | `3.0.0` |
+| `aws-durable-execution-sdk-python-otel`               | `2.0.0` |
+| `aws-durable-execution-sdk-python-testing`            | `1.4.0` |
+| `aws-durable-execution-sdk-python-telemetry-exporter` | `0.0.2` |
 
 Upgrade Core and OTel together in your requirements, lock file, deployment bundle, and
-Lambda layers. OTel remains optional, but OTel 2 requires Core 3. Testing SDK 1.3.0 already
-declares a compatible Core range and does not need a major version bump. Run
-`python -m pip check` in the built application environment.
+Lambda layers. OTel remains optional, but OTel 2 requires Core `>=3.0.0,<4`. Testing SDK
+1.4.0 requires Core 3 and supports custom subtypes; earlier testing releases cannot load
+them. If you use the optional Telemetry Exporter, upgrade it to 0.0.2 because 0.0.1 uses
+the Core 2 plugin contract. Run `python -m pip check` in the built application environment.
+
+The base OTel package uses the OpenTelemetry distribution supplied by your ADOT or
+community layer. If your application configures its own provider, install
+`aws-durable-execution-sdk-python-otel[standalone]==2.0.0` and configure the provider and
+exporter. Installing the extra alone does not export traces.
 
 ### Update plugin registrations
 
@@ -76,17 +84,47 @@ Replace the removed `DurableInstrumentationPluginProvider` wrapper with a factor
 object. Update the distribution's `aws_durable_execution.plugins` entry point to name
 that object, then rebuild and reinstall the provider package or layer.
 
+The Telemetry Exporter's `durable_execution_telemetry(config)` helper now returns a
+factory. Pass its result directly to `plugins`.
+
+### Review subtype and batch-result changes
+
+Read `sub_type` as `str | None`. Replace `.value` reads with the string itself and `is`
+comparisons with `==`. Import `OperationSubType` from
+`aws_durable_execution_sdk_python.lambda_service`; the `plugin` module no longer
+re-exports it.
+
+`StepConfig` and `CallbackConfig` accept a keyword-only `sub_type`, and
+`ChildConfig.sub_type` accepts custom strings. A custom subtype must contain 1 to 32
+ASCII letters, digits, hyphens, or underscores. Preserve its value for executions already in
+flight because replay compares it with the checkpoint. Testing SDK 1.4.0 does not yet
+validate invalid subtypes locally, so verify custom subtypes in cloud tests too.
+
+`BatchResult.succeeded()` and `get_results()` now retain every successful branch,
+including results equal to `None`. Update aggregations and assertions that assumed these
+methods omitted `None`. `failed()` and `get_errors()` likewise retain every failed item.
+
+### Update custom operation hooks
+
+Hooks no longer run on the checkpoint thread. Each hook still runs synchronously on its
+own calling thread, and a slow hook delays that thread. `on_operation_change` runs on a
+dedicated thread and can combine several checkpoint responses into one notification.
+Do not assume one callback per response or ordering across threads. Synchronize state
+shared between hooks, and finish plugin-owned background work in `on_invocation_end`.
+
 ### Validate the upgrade
 
 Check the package versions imported by the deployed function and its layers. Test a
 workflow that suspends and resumes, then test concurrent invocations and parallel
-branches. Confirm fresh plugin instances and telemetry for each invocation. Plugin
-fields do not survive suspension, and shared resources still need synchronization.
-Preserve operation names, order, nesting, and serialization while executions remain
-in flight.
+branches, including branches that return `None` or fail. Confirm fresh plugin instances
+and telemetry for successful, failed, and retried invocations. Plugin fields do not
+survive suspension, and shared resources still need synchronization. Preserve operation
+names, types, subtypes, order, nesting, and serialization while executions remain in
+flight, and verify completed steps do not repeat their side effects on replay.
 
 For all API changes and before/after examples, see the
-[Python 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-python/blob/df8951032df6e4fbbb0468bafd2ac09e9a2fdbd4/docs/migration-2.x-to-3.0.md).
+[Python 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-python/blob/7d9528047d5d0a2c9237075033631e10b7ebfd4f/docs/migration-2.x-to-3.0.md)
+from the released SDK 3.0.0 commit.
 
 ## 2.x Upgrade
 
