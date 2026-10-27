@@ -11,17 +11,19 @@ The SDK supports Java 17 and newer. Virtual threads require Java 21.
 Add the execution SDK to the Lambda function package. Replace the version with the
 latest release from
 [Maven Central](https://central.sonatype.com/artifact/software.amazon.lambda.durable/aws-durable-execution-sdk-java).
+The examples use the released 3.0.0 artifacts. Before upgrading from 2.x, see
+[Upgrade from 2.x to 3.0](#upgrade-from-2x-to-30).
 
 ```xml
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java</artifactId>
-    <version>2.2.0</version>
+    <version>3.0.0</version>
 </dependency>
 <dependency>
     <groupId>com.amazonaws</groupId>
     <artifactId>aws-lambda-java-core</artifactId>
-    <version>1.4.0</version>
+    <version>1.4.1</version>
 </dependency>
 ```
 
@@ -31,7 +33,7 @@ For local and cloud tests, add the testing SDK in test scope:
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
-    <version>2.2.0</version>
+    <version>3.0.0</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -208,18 +210,21 @@ return DurableConfig.builder()
 
 ### Load plugins dynamically
 
-`withPlugins(...)` registers plugin instances in application code. Java can also load
-plugin providers from the application class path. Set `DURABLE_EXECUTION_PLUGINS` to an
-ordered, comma-separated list of provider names:
+In 2.x, `withPlugins(...)` registers plugin instances in application code. In 3.x, it
+registers factories that create one plugin per invocation. See
+[Upgrade from 2.x to 3.0](#upgrade-from-2x-to-30) for the new contract.
+
+Java can also load plugin providers from the application class path. Set
+`DURABLE_EXECUTION_PLUGINS` to an ordered, comma-separated list of provider names:
 
 ```text
 DURABLE_EXECUTION_PLUGINS=otel-invocation,com.example.audit
 ```
 
-The SDK discovers `DurableExecutionPluginProvider` implementations with
-`ServiceLoader`, but creates only the providers named in the environment variable.
-Dynamically loaded plugins run first in the listed order, followed by plugins supplied
-through `withPlugins(...)`.
+The SDK discovers `DurableExecutionPluginProvider` implementations with `ServiceLoader`
+and selects the providers named in the environment variable. Selected dynamically loaded
+plugins run first in the listed order, followed by plugins supplied through
+`withPlugins(...)`.
 
 For a Lambda layer, place the provider JAR under `java/lib`. The JAR must contain this
 service-provider configuration file:
@@ -230,9 +235,76 @@ META-INF/services/software.amazon.lambda.durable.plugin.DurableExecutionPluginPr
 
 The file contains the provider implementation class name. If you shade multiple
 providers into one JAR, configure the build to merge `META-INF/services` entries.
-Invalid or missing providers, duplicate configured or discovered provider names, and
-incompatible provider API versions cause `DurableConfig` construction to throw
-`IllegalStateException`.
+Invalid or missing providers and duplicate configured or discovered provider names cause
+`DurableConfig` construction to throw `IllegalStateException`. In 2.x, this includes
+incompatible provider API versions. In 3.x, selected providers must implement
+`createPlugin(InvocationInfo)`; rebuild providers compiled against the old interface.
+
+## Upgrade from 2.x to 3.0
+
+Core 3.0 creates a fresh instrumentation plugin for each Lambda invocation. This isolates
+plugin state when invocations run concurrently. Applications that register no plugins,
+select none through `DURABLE_EXECUTION_PLUGINS`, and ship no plugin providers or plugin
+JARs can update their dependencies without changing handler or durable operation calls.
+
+### Upgrade dependencies together
+
+The [Java 3.0.0 release](https://github.com/aws/aws-durable-execution-sdk-java/releases/tag/v3.0.0)
+is available on Maven Central. Use these coordinated versions; all artifacts use group
+ID `software.amazon.lambda.durable`:
+
+| Artifact                                                   | Version |
+| ---------------------------------------------------------- | ------- |
+| `aws-durable-execution-sdk-java`                           | `3.0.0` |
+| `aws-durable-execution-sdk-java-plugin-otel`               | `3.0.0` |
+| `aws-durable-execution-sdk-java-testing`                   | `3.0.0` |
+| `aws-durable-execution-sdk-java-plugin-telemetry-exporter` | `3.0.0` |
+
+Update the artifacts your application uses together, including test dependencies and
+Lambda layers. OTel and the Telemetry Exporter remain optional. Java's durable OTel plugin
+follows the SDK version and uses `3.0.0`, while TypeScript and Python version their OTel
+packages separately as `2.0.0`. Check `mvn dependency:tree` for older transitive SDK or
+plugin artifacts.
+
+### Update plugin registrations
+
+Replace `withPlugins(pluginInstance)` with a `DurableExecutionPluginFactory`, such as
+`withPlugins(info -> new MyPlugin())`. Keep shared exporters and connection pools outside
+the factory lambda, and keep invocation state on the new plugin.
+
+Replace OTel plugin constructors with `InvocationOtelPlugin.factory(...)` or
+`ExecutionOtelPlugin.factory(...)`. Choose one OTel view across code and environment
+configuration.
+
+Rebuild plugin registration code and all provider JARs against 3.x. Providers now
+implement `createPlugin(InvocationInfo)`; remove `API_VERSION`, `getApiVersion()`, and
+`getPluginType()`. Update provider layers as well as the function package. Replace
+`DurableConfig.getPluginRunner()` with `getPluginFactories()` when inspecting configured
+plugins.
+
+Use `config.toBuilder()` when copying a configuration so the effective factory list is
+preserved without repeating environment discovery. Move custom exclusivity metadata
+from instance `@ExclusivePluginGroup` annotations to the factory's `getExclusiveGroup()`.
+
+If you use `DurableExecutionTelemetry.durableExecutionTelemetry(config)`, upgrade the
+optional telemetry-exporter artifact to 3.0.0 too. Its return type changes to a factory,
+so recompile the registration code even though the source call stays the same.
+
+The Telemetry Exporter is stable in 3.0.0. If you used a preview build, review the
+[release notes](https://github.com/aws/aws-durable-execution-sdk-java/releases/tag/v3.0.0)
+for Lambda log envelope and timestamp changes before updating record consumers.
+
+### Validate the upgrade
+
+Compile and test the application with the coordinated artifacts. Exercise suspension,
+resume, and concurrent invocations, then verify plugin output. A stale discovered
+provider fails startup, while a stale directly registered provider can log a warning and
+produce no telemetry. Hooks within one invocation can still run on multiple threads.
+Preserve operation names, order, nesting, and serialization while executions remain
+in flight.
+
+For all API changes and before/after examples, see the
+[Java 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/v3.0.0/docs/migration-2.x-to-3.x.md).
 
 ## 2.x Upgrade
 
