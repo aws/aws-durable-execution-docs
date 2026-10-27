@@ -48,20 +48,23 @@ even if your application uses no plugins.
 ### Upgrade dependencies together
 
 The [Core 3.0 and OTel 2.0 release](https://github.com/aws/aws-durable-execution-sdk-python/releases/tag/sdk-v3.0.0%2Cotel-v2.0.0%2Ctesting-v1.4.0%2Ctelemetry-exporter-v0.0.2)
-is available on PyPI and requires Python 3.11 or later. Use these coordinated versions:
+is available on PyPI and requires Python 3.11 or later. Use these compatible released
+versions:
 
 | Package                                               | Version |
 | ----------------------------------------------------- | ------- |
 | `aws-durable-execution-sdk-python`                    | `3.0.0` |
 | `aws-durable-execution-sdk-python-otel`               | `2.0.0` |
 | `aws-durable-execution-sdk-python-testing`            | `1.4.0` |
-| `aws-durable-execution-sdk-python-telemetry-exporter` | `0.0.2` |
+| `aws-durable-execution-sdk-python-telemetry-exporter` | `1.0.0` |
 
 Upgrade Core and OTel together in your requirements, lock file, deployment bundle, and
 Lambda layers. OTel remains optional, but OTel 2 requires Core `>=3.0.0,<4`. Testing SDK
 1.4.0 requires Core 3 and supports custom subtypes; earlier testing releases cannot load
-them. If you use the optional Telemetry Exporter, upgrade it to 0.0.2 because 0.0.1 uses
-the Core 2 plugin contract. Run `python -m pip check` in the built application environment.
+them. If you use the optional Telemetry Exporter, upgrade it to the stable
+[1.0.0 release](https://github.com/aws/aws-durable-execution-sdk-python/releases/tag/telemetry-exporter-v1.0.0).
+It requires Core `>=3.0.0,<4`; version 0.0.1 uses the Core 2 plugin contract. Run
+`python -m pip check` in the built application environment.
 
 The base OTel package uses the OpenTelemetry distribution supplied by your ADOT or
 community layer. If your application configures its own provider, install
