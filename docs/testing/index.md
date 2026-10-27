@@ -13,3 +13,4 @@
 - [Cloud Runner](cloud-runner.md) Run the same tests against a deployed Lambda function
     for integration validation.
 - [SAM CLI](sam-cli.md) Local and remote invocation with SAM CLI.
+- [Remote Debugging](debugging.md) Remote debugging deployed durable functions with VS Code.
