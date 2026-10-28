@@ -175,9 +175,10 @@ runner collapses these delays so tests finish in milliseconds.
 
 === "TypeScript"
 
-    Pass `{ skipTime: true }` to `setupTestEnvironment()`. The runner swaps its real timer
-    for a queue that fires immediately. Both `context.wait()` delays and step retry delays
-    complete in zero wall-clock time.
+    Pass `{ skipTime: true }` to `setupTestEnvironment()`. The runner advances
+    its clock through durable waits and retry delays, keeping checkpoint
+    timestamps and nested invocations on that clock. Timers inside a step
+    still run in real time. Use `context.wait()` to model durable delays.
 
     ```typescript
     await LocalDurableTestRunner.setupTestEnvironment({ skipTime: true });

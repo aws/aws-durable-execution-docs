@@ -526,7 +526,8 @@ execution and the completion status of the result.
 
     - **`all`** all `BatchItem` entries, one per branch, in input order. Iterate with
         `item.index` for branch-indexed access when some branches fail.
-    - **`getResults()`** results of succeeded branches, preserving input order
+    - **`getResults()`** one result per succeeded branch, including `undefined`,
+        in input order
     - **`getErrors()`** `ChildContextError[]` for failed branches
     - **`succeeded()` / `failed()` / `started()`** `BatchItem[]` filtered by status
     - **`successCount` / `failureCount` / `startedCount` / `totalCount`** branch counts
@@ -572,7 +573,7 @@ execution and the completion status of the result.
         completion_reason: CompletionReason
 
         def get_results(self) -> list[R]: ...
-        def get_errors(self) -> list[ErrorObject]: ...
+        def get_errors(self) -> list[ErrorObject | None]: ...
         def succeeded(self) -> list[BatchItem[R]]: ...
         def failed(self) -> list[BatchItem[R]]: ...
         def started(self) -> list[BatchItem[R]]: ...
@@ -600,9 +601,12 @@ execution and the completion status of the result.
 
     - **`all`** all `BatchItem` entries, one per branch, in input order. Iterate with
         `item.index` for branch-indexed access when some branches fail.
-    - **`get_results()`** results of succeeded branches, preserving input order
-    - **`get_errors()`** `list[ErrorObject]` for failed branches
-    - **`succeeded()` / `failed()` / `started()`** `BatchItem` lists filtered by status
+    - **`get_results()`** one result per succeeded branch, including `None`, in
+        input order. Filter `None` explicitly if your application needs only values.
+    - **`get_errors()`** one entry per failed item, in input order. An entry
+        is `None` when that item has no error details; the failure is not dropped.
+    - **`succeeded()` / `failed()` / `started()`** `BatchItem` lists filtered by
+        status, regardless of whether the result or error is `None`
     - **`success_count` / `failure_count` / `started_count` / `total_count`** branch counts
     - **`status`** `BatchItemStatus.SUCCEEDED` if no failures, `FAILED` otherwise
     - **`completion_reason`** why the operation completed. See
@@ -612,6 +616,10 @@ execution and the completion status of the result.
         branch, `SerDesError` if a branch result failed to serialize, or
         `BatchCompletionError` if a custom predicate failed the batch
     - **`to_dict()`** serializes to a plain dict. Serializability depends on `R`.
+
+    A failed item without error details still makes `throw_if_error()` raise
+    `ChildContextError`. A successful item returning `None` remains in
+    `succeeded()` and contributes to `success_count`.
 
     ```python
     @dataclass(frozen=True)
@@ -1012,6 +1020,10 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
     parallel operation completed. Branches that had not started yet do not appear in
     `result.all` at all. Branches that had started but not completed yet appear with status
     `STARTED`.
+
+    After early completion, no new branches start. Already recorded outcomes
+    remain available on replay, and unfinished work from abandoned branches
+    does not keep an otherwise idle invocation from suspending.
 
     | `completionConfig`             | Early exit `completionReason` | Full completion `completionReason` |
     | ------------------------------ | ----------------------------- | ---------------------------------- |

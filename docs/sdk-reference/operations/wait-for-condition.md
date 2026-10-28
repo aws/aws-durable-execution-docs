@@ -100,11 +100,20 @@ applied.
     --8<-- "examples/typescript/core/wait/wait-for-condition-signature.ts"
     ```
 
+    The SDK round-trips `initialState` through the configured serializer
+    before the first check. Invalid state fails before the check runs. When
+    the wait strategy completes polling, the SDK deserializes the stored
+    success payload again, so mutations made by the strategy do not change
+    the returned result or replay behavior.
+
 === "Python"
 
     ```python
     --8<-- "examples/python/core/wait/wait-for-condition-signature.py"
     ```
+
+    The SDK round-trips the initial state through the configured SerDes
+    before the first check, so the state must be serializable by that SerDes.
 
 === "Java"
 
@@ -142,9 +151,7 @@ applied.
     as a durable step and each subsequent polling attempt is a retry, so avoid heavy
     computation or side effects and keep it focused on querying status.
 - `config` - A configuration object containing:
-    - `initialState` - The state object passed to the first check invocation. In Python
-        the SDK round-trips this value through the configured SerDes before the first
-        check, so it must be serializable by that SerDes.
+    - `initialState` - The state object passed to the first check invocation.
     - `waitStrategy` - A [Wait strategy](#wait-strategies) to control polling behavior
 
 **Returns:** The final state object from the last check function invocation.

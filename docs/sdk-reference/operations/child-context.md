@@ -171,8 +171,9 @@ multiple child contexts concurrently.
 
     - `serdes` (optional) Custom `Serdes<T>` for the child context result. See
         [Serialization](../state/serialization.md).
-    - `subType` (optional) An internal subtype identifier. Used by `map` and `parallel`
-        internally; not needed for direct use.
+    - `subType` (optional) A custom label for execution history and plugin events.
+        Use 1 to 32 characters from `A-Z`, `a-z`, `0-9`, hyphen, and underscore.
+        Keep the value stable across replay and avoid the SDK's internal labels.
     - `summaryGenerator` (optional) A function that generates a compact summary when the
         result exceeds the checkpoint size limit. Used internally by `map` and `parallel`.
     - `errorMapper` (optional) A function that maps child context errors to custom error
@@ -190,8 +191,11 @@ multiple child contexts concurrently.
 
     - `serdes` (optional) Custom `SerDes` for the child context result. See
         [Serialization](../state/serialization.md).
-    - `sub_type` (optional) An internal subtype identifier. Used by `map` and `parallel`
-        internally; not needed for direct use.
+    - `sub_type` (optional) A string label for history and plugin events.
+        Use 1 to 32 characters from `A-Z`, `a-z`, `0-9`, hyphen, and underscore.
+        `None` or `""` selects the SDK default. Invalid values raise
+        `ValidationError` before checkpointing. Avoid the SDK's built-in
+        `OperationSubType` labels, and keep the subtype stable across replay.
     - `summary_generator` (optional) A function that generates a compact summary when the
         result exceeds the checkpoint size limit. Used internally by `map` and `parallel`.
     - `is_virtual` (optional) When `True`, skips checkpointing for the child context and

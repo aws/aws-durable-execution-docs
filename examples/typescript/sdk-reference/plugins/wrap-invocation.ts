@@ -4,4 +4,4 @@ async wrapInvocation(
 ): Promise<DurableExecutionInvocationOutput> {
   console.log(`wrap invocation, arn: ${info.executionArn}`);
   return await fn();
-},
+}

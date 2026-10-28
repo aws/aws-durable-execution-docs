@@ -154,8 +154,9 @@ skipping. Each SDK handles this differently.
 
 === "TypeScript"
 
-    Pass `{ skipTime: true }` to `setupTestEnvironment()` and the runner advances fake
-    timers automatically. Waits complete instantly.
+    Pass `{ skipTime: true }` to `setupTestEnvironment()` and the runner
+    advances its clock through durable waits automatically. A timer inside
+    a step still runs in real time.
 
     ```typescript
     --8<-- "examples/typescript/testing/examples/long-waits.ts"

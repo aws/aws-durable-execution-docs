@@ -12,10 +12,10 @@ exporter failure never fails the execution.
 === "TypeScript"
 
     ```bash
-    npm install @aws/durable-execution-sdk-js-telemetry-exporter
+    npm install @aws/durable-execution-sdk-js-telemetry-exporter@^1
     ```
 
-    The exporter requires Node.js 22 or later. The AWS SDK clients that the AWS
+    Exporter 1.x requires Core SDK 3.x and Node.js 22 or later. The AWS SDK clients that the AWS
     exporters use are optional peer dependencies. The Lambda Node.js runtime already
     provides them. The package imports all 12 of them when it loads, so when you bundle
     your own dependencies or run outside Lambda, install all 12, even for exporters you
@@ -31,16 +31,11 @@ exporter failure never fails the execution.
 === "Python"
 
     ```bash
-    pip install aws-durable-execution-sdk-python-telemetry-exporter
+    pip install "aws-durable-execution-sdk-python-telemetry-exporter>=1,<2"
     ```
 
-    The exporter requires Python 3.11 or later. The AWS exporters use `boto3`, which
-    the Lambda Python runtime provides. To run them locally, install the `s3` extra,
-    which adds `boto3`:
-
-    ```bash
-    pip install "aws-durable-execution-sdk-python-telemetry-exporter[s3]"
-    ```
+    Exporter 1.x requires Core SDK 3.x and Python 3.11 or later. Core SDK 3.x
+    already installs `boto3`, which the AWS exporters use.
 
 === "Java"
 
@@ -52,6 +47,7 @@ exporter failure never fails the execution.
     </dependency>
     ```
 
+    Set `durable.sdk.version` to `3.0.0` for the SDK and exporter.
     The exporter requires Java 17 or later. The AWS SDK for Java 2.x clients are
     optional dependencies. Add the client for each AWS exporter you use, for example
     `software.amazon.awssdk:s3` for `S3Exporter` or `software.amazon.awssdk:dynamodb`
@@ -69,7 +65,7 @@ exporter failure never fails the execution.
 
 ## Register the exporter
 
-Create the plugin and register it in your handler configuration. With no configuration,
+Register the exporter in your handler configuration. With no configuration,
 the exporter uses `LambdaLogExporter`, which writes each record as one `INFO` log line to
 your function's own CloudWatch log group. Your function already has permission to write
 its own logs, so this needs no new infrastructure and no new IAM permission. In
@@ -460,8 +456,8 @@ The plugin trims in this order until the record fits:
 
 The plugin never removes the identity and timeline fields. A trimmed record has
 `truncated: true`. Each operation that lost its result has `truncated: true`, and the
-record counts what it removed in `droppedCauses`, `droppedOperations`, `droppedInput`,
-and `droppedOutput`. So you can always tell a trimmed record from a complete one.
+record uses `droppedCauses`, `droppedInput`, and `droppedOutput` as boolean
+markers and `droppedOperations` as the number of operations removed. So you can always tell a trimmed record from a complete one.
 Content transforms run before truncation, so prefer them to bound input and output on
 purpose.
 

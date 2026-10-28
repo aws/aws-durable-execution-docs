@@ -477,7 +477,9 @@ CI.
 
 === "Python"
 
-    Not applicable.
+    Register the target with `register_durable_function` or `register_function`
+    and let `context.invoke()` run it locally. See
+    [Register mock handlers for invoke](#register-mock-handlers-for-invoke).
 
 === "Java"
 
@@ -529,7 +531,24 @@ CI.
 
 === "Python"
 
-    Not applicable.
+    ```python
+    register_durable_function(
+        function_name: str,
+        handler: Callable,
+        execution_timeout: int = 120,
+        retention_period_days: int = 1,
+    ) -> DurableFunctionTestRunner
+
+    register_function(
+        function_name: str, handler: Callable
+    ) -> DurableFunctionTestRunner
+    ```
+
+    Register the bare function name or `name:qualifier`. An ARN passed to
+    `context.invoke()` resolves by its name and qualifier; do not register the
+    ARN itself. A durable target runs as its own execution. A plain target receives the deserialized
+    payload and a test Lambda context. Both methods return the runner for
+    chaining. The local runner supplies checkpoint and invocation handling.
 
 === "Java"
 
@@ -569,15 +588,48 @@ CI.
 
 === "TypeScript"
 
-    Not applicable.
+    The local runner provides experimental pause and resume methods:
+
+    ```typescript
+    pauseExecution(): Promise<void>
+    resumeExecution(): Promise<void>
+    ```
+
+    Start `run()` without awaiting its promise, then pause after observing the
+    operation you want to interrupt. The next checkpoint keeps its updates but
+    omits the token, making the invocation return `PENDING`. No new invocation
+    starts until `resumeExecution()`. Resume before awaiting the run promise.
+    Pausing affects only this runner's execution, not its invoked children.
 
 === "Python"
 
-    Not applicable.
+    The local runner provides experimental pause and resume methods to exercise
+    checkpoint-token revocation:
+
+    ```python
+    pause_execution(execution_arn: str, timeout: float = 60) -> None
+    resume_execution(execution_arn: str) -> None
+    ```
+
+    Start the execution with `run_async()` to obtain its ARN. `pause_execution`
+    waits for the active invocation to stop. The next checkpoint saves its
+    updates but omits the token, so the SDK returns `PENDING`. A running step
+    is not interrupted. If the wait times out, the pause request remains in
+    effect. `resume_execution` restores checkpoint tokens and starts any held
+    invocation. The cloud runner does not implement these methods.
 
 === "Java"
 
+    The experimental `pauseExecution()` and `resumeExecution()` methods simulate
+    checkpoint-token revocation. While paused, checkpoints preserve accepted
+    updates but omit the token, and `runUntilComplete` returns `PENDING`.
+    Resume, then call the runner again to replay. Waits and callbacks can still
+    be completed while paused.
+
     ```java
+    void pauseExecution()
+    void resumeExecution()
+
     // Reset a step checkpoint to STARTED (simulates checkpoint failure)
     void resetCheckpointToStarted(String stepName)
 
@@ -606,8 +658,9 @@ CI.
 
 === "TypeScript"
 
-    Pass `{ skipTime: true }` to `setupTestEnvironment()`. Both `context.wait()` delays and
-    step retry delays complete in zero wall-clock time.
+    Pass `{ skipTime: true }` to `setupTestEnvironment()` to advance the runner
+    clock through durable waits and step retry delays. Timers inside a step
+    still run in real time.
 
 === "Python"
 
@@ -708,8 +761,8 @@ See [Authoring: Skip time in tests](authoring.md#skip-time-in-tests) for an over
 
     **Fields:**
 
-    - `skipTime` (optional) Install fake timers so retry delays and waits complete
-        instantly. Defaults to `false`.
+    - `skipTime` (optional) Advance the runner clock through durable waits and
+        retry delays. Timers inside a step still use real time. Defaults to `false`.
     - `checkpointDelay` (optional) Simulated delay in milliseconds on checkpoint API calls.
         Useful for surfacing race conditions.
 
@@ -1220,10 +1273,17 @@ shared set of accessors.
     operation.status: OperationStatus
     operation.name: str | None
     operation.parent_id: str | None
-    operation.sub_type: OperationSubType | None
+    operation.sub_type: str | None
     operation.start_timestamp: datetime | None
     operation.end_timestamp: datetime | None
     ```
+
+    Subtypes are strings, including custom labels. Compare them with `==`;
+    do not read `.value` or compare with `is`. `OperationSubType` constants
+    remain available from `aws_durable_execution_sdk_python.lambda_service`.
+    Testing SDK 1.4.0 requires Core 3 and records custom subtypes. The local
+    service simulator does not validate subtype syntax, so keep the core
+    SDK's configuration validation in your tests.
 
 === "Java"
 
@@ -1307,6 +1367,8 @@ shared set of accessors.
     // Convenience deserialization for step results
     <T> T getStepResult(Class<T> type)
     <T> T getStepResult(TypeToken<T> type)
+    <T> T getStepResult(Class<T> type, SerDes resultSerDes)
+    <T> T getStepResult(TypeToken<T> type, SerDes resultSerDes)
 
     // Step error
     ErrorObject getError()
@@ -1314,6 +1376,12 @@ shared set of accessors.
     // Retry attempt number (1-based)
     int getAttempt()
     ```
+
+    Pass the step's serializer to inspect an offloaded result. The runner
+    supplies the execution ARN and entity ID to `SerDesContext` automatically.
+    For example, `getStepResult(String.class, files)` reads a Java filesystem
+    payload. The test process must have access to the same absolute mount
+    path. `getStepDetails().result()` returns the raw checkpoint envelope.
 
 === "Go"
 

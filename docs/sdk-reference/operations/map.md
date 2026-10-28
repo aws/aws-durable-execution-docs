@@ -528,7 +528,8 @@ execution and the completion status of the result.
     ```
 
     - **`all`** all `BatchItem` entries, one per item, in input order
-    - **`getResults()`** results of succeeded items, preserving input order
+    - **`getResults()`** one result per succeeded item, including `undefined`,
+        in input order
     - **`getErrors()`** `ChildContextError[]` for failed items
     - **`succeeded()` / `failed()` / `started()`** `BatchItem[]` filtered by status
     - **`successCount` / `failureCount` / `startedCount` / `totalCount`** item counts
@@ -564,7 +565,7 @@ execution and the completion status of the result.
         completion_reason: CompletionReason
 
         def get_results(self) -> list[R]: ...
-        def get_errors(self) -> list[ErrorObject]: ...
+        def get_errors(self) -> list[ErrorObject | None]: ...
         def succeeded(self) -> list[BatchItem[R]]: ...
         def failed(self) -> list[BatchItem[R]]: ...
         def started(self) -> list[BatchItem[R]]: ...
@@ -586,9 +587,12 @@ execution and the completion status of the result.
     ```
 
     - **`all`** all `BatchItem` entries, one per item, in input order
-    - **`get_results()`** results of succeeded items, preserving input order
-    - **`get_errors()`** `list[ErrorObject]` for failed items
-    - **`succeeded()` / `failed()` / `started()`** `BatchItem` lists filtered by status
+    - **`get_results()`** one result per succeeded item, including `None`, in
+        input order. Filter `None` explicitly if your application needs only values.
+    - **`get_errors()`** one entry per failed item, in input order. An entry
+        is `None` when that item has no error details; the failure is not dropped.
+    - **`succeeded()` / `failed()` / `started()`** `BatchItem` lists filtered by
+        status, regardless of whether the result or error is `None`
     - **`success_count` / `failure_count` / `started_count` / `total_count`** item counts
     - **`status`** `BatchItemStatus.SUCCEEDED` if no failures, `FAILED` otherwise
     - **`completion_reason`** why the operation completed. See
@@ -598,6 +602,10 @@ execution and the completion status of the result.
         item, `SerDesError` if an item result failed to serialize, or
         `BatchCompletionError` if a custom predicate failed the batch
     - **`to_dict()`** serializes to a plain dict. Serializability depends on `R`.
+
+    A failed item without error details still makes `throw_if_error()` raise
+    `ChildContextError`. A successful item returning `None` remains in
+    `succeeded()` and contributes to `success_count`.
 
 === "Java"
 
@@ -979,6 +987,10 @@ abandoned items, but cancellation is not guaranteed.
     The `BatchResult`'s `completionReason` indicates the stop condition. Items that had not
     started yet do not appear in `result.all`. Items that had started but not completed
     appear with status `STARTED`.
+
+    After early completion, no new items start. Already recorded outcomes
+    remain available on replay, and unfinished work from abandoned items
+    does not keep an otherwise idle invocation from suspending.
 
     | `completionConfig`             | Early exit `completionReason` | Full completion `completionReason` |
     | ------------------------------ | ----------------------------- | ---------------------------------- |

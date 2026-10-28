@@ -6,11 +6,13 @@ import software.amazon.lambda.durable.otel.InvocationOtelPlugin;
 public class InvocationOtelExample extends DurableHandler<Object, String> {
     @Override
     protected DurableConfig createConfiguration() {
-        return DurableConfig.builder().withPlugins(new InvocationOtelPlugin()).build();
+        return DurableConfig.builder()
+                .withPlugins(InvocationOtelPlugin.factory())
+                .build();
     }
 
     @Override
-    protected String handleRequest(Object event, DurableContext context) {
+    public String handleRequest(Object event, DurableContext context) {
         return context.step("process", String.class, ctx -> "done");
     }
 }
