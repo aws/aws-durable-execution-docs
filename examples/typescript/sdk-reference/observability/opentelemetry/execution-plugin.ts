@@ -1,5 +1,5 @@
 import { DurableContext, withDurableExecution } from "@aws/durable-execution-sdk-js";
-import { ExecutionOtelPlugin } from "@aws/durable-execution-sdk-js-otel";
+import { createExecutionOtelPluginFactory } from "@aws/durable-execution-sdk-js-otel";
 
 export const handler = withDurableExecution(
   async (event: { id: string }, context: DurableContext) => {
@@ -7,5 +7,5 @@ export const handler = withDurableExecution(
     await context.wait("cooldown", { seconds: 5 });
     return await context.step("process", async () => `processed ${data}`);
   },
-  { plugins: [new ExecutionOtelPlugin()] },
+  { plugins: [createExecutionOtelPluginFactory()] },
 );
