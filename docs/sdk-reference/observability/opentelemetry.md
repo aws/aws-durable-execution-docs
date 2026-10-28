@@ -5,12 +5,8 @@ Choose a workflow or invocation view, register its factory, and configure an
 OpenTelemetry provider through a telemetry layer or application code. The
 provider owns exporters, resources, library instrumentation, and sampling policy.
 
-!!! note "Experimental feature"
-
-    The plugins are experimental and are not yet recommended for production workloads.
-    They are available for TypeScript,
-    Python, and Java; Go and C# do not yet provide this integration. Feedback is welcome
-    in the [GitHub Discussion](https://github.com/aws/aws-durable-execution-docs/discussions/206).
+The plugins are available for TypeScript, Python, and Java. Go and C# do not yet
+provide this integration.
 
 ## Install the plugin
 
@@ -501,3 +497,4 @@ visible span can belong to the remote backend or an undelivered fallback root.
 - [Logging](logging.md)
 - [Durable Execution Telemetry](telemetry/index.md)
 - [Steps](../operations/step.md)
+- [Feedback and discussion](https://github.com/aws/aws-durable-execution-docs/discussions/206)
