@@ -264,6 +264,38 @@ execute the same operation concurrently for each item in a collection.
     - `Func` An async function receiving the branch's `IDurableContext` and a
         `CancellationToken`, returning `Task<T>`.
 
+    For incremental registration or branches with different result types, use
+    `CreateParallel` (SDK 2.1.0 and later):
+
+    ```csharp
+    // IDurableContext
+    IDurableParallel CreateParallel(string? name = null, ParallelConfig? config = null)
+
+    // IDurableParallel
+    IParallelBranch<T> Branch<T>(
+        string name,
+        Func<IDurableContext, CancellationToken, Task<T>> func,
+        ILambdaSerializer? serializer = null)
+
+    Task<IBatchResult> CompleteAsync(CancellationToken cancellationToken = default)
+    ```
+
+    `Branch<T>` starts work when registered, subject to `MaxConcurrency`, and
+    returns an awaitable typed handle. `CompleteAsync` seals registration and
+    returns aggregate status; per-branch failures remain on their handles.
+    Awaiting a failed handle throws `ChildContextException`. Awaiting a branch
+    skipped by an early-completion policy throws `DurableExecutionException`.
+    Inspect `Status` before awaiting it.
+
+    ```csharp
+    --8<-- "examples/csharp/operations/parallel/incremental-branches.cs"
+    ```
+
+    Keep branch names, order, result types, and serializers stable on replay.
+    The per-branch serializer overrides `ParallelConfig.ItemSerializer`, which
+    otherwise falls back to the global serializer. Use `await using` to ensure
+    disposal completes the operation if you do not call `CompleteAsync`.
+
 ### ParallelConfig
 
 === "TypeScript"
@@ -373,6 +405,7 @@ execute the same operation concurrently for each item in a collection.
         public int? MaxConcurrency { get; set; }              // null = unlimited
         public CompletionConfig CompletionConfig { get; set; } // default AllSuccessful()
         public NestingType NestingType { get; set; }          // default Nested
+        public ILambdaSerializer? ItemSerializer { get; set; }
     }
     ```
 
@@ -380,13 +413,17 @@ execute the same operation concurrently for each item in a collection.
 
     - `MaxConcurrency` (optional) Maximum branches running at once. `null` (default) =
         unlimited. Must be at least 1 when set.
+
     - `CompletionConfig` (optional) When to stop. Default:
         `CompletionConfig.AllSuccessful()`.
+
     - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`. See
         [Nesting](#nesting).
 
-    The SDK serializes results with the `ILambdaSerializer` registered on
-    `ILambdaContext.Serializer`; there is no per-operation serializer slot.
+    - `ItemSerializer` (optional) Overrides each item or branch result serializer.
+        Null uses the serializer registered on `ILambdaContext.Serializer`. The
+        SDK owns the aggregate batch envelope; there is no whole-result override.
+        See [Serialization](../state/serialization.md).
 
 ### CompletionConfig
 
@@ -946,7 +983,8 @@ Name your parallel operations to make them easier to identify in logs and tests.
 === "C#"
 
     The name is the optional `name` argument. Omit it to infer one from the call site. Use
-    the `DurableBranch<T>` overload to name each branch.
+    the `DurableBranch<T>` overload to name each branch, or register named
+    branches incrementally with `CreateParallel`.
 
 ## Configuration
 
@@ -1344,8 +1382,8 @@ language-specific details below describe nested mode.
 
     In nested mode, the SDK reconstructs `IBatchResult` from per-branch checkpoints.
     In flat mode, the SDK records branch results and errors inline on the parent parallel
-    operation instead. The SDK serializes results with the `ILambdaSerializer` registered
-    on `ILambdaContext.Serializer`.
+    operation instead. Branch results use `ItemSerializer` when set, or the
+    serializer registered on `ILambdaContext.Serializer`.
 
 ## Nesting parallel operations
 
