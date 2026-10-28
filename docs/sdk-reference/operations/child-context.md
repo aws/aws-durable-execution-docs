@@ -242,13 +242,20 @@ multiple child contexts concurrently.
 
     **Parameters:**
 
-    - `SubType` (optional) An operation sub-type label for observability. Used
-        internally by `map` and `parallel`; not needed for direct use.
+    - `SubType` (optional) An execution-history label with 1 to 32 characters
+        from `A-Z`, `a-z`, `0-9`, hyphen, and underscore. Null or empty omits it.
+        Invalid labels raise `ArgumentException`. Keep the label stable on replay.
+
     - `ErrorMapping` (optional) A function that maps exceptions thrown by the child
         context (surfaced as `ChildContextException`) into a domain-specific exception.
 
-    The child context result is serialized with the `ILambdaSerializer` registered on
-    `ILambdaContext.Serializer`; there is no per-context serializer. See
+    - `Serializer` (optional) Overrides result serialization for this child context.
+        Null uses the serializer registered on `ILambdaContext.Serializer`.
+
+    - `NestingType` (optional) `Nested` by default. `Flat` uses a virtual context
+        whose operations checkpoint under its parent.
+
+    See
     [Serialization](../state/serialization.md).
 
 ## The child context's function

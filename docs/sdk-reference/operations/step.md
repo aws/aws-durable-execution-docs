@@ -263,6 +263,8 @@ The step will checkpoint the last error after exhausting all retry attempts.
     {
         public IRetryStrategy? RetryStrategy { get; set; }  // null = no retry
         public StepSemantics Semantics { get; set; }        // default AtLeastOncePerRetry
+        public ILambdaSerializer? Serializer { get; set; }
+        public string? SubType { get; set; }
     }
     ```
 
@@ -272,11 +274,18 @@ The step will checkpoint the last error after exhausting all retry attempts.
         not retried. Use the `RetryStrategy` factory (for example
         `RetryStrategy.Exponential(...)`) to build one. See
         [Retry strategies](../error-handling/retries.md).
+
     - `Semantics` (optional) `StepSemantics.AtLeastOncePerRetry` (default) or
         `StepSemantics.AtMostOncePerRetry`.
 
-    The step result is serialized with the `ILambdaSerializer` registered on
-    `ILambdaContext.Serializer`; there is no per-step serializer. See
+    - `Serializer` (optional) Overrides the serializer for this step's result.
+        When null, the SDK uses the serializer registered on `ILambdaContext.Serializer`.
+
+    - `SubType` (optional) An execution-history label with 1 to 32 characters from
+        `A-Z`, `a-z`, `0-9`, hyphen, and underscore. Null or empty uses `"Step"`.
+        Invalid labels raise `ArgumentException`. Keep the label stable on replay.
+
+    See
     [Serialization](../state/serialization.md).
 
 ### StepContext
