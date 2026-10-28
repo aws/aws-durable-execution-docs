@@ -199,15 +199,19 @@ The next invocation retries initialization.
 
 ### Load the factory without handler registration
 
-`DURABLE_EXECUTION_PLUGINS` selects a default-configured factory from an installed
-package or layer. It still requires a global provider. Choose one view through
-either code or environment configuration.
+`DURABLE_EXECUTION_PLUGINS` selects a default-configured OTel factory from an installed
+package or layer. These factories use the global OpenTelemetry tracer provider
+initialized by your telemetry layer or application. Choose one view through either
+code or environment configuration.
 
-| Language   | Invocation view                                      | Execution view                                      |
-| ---------- | ---------------------------------------------------- | --------------------------------------------------- |
-| TypeScript | `@aws/durable-execution-sdk-js-otel/otel-invocation` | `@aws/durable-execution-sdk-js-otel/otel-execution` |
-| Python     | `otel-invocation`                                    | `otel-execution`                                    |
-| Java       | `otel-invocation`                                    | `otel-execution`                                    |
+The value follows each SDK's discovery mechanism: an importable module specifier
+or a registered provider name.
+
+| Language and lookup                  | Invocation view                                      | Execution view                                      |
+| ------------------------------------ | ---------------------------------------------------- | --------------------------------------------------- |
+| TypeScript: Node.js module specifier | `@aws/durable-execution-sdk-js-otel/otel-invocation` | `@aws/durable-execution-sdk-js-otel/otel-execution` |
+| Python: package entry-point name     | `otel-invocation`                                    | `otel-execution`                                    |
+| Java: `ServiceLoader` provider name  | `otel-invocation`                                    | `otel-execution`                                    |
 
 ## Configure an application-owned provider
 
