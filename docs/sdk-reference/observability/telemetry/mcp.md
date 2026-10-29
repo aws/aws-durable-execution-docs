@@ -20,8 +20,9 @@ agent can ask a question without writing a query for that store by hand. You ask
 agent a question, such as which steps in `order-processor` failed most often in the last
 24 hours, and the agent picks the tools.
 
-The server runs on your machine and checks that each query reads data. Your credentials
-decide what it can actually do, as described in
+The server runs on your machine and validates query text before execution. It also
+requires the user to accept the risk of writes before data queries run. Your credentials
+decide what queries can actually do, as described in
 [Read-only access and data handling](#read-only-access-and-data-handling). It makes no
 model calls of its own. It is a Node.js package and requires Node.js 22.12 or later.
 
@@ -129,7 +130,10 @@ The server registers five tools. An agent usually calls them in this order.
 `test_destination` runs read-only connectivity checks against the configured
 destination. If a required variable is unset, it returns `ok: false` and lists the
 missing variables in `missingEnvVars` without calling AWS. The server starts even when
-its configuration is incomplete, so this tool can report what is wrong.
+its configuration is incomplete, so this tool can report what is wrong. When the
+connectivity checks pass, the result includes `writeAccess`. Its `status` is
+`can-write`, with `findings` naming each way the credentials can change data, or
+`unverified`, with a `reason`. Neither status certifies read-only access.
 
 `describe_schema` returns the record schema, the query language, the table or log group,
 and the row cap for the configured destination. It makes no AWS call. Field names,
@@ -172,9 +176,22 @@ Insights call fails, for example with `AccessDenied`.
 
 ## Read-only access and data handling
 
+Before `list_executions`, `get_execution`, or `query` runs, the server checks write
+access and asks the user to accept that queries could change data. Acceptance
+lasts for that server process. Declining, cancelling, or using a client that cannot
+show the prompt blocks that query. The server checks and asks again on the next
+data query. `test_destination` and `describe_schema` remain available.
+
+Only the user can accept. For a client without MCP form prompts, the user can
+set `DURABLE_TELEMETRY_ACCEPT_WRITE_ACCESS=true` in the server's environment
+configuration and restart it. An agent must not set this on the user's behalf.
+The setting records acceptance; it does not restrict credentials or make queries
+read-only.
+
 The server refuses a SQL query that does not start with `SELECT` or `WITH`, contains a
 write keyword or a second statement, or uses SQL syntax its validator does not support.
-It refuses before it resolves credentials or calls AWS. The CloudWatch Logs Insights
+The server rejects these statements before query execution. Write-access checks
+can still use credentials to inspect the destination. The CloudWatch Logs Insights
 language has no statements that write data.
 
 The validator reads query text, and a database can perform writes it cannot see, for

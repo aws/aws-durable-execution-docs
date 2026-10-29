@@ -140,8 +140,11 @@ Firehose, SQS, OTLP, HTTP, and files accept an operations format option with the
     full record through `toWireMap()`. Set the operations format with
     `.operationsFormat(OperationsFormat.BY_NAME)`.
 
-    The execution `error` keeps the cause's message, with the name `Throwable`.
-    Operation errors have no `cause`.
+    The execution `error` includes nested `cause` objects with `name` and
+    `message`, with cycle protection and a maximum depth of 16. Checkpointed
+    operation errors have no cause chain. Error names and messages are capped
+    at 8,192 Unicode code points plus an ellipsis. `includeErrors(false)`
+    excludes errors and their causes.
 
 === "Go"
 

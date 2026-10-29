@@ -7,7 +7,7 @@ and it opens spans at the workflow, invocation, operation, and attempt
 boundaries.
 
 A durable execution can run across many Lambda invocations. The durable backend
-propagates a stable server span through `_X_AMZN_TRACE_ID`. When the header
+propagates a stable server span in its X-Ray trace header. When the header
 contains valid `Root` and `Parent` fields, every plugin span for one execution
 uses that canonical trace ID. The execution-scoped `Workflow` span is a direct
 child of the remote backend span and keeps a deterministic span ID across
@@ -43,12 +43,8 @@ Some names on this page keep the X-Ray label, such as the X-Ray trace header and
 the `awsxray` collector exporter, but the resulting traces are available in
 CloudWatch.
 
-!!! note "Experimental feature"
-
-    The OpenTelemetry plugin is experimental and may change in a future
-    release. It is not recommended for production workloads yet. Feedback is
-    welcome through our
-    [GitHub Discussion](https://github.com/aws/aws-durable-execution-docs/discussions/206).
+Register an OpenTelemetry factory in the handler configuration. Each invocation
+gets a fresh plugin while providers and exporters remain shared.
 
 !!! note "C# support"
 
@@ -104,9 +100,10 @@ CloudWatch.
     </dependency>
     ```
 
+    Set `durable.sdk.version` to the version of the Java SDK you use.
     Add an exporter dependency when the application supplies its own tracer
     provider. The ADOT Java agent supplies the export pipeline for the no-arg
-    plugin constructors.
+    plugin factories.
 
 ## The two plugins
 
@@ -239,9 +236,31 @@ For both plugins, your observability platform's quotas and limits apply.
 
 The plugins resolve the execution parent and the sampling decision
 independently. A missing or unusable `Sampled` field does not replace a valid
-remote parent with a synthetic root.
+remote parent with a synthetic root. Each plugin reads the runtime header as
+described below.
 
-| `_X_AMZN_TRACE_ID` state                                              | Canonical trace ID                                            | Common execution ancestor | Sampling                                                                |
+=== "TypeScript"
+
+    The default extractor reads the X-Ray trace header from
+    `InvocationInfo.xRayTraceId`. It falls back to `_X_AMZN_TRACE_ID` only when
+    `InvocationInfo` has no `xRayTraceId` field.
+
+    To compute the plugin's trace ID in custom instrumentation, call
+    `deriveExecutionTraceId(environment, executionArn, executionStartTimestamp?, invocation?)`
+    from the OTel package. Pass the same execution start timestamp and
+    `InvocationInfo` that the plugin receives.
+
+=== "Python"
+
+    The default extractor reads `_X_AMZN_TRACE_ID` from the process environment.
+
+=== "Java"
+
+    The SDK captures the runtime header before dispatch and supplies the
+    same `InvocationInfo.xRayTraceId()` snapshot to the factory and start
+    hook. Custom instrumentation should use that snapshot.
+
+| Effective X-Ray trace header state                                    | Canonical trace ID                                            | Common execution ancestor | Sampling                                                                |
 | --------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------- |
 | Valid `Root`, `Parent`, `Sampled=1`                                   | Reuse `Root`                                                  | Remote `Parent`           | Preserve sampled                                                        |
 | Valid `Root`, `Parent`, `Sampled=0`                                   | Reuse `Root`                                                  | Remote `Parent`           | Preserve not sampled                                                    |
@@ -297,6 +316,13 @@ time. Fallback mode ignores unrelated ambient context. TypeScript, Python, and
 Java use this same topology with global and application-owned providers. The
 selected sampling decision applies consistently to every descendant.
 
+When a durable function invokes another durable function, the plugins pass an X-Ray
+trace header with the invoke, outside the payload. The header places the invoked
+execution's spans under the invoke operation's span and carries the caller's sampling
+decision, including an unsampled one. When a plugin cannot determine the trace context,
+it omits the header, and the invoked execution inherits the calling execution's trace
+header. A replayed invoke keeps the header it started with.
+
 ## Span structure and attributes
 
 Both plugins emit four span types. An invocation span covers one Lambda
@@ -324,7 +350,7 @@ so the runtime supplies `_X_AMZN_TRACE_ID`, and grant the function role the
 `AWSXRayDaemonWriteAccess` managed policy. Auto-instrumentation can then create
 an ambient Lambda span in the same trace as the durable backend parent.
 
-The no-arg plugin constructors use the global provider. You do not need a
+The default plugin factories use the global provider. You do not need a
 provider option.
 
 === "TypeScript"
@@ -351,9 +377,9 @@ provider option.
     ```
 
     ```typescript
-    new ExecutionOtelPlugin();
+    createExecutionOtelPluginFactory();
     // or
-    new InvocationOtelPlugin();
+    createInvocationOtelPluginFactory();
     ```
 
 === "Python"
@@ -380,9 +406,9 @@ provider option.
     ```
 
     ```python
-    ExecutionOtelPlugin()
+    ExecutionOtelPluginFactory()
     # or
-    InvocationOtelPlugin()
+    InvocationOtelPluginFactory()
     ```
 
 === "Java"
@@ -415,9 +441,9 @@ provider option.
     ```
 
     ```java
-    new ExecutionOtelPlugin();
+    ExecutionOtelPlugin.factory();
     // or
-    new InvocationOtelPlugin();
+    InvocationOtelPlugin.factory();
     ```
 
     To load the plugin from the layer without registering it in handler code,
@@ -439,7 +465,7 @@ for your observability backend. Enable active tracing so the plugin can reuse
 the durable backend parent and the layer can create a same-trace ambient Lambda
 span.
 
-The no-arg plugin constructors use the global provider. You do not need to
+The default plugin factories use the global provider. You do not need to
 configure or pass a provider to the plugin.
 
 The examples below use OTLP HTTP and disable metrics and log export. If the
@@ -474,9 +500,9 @@ to obtain the language layer.
     ```
 
     ```typescript
-    new ExecutionOtelPlugin();
+    createExecutionOtelPluginFactory();
     // or
-    new InvocationOtelPlugin();
+    createInvocationOtelPluginFactory();
     ```
 
 === "Python"
@@ -504,9 +530,9 @@ to obtain the language layer.
     ```
 
     ```python
-    ExecutionOtelPlugin()
+    ExecutionOtelPluginFactory()
     # or
-    InvocationOtelPlugin()
+    InvocationOtelPluginFactory()
     ```
 
 === "Java"
@@ -542,9 +568,9 @@ to obtain the language layer.
     ```
 
     ```java
-    new ExecutionOtelPlugin();
+    ExecutionOtelPlugin.factory();
     // or
-    new InvocationOtelPlugin();
+    InvocationOtelPlugin.factory();
     ```
 
     To load the plugin from the layer without registering it in handler code,
@@ -623,14 +649,14 @@ Tracing: Active
     ```
 
     ```typescript
-    import { ExecutionOtelPlugin } from "@aws/durable-execution-sdk-js-otel";
+    import { createExecutionOtelPluginFactory } from "@aws/durable-execution-sdk-js-otel";
     import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
     import {
       BatchSpanProcessor,
       NodeTracerProvider,
     } from "@opentelemetry/sdk-trace-node";
 
-    const plugin = new ExecutionOtelPlugin({
+    const pluginFactory = createExecutionOtelPluginFactory({
       tracerProviderFactory: (createIdGenerator) => {
         const provider = new NodeTracerProvider({
           idGenerator: createIdGenerator(),
@@ -648,8 +674,8 @@ Tracing: Active
     });
     ```
 
-    Substitute `InvocationOtelPlugin` to use the invocation-centered view. To
-    preserve a custom application ID generator for unrelated spans, pass it to
+    Substitute `createInvocationOtelPluginFactory` for the invocation-centered
+    view. To preserve a custom application ID generator for unrelated spans, pass it to
     `createIdGenerator(applicationIdGenerator)`.
 
 === "Python"
@@ -670,7 +696,7 @@ Tracing: Active
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
     from aws_durable_execution_sdk_python_otel import (
-        ExecutionOtelPlugin,
+        ExecutionOtelPluginFactory,
         OtelPluginConfig,
     )
 
@@ -681,18 +707,18 @@ Tracing: Active
         )
     )
 
-    plugin = ExecutionOtelPlugin(
+    plugin_factory = ExecutionOtelPluginFactory(
         OtelPluginConfig(tracer_provider=provider)
     )
     ```
 
-    Substitute `InvocationOtelPlugin` to use the invocation-centered view.
+    Use `InvocationOtelPluginFactory` to select the invocation-centered view.
 
 === "Java"
 
     Add the OpenTelemetry OTLP exporter dependency, then pass a provider builder
-    to either plugin. The plugin wraps the builder's ID generator and builds the
-    application-owned provider.
+    to either factory. The factory wraps the builder's ID generator and sampler,
+    then builds the application-owned provider.
 
     ```xml
     <dependency>
@@ -715,16 +741,16 @@ Tracing: Active
     var providerBuilder = SdkTracerProvider.builder()
             .addSpanProcessor(BatchSpanProcessor.builder(exporter).build());
 
-    var plugin = new ExecutionOtelPlugin(providerBuilder);
+    var pluginFactory = ExecutionOtelPlugin.factory(providerBuilder);
     ```
 
-    Substitute `InvocationOtelPlugin` to use the invocation-centered view.
+    Use `InvocationOtelPlugin.factory(providerBuilder)` to select the invocation-centered view.
 
 ## Configuration
 
 === "TypeScript"
 
-    Both plugins accept an `OtelPluginConfig` object:
+    Both factory builders accept an `OtelPluginConfig` object:
 
     - **tracerProviderFactory** Creates an application-owned provider. Omit it
         to use the global provider.
@@ -737,13 +763,16 @@ Tracing: Active
         Defaults to `Workflow`.
     - **enrichLogger** Adds `traceId`, `spanId`, and `otelTraceSampled` to each
         durable log record. Defaults to `true`.
+    - **flushTimeoutMillis** Maximum time to await provider flushes at
+        invocation end. Defaults to `1000` ms. A timeout stops waiting; it
+        does not cancel exports or shut down the shared provider.
 
     The application or telemetry layer owns exporters, propagators, resources,
     sampling, and HTTP or AWS SDK instrumentation.
 
 === "Python"
 
-    Both plugins accept the same `OtelPluginConfig` dataclass:
+    Both factory classes accept the same `OtelPluginConfig` dataclass:
 
     - **tracer_provider** Application-owned provider. Omit it to use the global
         provider.
@@ -758,7 +787,7 @@ Tracing: Active
         onto log records. Defaults to `True`.
 
     ```python
-    plugin = InvocationOtelPlugin(
+    plugin_factory = InvocationOtelPluginFactory(
         OtelPluginConfig(
             instrument_name="my-service",
             enrich_logger=False,
@@ -768,18 +797,18 @@ Tracing: Active
 
 === "Java"
 
-    Each plugin supports the following constructor forms:
+    Each plugin exposes the following factory overloads:
 
     ```java
-    new InvocationOtelPlugin();
-    new InvocationOtelPlugin(otelPluginConfig);
-    new InvocationOtelPlugin(tracerProviderBuilder);
-    new InvocationOtelPlugin(tracerProviderBuilder, otelPluginConfig);
+    InvocationOtelPlugin.factory();
+    InvocationOtelPlugin.factory(otelPluginConfig);
+    InvocationOtelPlugin.factory(tracerProviderBuilder);
+    InvocationOtelPlugin.factory(tracerProviderBuilder, otelPluginConfig);
     ```
 
-    `ExecutionOtelPlugin` provides the same forms. The no-arg and config-only
-    constructors use the global provider. The builder constructors create an
-    application-owned provider.
+    `ExecutionOtelPlugin.factory(...)` provides the same overloads. The no-arg
+    and config-only factories use the global provider. The builder overloads
+    create an application-owned provider shared by invocation plugins.
 
     Build `OtelPluginConfig` with:
 
@@ -796,7 +825,7 @@ Tracing: Active
             .enableMdc(false)
             .build();
 
-    var plugin = new InvocationOtelPlugin(config);
+    var pluginFactory = InvocationOtelPlugin.factory(config);
     ```
 
 Configure sampling through the provider. With ADOT, use the standard

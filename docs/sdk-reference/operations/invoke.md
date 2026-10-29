@@ -119,6 +119,9 @@ When this function runs:
     **Returns:** `DurablePromise<TOutput>`. Use `await` to get the result.
 
     **Throws:** `InvokeError` if the invoked function fails or times out.
+    When the remote error includes a type or message, `cause` contains the
+    remote error. Its `name` is the invoked function's error type, such as
+    `PaymentError`, with `Error` as the fallback when no type is reported.
 
 === "Python"
 

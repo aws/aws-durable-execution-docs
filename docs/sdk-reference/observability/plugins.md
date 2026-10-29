@@ -4,14 +4,12 @@ Create plugins for instrumenting durable execution lifecycle events. Each SDK
 calls plugin hooks at invocation, operation, and user-function boundaries, so
 you can integrate external tooling, such as observability platforms, without
 changing your handler logic. For example, you can use a plugin to emit a metric
-or trace span each time an operation runs. Errors thrown by a plugin are caught
-and logged, and never affect the execution outcome.
+or trace span each time an operation runs. Ordinary hook failures are caught and
+logged so instrumentation does not change the execution outcome. Invalid plugin
+registrations fail configuration before the handler runs.
 
-!!! note "Experimental feature"
-
-    The plugin interface is currently experimental and may change in a
-    future release. Feedback is welcome, please share your input through our
-    [GitHub Discussion](https://github.com/aws/aws-durable-execution-docs/discussions/206).
+Register a factory that creates a fresh plugin for every Lambda invocation, including
+each resume and each concurrent request on Lambda Managed Instances.
 
 !!! note "Go support"
 
@@ -54,8 +52,9 @@ fields like operation identity, timestamps, or error details.
 ### Invocation hooks
 
 Invocation hooks run when a Lambda invocation of the execution starts or ends.
-The SDK passes an `isFirstInvocation` flag to the start hook, which indicates
-whether this is the execution's first invocation or a replay.
+The start hook identifies whether this is the execution's first invocation or
+a replay. A resumed execution receives a new plugin instance, so rebuild any
+execution-wide state from the checkpointed operations in the hook metadata.
 
 === "TypeScript"
 
@@ -75,6 +74,11 @@ whether this is the execution's first invocation or a replay.
     --8<-- "examples/java/sdk-reference/plugins/invocation-hooks.java"
     ```
 
+    Invocation-end hooks run in reverse registration order on the handler
+    thread after operation work and checkpoints drain. The runner contains
+    nonfatal hook failures. For `VirtualMachineError` or `ThreadDeath`, it runs
+    the remaining end hooks, then rethrows the first fatal error.
+
 ### Operation hooks
 
 Operation hooks run when a durable operation, such as a step or wait, starts
@@ -87,13 +91,32 @@ or reaches a terminal status.
     ```
 
     The `isReplay` field on `OperationInfo` indicates whether the hook is
-    firing for the first time or during a replay.
+    firing for the first time or during a replay. Use `status` to determine
+    failure; an operation can fail without error details.
+
+    Operation hooks run their synchronous work in lifecycle order. The SDK
+    does not await their returned promises before continuing operations.
+    Initialize state needed by later hooks before the first `await`. If
+    asynchronous work must finish in order, queue it within the invocation
+    and return its promise from the hook.
+
+    Before `onInvocationEnd`, the SDK drains operation-hook promises until
+    500 ms before the invocation deadline. It then awaits `onInvocationEnd`
+    until 50 ms before the deadline. These limits stop waiting without
+    cancelling pending work. Without a usable deadline, both waits continue
+    until the work settles. The SDK waits for `onInvocationStart` with no deadline.
 
 === "Python"
 
     ```python
     --8<-- "examples/python/sdk-reference/plugins/operation-hooks.py"
     ```
+
+    No hook runs on the checkpoint thread. `on_operation_end` normally runs
+    on the thread that observes the terminal result, before returning that
+    result to user code. Hooks from concurrent branches can overlap, so
+    protect shared mutable state. Slow hooks still delay the thread that
+    calls them.
 
 === "Java"
 
@@ -153,6 +176,11 @@ snapshot of all operations.
     --8<-- "examples/python/sdk-reference/plugins/checkpoint-change-hook.py"
     ```
 
+    `on_operation_change` runs on a separate plugin change thread. It merges
+    notifications that arrive while a hook is running, so one call can cover
+    several checkpoint responses. It is not ordered with operation-end
+    hooks from those responses.
+
 === "Java"
 
     ```java
@@ -161,10 +189,16 @@ snapshot of all operations.
 
 ## Use a plugin
 
-Provide plugins in the durable handler configuration. The SDK calls each plugin
-in the order you provide. The [OpenTelemetry](opentelemetry.md) plugins and the
-[Durable Execution Telemetry Exporter](telemetry/exporter.md) are ready-made
-plugins that you register the same way.
+Provide plugin factories in the durable handler configuration. The SDK calls
+each factory once per invocation with the same metadata supplied to its
+invocation-start hook. Keep invocation identity, spans, and operation buffers on
+the returned plugin. Keep shared providers, exporters, and connection pools on
+the factory, and make shared resources safe for concurrent use. Do not return a
+cached plugin instance. Plugin fields are not checkpointed.
+
+The [OpenTelemetry](opentelemetry.md) plugins and the
+[Durable Execution Telemetry Exporter](telemetry/exporter.md) provide factories
+that you register the same way.
 
 === "TypeScript"
 
@@ -172,17 +206,36 @@ plugins that you register the same way.
     --8<-- "examples/typescript/sdk-reference/plugins/use-plugin.ts"
     ```
 
+    A `DurableInstrumentationPluginFactory` has a synchronous
+    `createPlugin(info)` method. If you register anything other than a factory,
+    every invocation returns `FAILED` with a `PluginLoadError` before your handler
+    runs. A module listed in `DURABLE_EXECUTION_PLUGINS` exports its factory as
+    `durableExecutionPluginProvider`.
+
 === "Python"
 
     ```python
     --8<-- "examples/python/sdk-reference/plugins/use-plugin.py"
     ```
 
+    A `DurableInstrumentationPluginFactory` has a synchronous
+    `create_plugin(info)` method. Register an instantiated factory. Plugin
+    instances and bare callables raise `PluginLoadError` at handler
+    initialization. Entry points in `aws_durable_execution.plugins` must
+    resolve to factory objects too.
+
 === "Java"
 
     ```java
     --8<-- "examples/java/sdk-reference/plugins/use-plugin.java"
     ```
+
+    `DurableExecutionPluginFactory` is a functional interface with
+    `createPlugin(InvocationInfo)`. ServiceLoader providers implement
+    `DurableExecutionPluginProvider`, which extends the factory interface with
+    `getName()`. `DURABLE_EXECUTION_PLUGINS` selects providers by that name.
+    Use `DurableConfig.toBuilder()` to preserve resolved factories when
+    copying configuration, and `getPluginFactories()` to inspect them.
 
 ## Logging from a plugin
 
@@ -201,10 +254,12 @@ execution carry extra context.
 
 === "Python"
 
-    A plugin can enrich logs by installing a standard `logging.Filter` on the
-    root logger, usually in its constructor. The filter runs for every log
-    record on the emitting thread, so it can add fields that reflect the
-    plugin's current state. See
+    Install a stateless `logging.Filter` on root logger handlers once, in
+    the factory constructor. Adding one in every plugin constructor would
+    accumulate filters across invocations. The filter below adds a shared
+    service name. For invocation-specific fields, read thread-local or
+    context-local state instead of storing the active invocation on the
+    shared filter. See
     [Logging](logging.md) for more about the SDK logger.
 
     ```python

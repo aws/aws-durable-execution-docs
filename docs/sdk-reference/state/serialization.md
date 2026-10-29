@@ -56,9 +56,9 @@ the round trip will change the operation result.
 
 ## Lambda handler serialization
 
-The Durable Execution SDK SerDes only applies to durable operation results. It does not
-affect the final return value of your Lambda handler, which Lambda serializes
-separately.
+Handler input and output serialization varies by SDK. An operation-specific
+serializer changes that operation's payloads without changing handler input and
+output. Follow the language-specific configuration below.
 
 === "TypeScript"
 
@@ -186,6 +186,14 @@ Each SDK uses a default SerDes when you do not provide one.
         `value` is `null`.
     - `deserialize(String data, TypeToken<T> typeToken)` Converts the JSON string back to
         type `T`. Returns `null` if `data` is `null`.
+
+    For operation payloads, the SDK calls the overloads that take a `SerDesContext`.
+    `durableExecutionArn()` identifies the execution, and `entityId()` identifies the
+    operation payload and its role, such as result or exception. By default, these
+    overloads call `serialize(Object value)` and
+    `deserialize(String data, TypeToken<T> typeToken)`. A serializer that stores
+    payloads outside the checkpoint must keep earlier payloads readable when it
+    serializes the same entity again.
 
     Use `TypeToken<T>` to capture generic type information that Java erases at runtime. For
     example: `new TypeToken<List<String>>() {}`.
@@ -379,7 +387,8 @@ system sends when it completes the callback.
 
 ### MapConfig & ParallelConfig
 
-Map and parallel perations support two SerDes fields that apply at different levels.
+Map and parallel operations can customize serialization for individual results.
+Some SDKs also support a serializer for the aggregate result.
 
 === "TypeScript"
 
@@ -505,6 +514,9 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
     provides access to Amazon S3 objects as files using standard file system
     operations such as read and write on the local mount path.
 
+Retain result files for the execution's full replay lifetime and arrange cleanup
+externally. The filesystem serializers do not delete published result files.
+
 !!! warning "Do not use Lambda's `/tmp` directory"
 
     Lambda's `/tmp` filesystem is local to a single execution environment. A
@@ -534,8 +546,29 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
 
 === "Java"
 
-    Coming soon. See
-    [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
+    `FileSystemSerDes` is part of the `aws-durable-execution-sdk-java` artifact.
+    Configure it per operation with `StepConfig.serDes`,
+    `RunInChildContextConfig.serDes`, `MapConfig.serDes`,
+    `ParallelBranchConfig.serDes`, or `WaitForConditionConfig.serDes`.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-walkthrough.java"
+    ```
+
+    The step stores the large report in a file and checkpoints its reference.
+    After the wait, replay reads that file without running the step again. The
+    handler returns only the report length, keeping its output small.
+
+    Every successful serialization creates a new immutable file, including
+    repeated writes for one entity during retries or polling.
+
+    If you set `files` on `CallbackConfig` or `InvokeConfig`, the producer must
+    send a filesystem envelope, and both sides must mount the same absolute path.
+    Ordinary JSON does not become a file reference automatically. For a normally encoded invoke
+    request and an offloaded response, use
+    `InvokeConfig.builder().payloadSerDes(new JacksonSerDes()).serDes(files)`.
+    See the [Java filesystem guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/main/docs/advanced/filesystem-serdes.md)
+    for producer-side serialization.
 
 === "Go"
 
@@ -593,7 +626,21 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "Java"
 
-    Coming soon.
+    `FileSystemSerDes.builder(Path)` returns a builder. Call `build()` to create
+    the immutable serializer; construction does not write files.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-signature.java"
+    ```
+
+    Set `basePath` to a persistent shared mount. The builder normalizes it to
+    an absolute path. Reads reject references outside that base and symlinks
+    below it. Keep the mount and base directory under application control.
+    Missing files and I/O failures throw `SerDesException`.
+
+    The SDK supplies `SerDesContext` for operation payloads. Calling the
+    context-free `serialize` or `deserialize` overload throws
+    `SerDesException`.
 
 === "Go"
 
@@ -657,7 +704,20 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 === "Java"
 
-    Coming soon.
+    Java uses a builder instead of a separate config class:
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-config.java"
+    ```
+
+    - `storageMode` defaults to `FileSystemStorageMode.ALWAYS`.
+    - `pathEncoding` defaults to `FileSystemPathEncoding.URI`.
+    - `delegate` defaults to `JacksonSerDes`. Its serialized string is stored
+        unchanged as UTF-8. A null serialized string remains null without a file.
+    - `previewGenerator` optionally returns a `Map<String, Object>` alongside
+        the file pointer. Return null to omit a preview.
+
+    Custom delegates and preview generators must support concurrent calls.
 
 === "Go"
 
@@ -683,17 +743,17 @@ Create a FileSystem serdes and pass it to an operation's config.
 
 ### Storage modes
 
-The `storageMode` enumerated field controls when the SDK writes to the filesystem.
-
-`FileSystemSerdesMode.ALWAYS` writes every value to a file. The checkpoint stores
-only the file pointer.
-
-`FileSystemSerdesMode.OVERFLOW` uses the standard durable execution checkpoint
-store and only writes to the filesystem when the value would exceed the durable
-execution checkpoint size limit. See
+The storage mode controls when the SDK writes to the filesystem. Always mode
+writes values to files and checkpoints their pointers. Overflow mode keeps
+small values inline and offloads values that exceed its envelope limit. See
 [AWS Lambda service quotas](https://docs.aws.amazon.com/general/latest/gr/lambda-service.html).
 
 === "TypeScript"
+
+    `FileSystemSerdesMode.ALWAYS` writes every value except `undefined` to a file,
+    including `null`. `OVERFLOW` keeps the `{"data": ...}` envelope inline when
+    its UTF-8 size is at most 255 KiB, counting JSON escaping. Larger envelopes
+    use a file. `undefined` remains `undefined` without a file in either mode.
 
     ```typescript
     --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-overflow.ts"
@@ -701,13 +761,23 @@ execution checkpoint size limit. See
 
 === "Python"
 
+    `FileSystemSerDesMode.ALWAYS` writes every value to a file, including `None`.
+    `OVERFLOW` keeps the `{"data": ...}` envelope inline when its UTF-8 size is
+    at most 255 KiB, counting JSON escaping. Larger envelopes use a file.
+
     ```python
     --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-overflow.py"
     ```
 
 === "Java"
 
-    Coming soon.
+    `FileSystemStorageMode.OVERFLOW` stores an inline envelope when it fits
+    within 255 KiB, counting JSON escaping and UTF-8 bytes. Larger envelopes
+    use a file. `ALWAYS`, the default, offloads every non-null serialized value.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-overflow.java"
+    ```
 
 === "Go"
 
@@ -725,22 +795,21 @@ execution checkpoint size limit. See
 
 ### Path encoding
 
-The `pathEncoding` field controls how the durable execution ARN and the entity ID
+Path encoding controls how the durable execution ARN and operation identity
 become the on-disk directory and file names.
 
-`FileSystemPathEncoding.URI` builds a per-execution directory from the function
-name, execution name, and invocation ID parsed from the ARN, and encodes the entity
-ID with `encodeURIComponent` for the file name. Names stay readable when you read
-files directly from the mount. A very long entity ID may exceed the filesystem's
+URI encoding keeps identity components readable through percent encoding.
+Hash encoding derives compact path components from SHA-256 digests. Exact paths
+vary by SDK. Use hash encoding when an identity could exceed the filesystem's
 per-name length limit, commonly 255 bytes.
 
-`FileSystemPathEncoding.HASH` replaces the ARN and the entity ID with their SHA-256
-hex digests. Names are a fixed 64 characters and are always filesystem-safe
-regardless of the input characters or length. Choose `HASH` when entity IDs may
-contain characters that are unsafe in a file name, such as `/`, or may be long
-enough to exceed the name-length limit.
-
 === "TypeScript"
+
+    `URI` writes `<functionName>/<executionName>/<invocationId>/<encoded entityId>.json`
+    under the base path, using `encodeURIComponent` for the entity ID; an ARN with an
+    unexpected shape becomes one encoded directory segment.
+    `HASH` uses the 64-character SHA-256 hex digests of the ARN and entity ID for
+    the directory and file name, with a `.json` suffix on the file.
 
     ```typescript
     --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-path-encoding.ts"
@@ -748,13 +817,26 @@ enough to exceed the name-length limit.
 
 === "Python"
 
+    `URI` writes `<functionName>/<executionName>/<invocationId>/<encoded operation_id>.json`
+    under the base path, using `quote(safe="")` for the operation ID; an ARN with an
+    unexpected shape becomes one encoded directory segment.
+    `HASH` uses the 64-character SHA-256 hex digests of the ARN and operation ID for
+    the directory and file name, with a `.json` suffix on the file.
+
     ```python
     --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-path-encoding.py"
     ```
 
 === "Java"
 
-    Coming soon.
+    `URI` percent-encodes each slash-separated segment of the full execution
+    ARN and the entire entity ID. `HASH` replaces the full ARN and entity ID
+    with their SHA-256 hex digests. Each file also has a unique suffix so a
+    later serialization cannot overwrite a checkpointed value.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-path-encoding.java"
+    ```
 
 === "Go"
 
@@ -785,15 +867,12 @@ enough to exceed the name-length limit.
 
 When the FileSystem serdes writes to a file, the checkpoint envelope only contains
 the file pointer, so the GetDurableExecution API and the AWS Console cannot show
-the actual data for that operation. Configure `generatePreview` to embed a small
-object inline so you can see the data without reading the file.
-
-Use `buildPreview` to compute the preview from a `PreviewConfig`. The config
-selects which fields to include, exclude, or mask. Masking replaces a field's value
-with `***` or a custom string. The preview object is capped at 4096 bytes by
-default.
+the actual data for that operation. Configure a preview generator to embed a
+small object inline so you can see selected data without reading the file.
 
 === "TypeScript"
+
+    Pass a `PreviewConfig` to `buildPreview` inside `generatePreview`.
 
     ```typescript
     --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-preview.ts"
@@ -822,6 +901,8 @@ default.
 
 === "Python"
 
+    Pass a `PreviewConfig` to `build_preview` inside `generate_preview`.
+
     ```python
     --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-preview.py"
     ```
@@ -849,7 +930,15 @@ default.
 
 === "Java"
 
-    Coming soon.
+    Set `previewGenerator` to produce an allowlisted summary.
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-preview.java"
+    ```
+
+    The file pointer and preview together must fit within 255 KiB. An oversized
+    preview fails serialization and removes the unpublished file. Previews
+    appear in checkpoint APIs, so omit sensitive fields deliberately.
 
 === "Go"
 
@@ -881,11 +970,12 @@ default.
 
 ### Set as the default for the handler
 
-When you want every step result, child-context result, invoke result, and
-waitForCondition result in the handler to use the FileSystem serdes, configure it
-once with `configureSerdes`.
+SDKs differ in whether the FileSystem serdes can be the handler-wide default.
+Use the configuration for your language below.
 
 === "TypeScript"
+
+    Configure the handler's default serdes with `context.configureSerdes`.
 
     ```typescript
     --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-default.ts"
@@ -902,8 +992,14 @@ once with `configureSerdes`.
 
 === "Java"
 
-    Coming soon. See
-    [aws-durable-execution-sdk-java#463](https://github.com/aws/aws-durable-execution-sdk-java/issues/463).
+    Do not pass `FileSystemSerDes` to `DurableConfig.withSerDes`: the global
+    serializer also handles Lambda input and output without operation identity.
+    Instead, share one serializer and operation config across the operations
+    that need it:
+
+    ```java
+    --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-default.java"
+    ```
 
 === "Go"
 
