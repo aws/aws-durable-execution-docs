@@ -603,8 +603,7 @@ CI.
 
 === "Python"
 
-    The local runner provides experimental pause and resume methods to exercise
-    checkpoint-token revocation:
+    The local runner provides experimental pause and resume methods:
 
     ```python
     pause_execution(execution_arn: str, timeout: float = 60) -> None
@@ -620,8 +619,8 @@ CI.
 
 === "Java"
 
-    The experimental `pauseExecution()` and `resumeExecution()` methods simulate
-    checkpoint-token revocation. While paused, checkpoints preserve accepted
+    The local runner provides experimental `pauseExecution()` and
+    `resumeExecution()` methods. While paused, checkpoints preserve accepted
     updates but omit the token, and `runUntilComplete` returns `PENDING`.
     Resume, then call the runner again to replay. Waits and callbacks can still
     be completed while paused.
@@ -1278,12 +1277,10 @@ shared set of accessors.
     operation.end_timestamp: datetime | None
     ```
 
-    Subtypes are strings, including custom labels. Compare them with `==`;
-    do not read `.value` or compare with `is`. `OperationSubType` constants
-    remain available from `aws_durable_execution_sdk_python.lambda_service`.
-    Testing SDK 1.4.0 requires Core 3 and records custom subtypes. The local
-    service simulator does not validate subtype syntax, so keep the core
-    SDK's configuration validation in your tests.
+    `sub_type` holds a built-in label from `OperationSubType` in
+    `aws_durable_execution_sdk_python.lambda_service`, or a custom label.
+    `OperationSubType` is a `StrEnum`, so `operation.sub_type == OperationSubType.MAP`
+    is true for the operation that `context.map()` records.
 
 === "Java"
 

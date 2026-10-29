@@ -1021,9 +1021,9 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
     `result.all` at all. Branches that had started but not completed yet appear with status
     `STARTED`.
 
-    After early completion, no new branches start. Already recorded outcomes
-    remain available on replay, and unfinished work from abandoned branches
-    does not keep an otherwise idle invocation from suspending.
+    After early completion, no new branches start. Replay returns the outcomes
+    already recorded. The invocation can suspend without waiting for abandoned
+    branches to finish.
 
     | `completionConfig`             | Early exit `completionReason` | Full completion `completionReason` |
     | ------------------------------ | ----------------------------- | ---------------------------------- |

@@ -988,9 +988,8 @@ abandoned items, but cancellation is not guaranteed.
     started yet do not appear in `result.all`. Items that had started but not completed
     appear with status `STARTED`.
 
-    After early completion, no new items start. Already recorded outcomes
-    remain available on replay, and unfinished work from abandoned items
-    does not keep an otherwise idle invocation from suspending.
+    After early completion, no new items start. Replay returns the outcomes already
+    recorded. The invocation can suspend without waiting for abandoned items to finish.
 
     | `completionConfig`             | Early exit `completionReason` | Full completion `completionReason` |
     | ------------------------------ | ----------------------------- | ---------------------------------- |
