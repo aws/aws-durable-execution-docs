@@ -187,12 +187,13 @@ Each SDK uses a default SerDes when you do not provide one.
     - `deserialize(String data, TypeToken<T> typeToken)` Converts the JSON string back to
         type `T`. Returns `null` if `data` is `null`.
 
-    Operation payloads use the overloads that accept `SerDesContext`, added in
-    SDK 2.3.0. `durableExecutionArn()` identifies the execution, and `entityId()`
-    identifies the operation payload and its role, such as result or exception.
-    Default overload implementations delegate to the original methods, keeping
-    existing serializers compatible. A storage serializer must preserve old
-    references when the same entity is serialized again.
+    For operation payloads, the SDK calls the overloads that take a `SerDesContext`.
+    `durableExecutionArn()` identifies the execution, and `entityId()` identifies the
+    operation payload and its role, such as result or exception. By default, these
+    overloads call `serialize(Object value)` and
+    `deserialize(String data, TypeToken<T> typeToken)`. A serializer that stores
+    payloads outside the checkpoint must keep earlier payloads readable when it
+    serializes the same entity again.
 
     Use `TypeToken<T>` to capture generic type information that Java erases at runtime. For
     example: `new TypeToken<List<String>>() {}`.
@@ -511,10 +512,7 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
 - [Amazon S3 Files](https://docs.aws.amazon.com/lambda/latest/dg/configuration-filesystem-s3files.html).
     Serverless file system for mounting an Amazon S3 bucket. Amazon S3 Files
     provides access to Amazon S3 objects as files using standard file system
-    operations such as read and write on the local mount path. A mount with
-    delayed remote synchronization can lose recent writes after a runtime
-    failure even if a local flush succeeded. Account for that durability
-    boundary when choosing storage for checkpointed results.
+    operations such as read and write on the local mount path.
 
 Retain result files for the execution's full replay lifetime and arrange cleanup
 externally. The filesystem serializers do not delete published result files.
@@ -548,7 +546,7 @@ externally. The filesystem serializers do not delete published result files.
 
 === "Java"
 
-    `FileSystemSerDes` ships in the main Java SDK artifact starting with 2.3.0.
+    `FileSystemSerDes` is part of the `aws-durable-execution-sdk-java` artifact.
     Configure it per operation with `StepConfig.serDes`,
     `RunInChildContextConfig.serDes`, `MapConfig.serDes`,
     `ParallelBranchConfig.serDes`, or `WaitForConditionConfig.serDes`.
@@ -564,12 +562,12 @@ externally. The filesystem serializers do not delete published result files.
     Every successful serialization creates a new immutable file, including
     repeated writes for one entity during retries or polling.
 
-    Callback and invoke results must already use the filesystem envelope and
-    a shared mount accessible at the same absolute path. Ordinary JSON does
-    not become a file reference automatically. For a normally encoded invoke
+    If you set `files` on `CallbackConfig` or `InvokeConfig`, the producer must
+    send a filesystem envelope, and both sides must mount the same absolute path.
+    Ordinary JSON does not become a file reference automatically. For a normally encoded invoke
     request and an offloaded response, use
     `InvokeConfig.builder().payloadSerDes(new JacksonSerDes()).serDes(files)`.
-    See the [Java filesystem guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/v3.0.0/docs/advanced/filesystem-serdes.md)
+    See the [Java filesystem guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/main/docs/advanced/filesystem-serdes.md)
     for producer-side serialization.
 
 === "Go"
@@ -807,11 +805,23 @@ per-name length limit, commonly 255 bytes.
 
 === "TypeScript"
 
+    `URI` writes `<functionName>/<executionName>/<invocationId>/<encoded entityId>.json`
+    under the base path, using `encodeURIComponent` for the entity ID; an ARN with an
+    unexpected shape becomes one encoded directory segment.
+    `HASH` uses the 64-character SHA-256 hex digests of the ARN and entity ID for
+    the directory and file name, with a `.json` suffix on the file.
+
     ```typescript
     --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-path-encoding.ts"
     ```
 
 === "Python"
+
+    `URI` writes `<functionName>/<executionName>/<invocationId>/<encoded operation_id>.json`
+    under the base path, using `quote(safe="")` for the operation ID; an ARN with an
+    unexpected shape becomes one encoded directory segment.
+    `HASH` uses the 64-character SHA-256 hex digests of the ARN and operation ID for
+    the directory and file name, with a `.json` suffix on the file.
 
     ```python
     --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-path-encoding.py"
@@ -862,6 +872,8 @@ small object inline so you can see selected data without reading the file.
 
 === "TypeScript"
 
+    Pass a `PreviewConfig` to `buildPreview` inside `generatePreview`.
+
     ```typescript
     --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-preview.ts"
     ```
@@ -888,6 +900,8 @@ small object inline so you can see selected data without reading the file.
     into a plain object at the array's path rather than preserving array structure.
 
 === "Python"
+
+    Pass a `PreviewConfig` to `build_preview` inside `generate_preview`.
 
     ```python
     --8<-- "examples/python/sdk-reference/serialization/filesystem-serdes-preview.py"
@@ -916,8 +930,7 @@ small object inline so you can see selected data without reading the file.
 
 === "Java"
 
-    Set `previewGenerator` to produce an allowlisted summary. Java has no
-    `buildPreview` helper or automatic 4096-byte preview cap.
+    Set `previewGenerator` to produce an allowlisted summary.
 
     ```java
     --8<-- "examples/java/sdk-reference/serialization/filesystem-serdes-preview.java"
@@ -961,6 +974,8 @@ SDKs differ in whether the FileSystem serdes can be the handler-wide default.
 Use the configuration for your language below.
 
 === "TypeScript"
+
+    Configure the handler's default serdes with `context.configureSerdes`.
 
     ```typescript
     --8<-- "examples/typescript/sdk-reference/serialization/filesystem-serdes-default.ts"
