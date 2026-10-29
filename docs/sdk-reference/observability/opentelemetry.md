@@ -61,27 +61,22 @@ gets a fresh plugin while providers and exporters remain shared.
 === "TypeScript"
 
     ```bash
-    npm install @aws/durable-execution-sdk-js@^3 @aws/durable-execution-sdk-js-otel@^2 \
+    npm install @aws/durable-execution-sdk-js-otel \
       @opentelemetry/api \
       @opentelemetry/core \
       @opentelemetry/sdk-trace-node
     ```
 
-    `@aws/durable-execution-sdk-js-otel` 2.x requires Core SDK 3.x and Node.js 22
-    or later. The OpenTelemetry packages are peer dependencies used by the
-    configured provider or telemetry layer. Keep SDK and plugin versions
-    compatible in application bundles and Lambda layers.
+    The TypeScript plugin requires Node.js 22 or later. The OpenTelemetry
+    packages are peer dependencies used by the configured provider or telemetry
+    layer.
 
 === "Python"
-
-    `aws-durable-execution-sdk-python-otel` 2.x requires Core SDK 3.x.
-    The standalone extra requires `opentelemetry-sdk>=1.20.0`; the plugin's
-    version number does not refer to the OpenTelemetry library version.
 
     When a Lambda telemetry layer supplies the OpenTelemetry libraries:
 
     ```bash
-    pip install "aws-durable-execution-sdk-python-otel>=2,<3"
+    pip install aws-durable-execution-sdk-python-otel
     ```
 
     The base package intentionally does not install OpenTelemetry libraries,
@@ -92,7 +87,7 @@ gets a fresh plugin while providers and exporters remain shared.
     extra:
 
     ```bash
-    pip install "aws-durable-execution-sdk-python-otel[standalone]>=2,<3"
+    pip install "aws-durable-execution-sdk-python-otel[standalone]"
     ```
 
 === "Java"
@@ -105,7 +100,7 @@ gets a fresh plugin while providers and exporters remain shared.
     </dependency>
     ```
 
-    Set `durable.sdk.version` to `3.0.0` for both SDK and plugin artifacts.
+    Set `durable.sdk.version` to the version of the Java SDK you use.
     Add an exporter dependency when the application supplies its own tracer
     provider. The ADOT Java agent supplies the export pipeline for the no-arg
     plugin factories.
@@ -246,21 +241,14 @@ described below.
 
 === "TypeScript"
 
-    The default extractor reads the invocation-local `xRayTraceId` carrier
-    before `_X_AMZN_TRACE_ID`. It uses the environment variable only when no
-    carrier is exposed. A present but empty or invalid carrier does not fall
-    back to another invocation's process header.
+    The default extractor reads the X-Ray trace header from
+    `InvocationInfo.xRayTraceId`. It falls back to `_X_AMZN_TRACE_ID` only when
+    `InvocationInfo` has no `xRayTraceId` field.
 
-    Custom instrumentation can use `deriveExecutionTraceId(environment, executionArn, executionStartTimestamp?, invocation?)` from the OTel package.
-    It returns the canonical 32-character hex trace ID. Pass the stable
-    execution-start timestamp and current invocation carrier so fallback IDs
-    and runtime-header selection agree with the plugin.
-
-    With a stable execution-start timestamp and a compatible durable sampler,
-    a sampled fallback trace can export its synthetic root at invocation
-    start. This zero-duration span anchors identity; `Workflow` still reports
-    execution duration and terminal outcome. An opaque sampler retains the
-    terminal-only fallback.
+    To compute the plugin's trace ID in custom instrumentation, call
+    `deriveExecutionTraceId(environment, executionArn, executionStartTimestamp?, invocation?)`
+    from the OTel package. Pass the same execution start timestamp and
+    `InvocationInfo` that the plugin receives.
 
 === "Python"
 
@@ -328,12 +316,12 @@ time. Fallback mode ignores unrelated ambient context. TypeScript, Python, and
 Java use this same topology with global and application-owned providers. The
 selected sampling decision applies consistently to every descendant.
 
-For a new durable invoke, the TypeScript, Python, and Java plugins can supply
-calling-operation trace metadata in the START checkpoint without changing the
-application payload. The metadata includes the effective sampling decision,
-including an unsampled decision. Providers that cannot establish the required
-trace and sampling context omit the header. Existing checkpointed invokes keep
-their recorded identity on replay.
+When a durable function invokes another durable function, the plugins pass an X-Ray
+trace header with the invoke, outside the payload. The header places the invoked
+execution's spans under the invoke operation's span and carries the caller's sampling
+decision, including an unsampled one. When a plugin cannot determine the trace context,
+it omits the header, and the invoked execution inherits the calling execution's trace
+header. A replayed invoke keeps the header it started with.
 
 ## Span structure and attributes
 
@@ -352,11 +340,6 @@ attempts, so retries appear as sibling spans.
 `durable.operation.type` includes `STEP`, `WAIT`, `CONTEXT`, `CHAINED_INVOKE`,
 and `CALLBACK`. A `CONTEXT` operation gets an operation span but not a separate
 attempt span.
-
-=== "TypeScript"
-
-    The execution view reports `faas.max_memory` on invocation spans in
-    bytes. A 1024 MiB function reports `1073741824`.
 
 ## Deploy with the ADOT layer
 
@@ -700,7 +683,7 @@ Tracing: Active
     Install the standalone dependencies and an OTLP HTTP exporter:
 
     ```bash
-    pip install "aws-durable-execution-sdk-python-otel[standalone]>=2,<3" \
+    pip install "aws-durable-execution-sdk-python-otel[standalone]" \
       opentelemetry-exporter-otlp-proto-http
     ```
 

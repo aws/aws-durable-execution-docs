@@ -8,9 +8,8 @@ or trace span each time an operation runs. Ordinary hook failures are caught and
 logged so instrumentation does not change the execution outcome. Invalid plugin
 registrations fail configuration before the handler runs.
 
-This page describes the factory contract in TypeScript, Python, and Java SDK
-3.x. Register a factory that creates a fresh plugin for every Lambda invocation,
-including each resume and each concurrent request on Lambda Managed Instances.
+Register a factory that creates a fresh plugin for every Lambda invocation, including
+each resume and each concurrent request on Lambda Managed Instances.
 
 !!! note "Go support"
 
@@ -105,7 +104,7 @@ or reaches a terminal status.
     500 ms before the invocation deadline. It then awaits `onInvocationEnd`
     until 50 ms before the deadline. These limits stop waiting without
     cancelling pending work. Without a usable deadline, both waits continue
-    until the work settles. `onInvocationStart` remains awaited.
+    until the work settles. The SDK waits for `onInvocationStart` with no deadline.
 
 === "Python"
 
@@ -208,11 +207,10 @@ that you register the same way.
     ```
 
     A `DurableInstrumentationPluginFactory` has a synchronous
-    `createPlugin(info)` method. The SDK rejects a plugin instance, bare
-    function, or old provider with `pluginApiVersion` with `PluginLoadError`.
-    Every invocation returns that error as a `FAILED` result before your handler
-    runs. Environment-loaded modules still export `durableExecutionPluginProvider`,
-    but that export must be a factory.
+    `createPlugin(info)` method. If you register anything other than a factory,
+    every invocation returns `FAILED` with a `PluginLoadError` before your handler
+    runs. A module listed in `DURABLE_EXECUTION_PLUGINS` exports its factory as
+    `durableExecutionPluginProvider`.
 
 === "Python"
 
@@ -236,7 +234,6 @@ that you register the same way.
     `createPlugin(InvocationInfo)`. ServiceLoader providers implement
     `DurableExecutionPluginProvider`, which extends the factory interface with
     `getName()`. `DURABLE_EXECUTION_PLUGINS` selects providers by that name.
-    Rebuild provider JARs and Lambda layers against SDK 3.x.
     Use `DurableConfig.toBuilder()` to preserve resolved factories when
     copying configuration, and `getPluginFactories()` to inspect them.
 

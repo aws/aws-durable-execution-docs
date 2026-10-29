@@ -12,10 +12,10 @@ exporter failure never fails the execution.
 === "TypeScript"
 
     ```bash
-    npm install @aws/durable-execution-sdk-js-telemetry-exporter@^1
+    npm install @aws/durable-execution-sdk-js-telemetry-exporter
     ```
 
-    Exporter 1.x requires Core SDK 3.x and Node.js 22 or later. The AWS SDK clients that the AWS
+    The exporter requires Node.js 22 or later. The AWS SDK clients that the AWS
     exporters use are optional peer dependencies. The Lambda Node.js runtime already
     provides them. The package imports all 12 of them when it loads, so when you bundle
     your own dependencies or run outside Lambda, install all 12, even for exporters you
@@ -31,11 +31,11 @@ exporter failure never fails the execution.
 === "Python"
 
     ```bash
-    pip install "aws-durable-execution-sdk-python-telemetry-exporter>=1,<2"
+    pip install aws-durable-execution-sdk-python-telemetry-exporter
     ```
 
-    Exporter 1.x requires Core SDK 3.x and Python 3.11 or later. Core SDK 3.x
-    already installs `boto3`, which the AWS exporters use.
+    The exporter requires Python 3.11 or later. The AWS exporters use `boto3`, a
+    dependency of the Durable Execution SDK.
 
 === "Java"
 
@@ -47,7 +47,7 @@ exporter failure never fails the execution.
     </dependency>
     ```
 
-    Set `durable.sdk.version` to `3.0.0` for the SDK and exporter.
+    Set `durable.sdk.version` to the version of the Java SDK you use.
     The exporter requires Java 17 or later. The AWS SDK for Java 2.x clients are
     optional dependencies. Add the client for each AWS exporter you use, for example
     `software.amazon.awssdk:s3` for `S3Exporter` or `software.amazon.awssdk:dynamodb`

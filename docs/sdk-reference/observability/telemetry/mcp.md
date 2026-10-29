@@ -20,9 +20,9 @@ agent can ask a question without writing a query for that store by hand. You ask
 agent a question, such as which steps in `order-processor` failed most often in the last
 24 hours, and the agent picks the tools.
 
-The server runs on your machine and validates query text before execution. Version
-1.0 also requires the user to accept the risk of writes before data queries run. Your
-credentials decide what queries can actually do, as described in
+The server runs on your machine and validates query text before execution. It also
+requires the user to accept the risk of writes before data queries run. Your credentials
+decide what queries can actually do, as described in
 [Read-only access and data handling](#read-only-access-and-data-handling). It makes no
 model calls of its own. It is a Node.js package and requires Node.js 22.12 or later.
 
