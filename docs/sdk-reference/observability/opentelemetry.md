@@ -255,13 +255,6 @@ absent or unusable value does not mean that the upstream system explicitly
 chose not to sample. Its OpenTelemetry span context still represents the value
 with an unset sampled bit.
 
-A `ParentBased` sampler treats a remote parent with an unset sampled bit as not
-sampled. A directly configured non-parent-based `TraceIdRatioBased` sampler can
-decide from the canonical trace ID instead. The reused or derived trace ID
-remains stable across reinvocations, so trace-ID-ratio decisions also remain
-stable. Other sampler decisions can change between reinvocations unless the
-application persists them.
-
 When `Root` and `Parent` are valid, the normal hierarchy is:
 
 ```text
@@ -296,6 +289,40 @@ plugins derive the trace ID from the execution ARN and stable execution start
 time. Fallback mode ignores unrelated ambient context. TypeScript, Python, and
 Java use this same topology with global and application-owned providers. The
 selected sampling decision applies consistently to every descendant.
+
+### Supported sampling modes
+
+Both the execution and invocation views support two sampling modes:
+
+1. **An authoritative upstream decision.** An explicit `Sampled=0` or
+    `Sampled=1` in valid propagated context takes precedence over the local
+    sampler. The plugins preserve that decision for durable spans without
+    consulting the local sampler.
+1. **A deterministic trace ID policy.** Without an authoritative upstream
+    decision, sampling must be a deterministic function of the execution's
+    stable canonical trace ID. Keep the policy and its configuration unchanged
+    across retries and reinvocations, including invocations in another process.
+    The same trace ID must produce the same decision every time.
+
+Constant policies such as `always_on` and `always_off` satisfy the deterministic
+requirement. A trace ID ratio policy such as `traceidratio` with a fixed ratio
+also satisfies it. For example, a ratio of `0.5` selects entire execution traces;
+it does not select operations or invocations independently.
+
+Keep the plugin's sampling integration installed when configuring the provider.
+If propagated context contains `Sampled=1`, durable spans remain sampled even
+with `OTEL_TRACES_SAMPLER=always_off` or `traceidratio`. With `Sampled=0`, durable
+spans are not sampled even with `always_on`. ADOT and application spans continue
+to use their own provider sampling policy. Enabling Lambda active tracing does
+not itself imply `Sampled=1`; inspect the propagated header for the decision.
+
+Without an authoritative upstream decision, local samplers that can change their
+decision for the same trace ID based on random values, time, load, or mutable state
+are unsupported. They can produce
+missing invocations, operations, or a missing terminal Workflow span. The
+plugins do not checkpoint sampling decisions across invocations. In-memory
+caching does not provide durable persistence or make a non-deterministic
+sampling policy supported.
 
 ## Span structure and attributes
 
@@ -799,8 +826,10 @@ Tracing: Active
     var plugin = new InvocationOtelPlugin(config);
     ```
 
-Configure sampling through the provider. With ADOT, use the standard
-`OTEL_TRACES_SAMPLER` and `OTEL_TRACES_SAMPLER_ARG` environment variables.
+Configure a [supported sampling mode](#supported-sampling-modes) through the
+provider. With ADOT, use the standard `OTEL_TRACES_SAMPLER` and
+`OTEL_TRACES_SAMPLER_ARG` environment variables. These settings do not override
+an authoritative upstream decision for durable spans.
 
 ## Load plugins dynamically
 
@@ -901,8 +930,14 @@ If no plugin spans appear:
 - For Java ADOT, confirm the plugin JAR is listed in
     `OTEL_JAVAAGENT_EXTENSIONS`.
 - Check `_X_AMZN_TRACE_ID` and provider sampling configuration. An explicit
-    `Sampled=0` suppresses export, and `ParentBased` treats a missing sampled bit
-    as not sampled.
+    `Sampled=0` suppresses export. Without an authoritative upstream decision,
+    use a [supported sampling mode](#supported-sampling-modes).
+
+If only some invocations or the terminal Workflow span are missing and no
+authoritative upstream decision exists, confirm that the local sampling policy is
+deterministic for the trace ID and its configuration has not changed during the
+execution. Local random or stateful sampling decisions that vary between
+invocations are unsupported.
 
 If spans carrying one execution ARN use different trace IDs, confirm active
 tracing is enabled and that every invocation uses the same current plugin and
