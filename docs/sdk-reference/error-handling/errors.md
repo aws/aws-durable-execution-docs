@@ -197,6 +197,12 @@ error and the operation details.
     `DurableOperationException` carries the failed `Operation` and its `ErrorObject`. Use
     `getOperation()`, `getErrorObject()`, and `getOperationStatus()` to inspect the failure.
 
+    `CallbackFailedException` reports an external callback failure. In Java 3.0.1 and
+    later, its message contains the supplied error type alone when the error message is
+    missing or empty. When both are missing or empty, the message is `Callback failed`.
+    When both are supplied, the message is `errorType: errorMessage`. The checkpointed
+    `ErrorObject` retains the original fields.
+
     `StepFailedException` is thrown when a step exhausts all retry attempts.
 
     `StepInterruptedException` is thrown when an at-most-once step started but Lambda was

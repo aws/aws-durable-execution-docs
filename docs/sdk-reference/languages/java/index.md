@@ -6,6 +6,11 @@ serialization, and local/cloud testing utilities.
 
 The SDK supports Java 17 and newer. Virtual threads require Java 21.
 
+When upgrading from 2.x, follow the
+[Java 3 migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/v3.0.1/docs/migration-2.x-to-3.x.md).
+Keep the SDK, testing library, OpenTelemetry plugin, and telemetry exporter on the same
+release version. Java 3.0.1 preserves the public APIs and checkpoint format of 3.0.0.
+
 ## Installation
 
 Add the execution SDK to the Lambda function package. Replace the version with the
@@ -16,7 +21,7 @@ latest release from
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java</artifactId>
-    <version>2.2.0</version>
+    <version>3.0.1</version>
 </dependency>
 <dependency>
     <groupId>com.amazonaws</groupId>
@@ -31,7 +36,7 @@ For local and cloud tests, add the testing SDK in test scope:
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
-    <version>2.2.0</version>
+    <version>3.0.1</version>
     <scope>test</scope>
 </dependency>
 ```

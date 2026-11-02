@@ -100,7 +100,7 @@ CloudWatch.
     <dependency>
         <groupId>software.amazon.lambda.durable</groupId>
         <artifactId>aws-durable-execution-sdk-java-plugin-otel</artifactId>
-        <version>${durable.sdk.version}</version>
+        <version>3.0.1</version>
     </dependency>
     ```
 
@@ -234,6 +234,20 @@ For both plugins, your observability platform's quotas and limits apply.
 | In-progress visibility | Limited until operations and the execution complete       | Each invocation appears as it completes               |
 | Better for             | Short executions and a workflow-centered hierarchy        | Long executions and an invocation-centered hierarchy  |
 | Platform compatibility | Long-open spans can exceed platform ingestion time limits | Spans stay within the Lambda invocation time limit    |
+
+## Operation errors
+
+=== "Java"
+
+    In Java 3.0.1 and later, both plugins report a failed operation's stored
+    `ErrorObject.errorType` as the exception event's `exception.type`, including error
+    types from other languages. If the stored type is missing, empty, or whitespace-only,
+    the event reports the Java throwable's type instead.
+
+    The event retains the throwable's message and stack trace. This mapping applies to
+    operation spans; attempt, workflow, and invocation exception events retain their
+    existing reporting behavior. For callback failure messages, see
+    [Java exceptions](../error-handling/errors.md#exception-types).
 
 ## Trace parent and sampling
 

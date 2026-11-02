@@ -22,7 +22,7 @@
     <dependency>
       <groupId>software.amazon.lambda.durable</groupId>
       <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
-      <version>2.2.0</version>
+      <version>3.0.1</version>
       <scope>test</scope>
     </dependency>
     ```

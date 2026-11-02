@@ -48,7 +48,7 @@ exporter failure never fails the execution.
     <dependency>
         <groupId>software.amazon.lambda.durable</groupId>
         <artifactId>aws-durable-execution-sdk-java-plugin-telemetry-exporter</artifactId>
-        <version>${durable.sdk.version}</version>
+        <version>3.0.1</version>
     </dependency>
     ```
 
