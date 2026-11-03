@@ -382,7 +382,8 @@ another copy. `Workflow` carries duration and outcome; the fallback root carries
 neither. Remote backend spans are owned by the backend and are never exported
 by the plugin.
 
-Configure sampling through the provider, or through `OTEL_TRACES_SAMPLER` and
+Configure a [supported sampling mode](#supported-sampling-modes) through the provider,
+or through `OTEL_TRACES_SAMPLER` and
 `OTEL_TRACES_SAMPLER_ARG` when using auto-configuration. Keep the plugin's sampler
 integration installed so durable spans share the resolved decision while other
 instrumentation retains its own policy.
@@ -410,9 +411,40 @@ instrumentation retains its own policy.
     provider-builder and agent-extension paths, as the final sampler. Replacing
     it with a plain sampler removes the shared-decision guarantee.
 
-Sampling decisions are not checkpointed across invocations. An explicit upstream
-decision or deterministic trace-ID-based policy keeps them consistent across
-resumes; a stateful custom sampler can choose differently on a later invocation.
+### Supported sampling modes
+
+These rules apply to TypeScript core 3.0.0 / OTel 2.0.0, Python core 3.0.1 / OTel 2.0.0,
+and Java SDK/plugin 3.0.1, in both views:
+
+- **Explicit upstream decision:** a valid `Sampled=0` or `Sampled=1` overrides the
+    local sampler for durable spans. Thus `Sampled=1` still exports durable spans
+    with local `always_off`, and `Sampled=0` drops them with local `always_on`.
+    Active tracing alone does not imply `Sampled=1`.
+- **Otherwise:** use a deterministic policy based on the canonical trace ID, such
+    as `always_on`, `always_off`, or `traceidratio` with a fixed ratio. For
+    `traceidratio`, `OTEL_TRACES_SAMPLER_ARG=0.5` selects whole execution traces when
+    the local policy is consulted.
+
+Keep the policy, ratio, and any inherited upstream or ambient decision stable across
+retries, resumes, and processes. Random, time-, load-, or mutable-state-dependent
+policies are unsupported and can produce partial traces. The plugins do not
+checkpoint sampling decisions; caching or application persistence does not make
+another policy supported.
+
+The provider or auto-configuration layer resolves the environment settings, defaults,
+and invalid values. They do not override an explicitly configured application
+provider. Keep the plugin's sampler integration installed; other application and
+ADOT spans retain their own policy.
+
+[Issue #295](https://github.com/aws/aws-durable-execution-docs/issues/295) proposes
+letting the configured sampler decide whether to inherit upstream sampling, using
+standard direct and `parentbased_*` semantics. That change is not available in the
+versions above; follow the issue for runtime support and migration guidance.
+
+Sampling does not guarantee export or a complete parent tree: a durable span may be
+sampled while its application parent is dropped, or its native X-Ray parent may be
+absent from OTLP. See [missing parents](#missing-parents-in-an-otlp-backend) to distinguish
+sampling, raw export, and backend/UI results.
 
 ## Span attributes and failures
 
@@ -498,7 +530,8 @@ Span links correlate the two views but do not change parent-child relationships;
 CloudWatch does not currently visualize these links.
 
 If spans are missing, check provider warnings, exporter configuration, the layer's
-execution wrapper, and sampling. For Java agents, also check `OTEL_JAVAAGENT_EXTENSIONS`.
+execution wrapper, and [sampling](#supported-sampling-modes). For Java agents, also check
+`OTEL_JAVAAGENT_EXTENSIONS`.
 `Workflow` requires a terminal invocation to export it. An unresolved parent can
 belong to the remote backend or an undelivered fallback root.
 
