@@ -140,6 +140,8 @@ and region:
 | OpenTelemetry community language layer | `/opt/otel-handler`       | [Lambda auto-instrumentation](https://opentelemetry.io/docs/platforms/faas/lambda-auto-instrument/) |
 
 Enable active tracing to receive the durable backend's X-Ray trace context.
+OTLP-only backends may lack the referenced native Lambda spans; see
+[missing parents in an OTLP backend](#missing-parents-in-an-otlp-backend).
 For ADOT, add these properties to your existing SAM function and grant its role
 `AWSXRayDaemonWriteAccess` to export traces to CloudWatch through X-Ray:
 
@@ -499,6 +501,34 @@ If spans are missing, check provider warnings, exporter configuration, the layer
 execution wrapper, and sampling. For Java agents, also check `OTEL_JAVAAGENT_EXTENSIONS`.
 `Workflow` requires a terminal invocation to export it. An unresolved parent can
 belong to the remote backend or an undelivered fallback root.
+
+### Missing parents in an OTLP backend
+
+With Lambda active tracing, a remote parent can be a native Lambda segment exported
+only to X-Ray. The durable plugin preserves that external parent without re-exporting
+it, so a shared trace ID does not guarantee a complete parent tree in an OTLP backend.
+
+To locate a missing parent:
+
+1. Query all spans for the trace ID. Filtering by `durable.execution.arn` can hide
+    vendor or application ancestors already stored in the backend.
+1. Compare unresolved parent IDs with raw OTLP exports and native X-Ray segments.
+    A parent found only in X-Ray identifies the export boundary.
+1. If the parent is in the OTLP export, check backend ingestion, query filters,
+    and UI rendering.
+
+`DASH0_XRAY_TRACES_ENABLED=true` does not import native X-Ray segments into OTLP.
+[Issue #297](https://github.com/aws/aws-durable-execution-docs/issues/297) records
+this limitation with JavaScript source `721217ae` and Dash0 Node layer v26 across
+both views and multiple resumes, with X-Ray mode off and on. Those captures do not
+qualify Dash0 backend/UI behavior or Python and Java combinations.
+
+For native Lambda platform spans, use an integration that receives both OTLP spans
+and their X-Ray ancestors. The alternative tracked in #297 uses a real caller span
+exported to the same backend, propagates its context and sampling decision, and
+selects `PassThrough` while retaining application instrumentation. It gives up native
+Lambda X-Ray platform tracing and remains unvalidated end to end. Do not treat it as
+a supported workaround.
 
 ## See also
 
