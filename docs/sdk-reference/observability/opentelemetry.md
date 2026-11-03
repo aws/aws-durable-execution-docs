@@ -58,12 +58,20 @@ instances cannot be registered with the 3.x factory API.
 Register one OTel view factory. The SDK creates a separate plugin instance for
 each invocation, while the provider can be shared across invocations.
 
-| Aspect                          | Execution view                           | Invocation view                                                                         |
-| ------------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------- |
-| Top-level operation parent      | `Workflow`                               | Current `Invocation`                                                                    |
-| Operation and attempt links     | Current `Invocation`                     | `Workflow`                                                                              |
-| Operation spanning a suspension | One logical span, exported on completion | Separate segments across invocations; later segments link to the initial operation span |
-| Best suited to                  | Inspecting the workflow hierarchy        | Inspecting progress during long executions                                              |
+### Choosing a plugin
+
+For both views, your observability platform's quotas and limits apply.
+
+| Consideration              | Execution view                                                   | Invocation view                                                                               |
+| -------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
+| Top-level operation parent | `Workflow`                                                       | Current `Invocation`                                                                          |
+| Correlation link           | Operation or attempt to current `Invocation`                     | Operation or attempt to `Workflow`                                                            |
+| Continuation link          | Completed operation links only to the invocation that exports it | Later segment links to the initial logical operation span                                     |
+| Workflow export            | When the SDK observes execution success or failure               | When the SDK observes execution success or failure                                            |
+| Operation visibility       | When the operation completes                                     | At each invocation boundary                                                                   |
+| In-progress visibility     | Limited until operations and the execution complete              | Each invocation appears as it completes                                                       |
+| Better for                 | Shorter executions and a workflow-centered hierarchy             | Long executions and progress through individual invocations                                   |
+| Platform compatibility     | Long-open spans can exceed ingestion time limits                 | Operation segments stay within an invocation; long Workflow spans still face ingestion limits |
 
 Nested operations remain under their child-context operation span; attempts
 remain under their operation. Both views export `Invocation` spans as invocations
