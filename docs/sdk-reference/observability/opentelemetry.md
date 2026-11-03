@@ -74,7 +74,6 @@ runtime can leave spans missing.
 
 ### Invocation view
 
-Use this view to see each invocation's work as the execution progresses.
 Completed work uses checkpointed results on replay. A resumed operation or
 replayed context can produce another span segment without rerunning a completed
 step's body.
@@ -99,7 +98,6 @@ step's body.
 
 ### Execution view
 
-Use this view to keep the durable operation hierarchy beneath `Workflow`.
 An operation that suspends is exported when it completes, using its durable
 start and end times. Its span links to the invocation that exports the completion;
 it does not accumulate links to every earlier invocation.
@@ -134,9 +132,8 @@ and region:
 | OpenTelemetry community language layer | `/opt/otel-handler`       | [Lambda auto-instrumentation](https://opentelemetry.io/docs/platforms/faas/lambda-auto-instrument/) |
 
 Enable active tracing to receive the durable backend's X-Ray trace context.
-An OTLP-only backend might not receive the native Lambda spans referenced by
-that context. See [missing parents in an OTLP backend](#missing-parents-in-an-otlp-backend)
-when choosing your export path.
+OTLP-only backends may lack the referenced native Lambda spans; see
+[missing parents in an OTLP backend](#missing-parents-in-an-otlp-backend).
 For ADOT, add these properties to your existing SAM function and grant its role
 `AWSXRayDaemonWriteAccess` to export traces to CloudWatch through X-Ray:
 
@@ -408,58 +405,38 @@ instrumentation retains its own policy.
 
 ### Supported sampling modes
 
-This section describes the released TypeScript core 3.0.0 / OTel 2.0.0,
-Python core 3.0.1 / OTel 2.0.0, and Java SDK/plugin 3.0.1 behavior.
-Both the execution and invocation views support two sampling modes:
+These rules apply to TypeScript core 3.0.0 / OTel 2.0.0, Python core 3.0.1 / OTel 2.0.0,
+and Java SDK/plugin 3.0.1, in both views:
 
-1. **An authoritative upstream decision.** An explicit `Sampled=0` or
-    `Sampled=1` in valid propagated context takes precedence over the local
-    sampler. The plugins preserve that decision for durable spans without
-    consulting the local sampler. Keep the propagated decision stable across
-    retries and reinvocations.
-1. **A deterministic trace ID policy.** Without an authoritative upstream
-    decision, sampling must be a deterministic function of the execution's
-    stable canonical trace ID. Keep the policy and its configuration unchanged
-    across retries and reinvocations, including invocations in another process.
-    The same trace ID must produce the same decision every time. Any same-trace
-    ambient sampling decision inherited by Python or Java must also remain stable.
+- **Explicit upstream decision:** a valid `Sampled=0` or `Sampled=1` overrides the
+    local sampler for durable spans. Thus `Sampled=1` still exports durable spans
+    with local `always_off`, and `Sampled=0` drops them with local `always_on`.
+    Active tracing alone does not imply `Sampled=1`.
+- **Otherwise:** use a deterministic policy based on the canonical trace ID, such
+    as `always_on`, `always_off`, or `traceidratio` with a fixed ratio. For
+    `traceidratio`, `OTEL_TRACES_SAMPLER_ARG=0.5` selects whole execution traces when
+    the local policy is consulted.
 
-Constant policies such as `always_on` and `always_off` satisfy the deterministic
-requirement. A trace ID ratio policy such as `traceidratio` with a fixed ratio
-also satisfies it. For example, `OTEL_TRACES_SAMPLER=traceidratio` with
-`OTEL_TRACES_SAMPLER_ARG=0.5` selects entire execution traces when the local policy
-is consulted; it does not select operations or invocations independently.
+Keep the policy, ratio, and any inherited upstream or ambient decision stable across
+retries, resumes, and processes. Random, time-, load-, or mutable-state-dependent
+policies are unsupported and can produce partial traces. The plugins do not
+checkpoint sampling decisions; caching or application persistence does not make
+another policy supported.
 
-Keep the plugin's sampling integration installed when configuring the provider.
-If propagated context contains `Sampled=1`, durable spans remain sampled even
-with `OTEL_TRACES_SAMPLER=always_off` or `traceidratio`. With `Sampled=0`, durable
-spans are not sampled even with `always_on`. ADOT and application spans continue
-to use their own provider sampling policy. Enabling Lambda active tracing does
-not itself imply `Sampled=1`; inspect the propagated header for the decision.
-Provider or auto-configuration code resolves these environment settings. They
-are not a separate plugin configuration that overrides an application-owned
-provider's explicitly configured sampler. Consult the installed provider's
-configuration reference for defaults and invalid-value handling.
+The provider or auto-configuration layer resolves the environment settings, defaults,
+and invalid values. They do not override an explicitly configured application
+provider. Keep the plugin's sampler integration installed; other application and
+ADOT spans retain their own policy.
 
-Without an authoritative upstream decision, local samplers that can change their
-decision for the same trace ID based on random values, time, load, or mutable state
-are unsupported. They can produce missing invocations, operations, or a missing
-terminal Workflow span. The plugins do not checkpoint sampling decisions across
-invocations. In-memory caching or application persistence does not establish
-another supported sampling mode.
+[Issue #295](https://github.com/aws/aws-durable-execution-docs/issues/295) proposes
+letting the configured sampler decide whether to inherit upstream sampling, using
+standard direct and `parentbased_*` semantics. That change is not available in the
+versions above; follow the issue for runtime support and migration guidance.
 
-[Issue #295](https://github.com/aws/aws-durable-execution-docs/issues/295) tracks a
-proposed change in which the configured sampler determines whether to inherit an
-upstream decision, with direct and `parentbased_*` policies retaining their standard
-OpenTelemetry semantics. That behavior is not available in the releases listed
-above. It requires coordinated runtime changes, validation, and version-specific
-migration guidance; do not use the proposed policy matrix as the current contract.
-
-A consistent sampling decision does not guarantee delivery or a complete parent
-tree in a backend. A durable span can be sampled while its ambient application
-parent is dropped by another sampling policy. The backend can also lack native
-X-Ray ancestors because of the [export boundary](#missing-parents-in-an-otlp-backend).
-Check sampling, raw exported spans, and backend/UI results separately.
+Sampling does not guarantee export or a complete parent tree: a durable span may be
+sampled while its application parent is dropped, or its native X-Ray parent may be
+absent from OTLP. See [missing parents](#missing-parents-in-an-otlp-backend) to distinguish
+sampling, raw export, and backend/UI results.
 
 ## Span attributes and failures
 
@@ -488,27 +465,18 @@ a backend can report failure without diagnostic details.
 
 === "Python"
 
-    Released OTel 2.0.0 can leave a failed operation's status as `UNSET` when no
-    error object is supplied. Two fixes are merged on `main` but are not included
-    in that release:
-
-    - [PR #865](https://github.com/aws/aws-durable-execution-sdk-python/pull/865)
-        marks `FAILED`, `TIMED_OUT`, and `STOPPED` operations as `ERROR` even when
-        diagnostics are absent, and places terminal exception events at the span's
-        normalized end time.
-    - [PR #901](https://github.com/aws/aws-durable-execution-sdk-python/pull/901)
-        emits only the checkpointed exception fields, without inventing a missing
-        type, message, or stack trace. It omits the exception event when neither a
-        type nor a message was stored; the span status still records the failure.
+    In OTel 2.0.0, a failed operation without an error object can remain `UNSET`.
+    [PR #865](https://github.com/aws/aws-durable-execution-sdk-python/pull/865)
+    fixes that status and aligns terminal exception timestamps with span ends.
+    [PR #901](https://github.com/aws/aws-durable-execution-sdk-python/pull/901)
+    preserves only checkpointed exception fields and omits events lacking both a
+    type and a message. Both fixes are merged on `main` but absent from OTel 2.0.0.
 
     [PR #869](https://github.com/aws/aws-durable-execution-sdk-python/pull/869)
-    remains open. It exports visible terminal updates from invocation input and
-    checkpoint notifications when cached-parent replay skips the completed child.
-    It deduplicates successful observations within an invocation, without promising
-    exactly-once delivery across retries or exporter failures.
-
-    Use builds containing the respective changes until a release includes them.
-    The plugins cannot reconstruct operation metadata that the service has pruned.
+    remains open. It exports visible completion updates when cached-parent replay
+    skips a completed child, with deduplication within an invocation. It does not
+    guarantee exactly-once export. Until these fixes ship, use builds containing
+    the changes. Pruned operation metadata cannot be reconstructed.
 
 === "Java"
 
@@ -553,51 +521,39 @@ and logs identify the active span. `Workflow` appears after terminal completion.
 Span links correlate the two views but do not change parent-child relationships;
 CloudWatch does not currently visualize these links.
 
-If plugin spans are missing, check provider initialization warnings, exporter
-configuration, the layer's execution wrapper, and the
-[supported sampling modes](#supported-sampling-modes). For the Java agent,
-also check `OTEL_JAVAAGENT_EXTENSIONS`. A missing `Workflow` can mean the execution
-has not finished or no terminal invocation exported it. A parent ID without a
-visible span can belong to the remote backend or an undelivered fallback root.
-Check the full trace and its export path before treating it as missing SDK telemetry.
-
-If only some invocations or the terminal Workflow span are missing, confirm that
-the sampling inputs and configuration stayed consistent for the execution.
-Without an authoritative upstream decision, random or stateful local policies
-that vary between invocations are unsupported.
+If spans are missing, check provider warnings, exporter configuration, the layer's
+execution wrapper, and [sampling](#supported-sampling-modes). For Java agents, also check
+`OTEL_JAVAAGENT_EXTENSIONS`.
+`Workflow` requires a terminal invocation to export it. An unresolved parent can
+belong to the remote backend or an undelivered fallback root.
 
 ### Missing parents in an OTLP backend
 
-With Lambda active tracing, a valid remote parent can identify a native Lambda
-platform segment exported to X-Ray. The durable plugin preserves that externally
-owned parent; it does not synthesize or re-export the segment. An OTLP-only backend
-can therefore receive the durable spans and their shared trace ID without receiving
-all of their ancestors.
+With Lambda active tracing, a remote parent can be a native Lambda segment exported
+only to X-Ray. The durable plugin preserves that external parent without re-exporting
+it, so a shared trace ID does not guarantee a complete parent tree in an OTLP backend.
 
-First query all spans for the trace ID, including vendor and application spans
-without `durable.execution.arn`. An ARN-only filter can hide a parent that the
-backend already stores. If a parent remains absent, compare its ID with the native
-X-Ray segments and the raw OTLP export. A parent present only in X-Ray identifies
-an export boundary. A parent present in the raw OTLP export but absent from a
-backend query calls for checking ingestion, filters, and the UI separately.
+To locate a missing parent:
 
-`DASH0_XRAY_TRACES_ENABLED=true` alone does not import native X-Ray platform
-segments into the OTLP stream. The [validation record in issue #297](https://github.com/aws/aws-durable-execution-docs/issues/297)
-covers JavaScript source `721217ae`, Dash0 Node layer v26, both plugin views, and
-multiple resumes with that setting off and on. It establishes the export boundary
-from raw captures and X-Ray data; it does not qualify Dash0 backend/UI behavior or
-Python and Java combinations.
+1. Query all spans for the trace ID. Filtering by `durable.execution.arn` can hide
+    vendor or application ancestors already stored in the backend.
+1. Compare unresolved parent IDs with raw OTLP exports and native X-Ray segments.
+    A parent found only in X-Ray identifies the export boundary.
+1. If the parent is in the OTLP export, check backend ingestion, query filters,
+    and UI rendering.
 
-If native Lambda platform spans are required, use an integration that receives both
-application OTLP spans and their native X-Ray ancestors. Issue #297 also tracks a
-proposed alternative: export a real caller span to the same OTLP backend, propagate
-its actual trace context and sampling decision, and use Lambda `PassThrough` tracing
-while retaining application instrumentation. That combination has not been validated
-end to end and is not a supported workaround documented here. It also gives up native
-Lambda X-Ray platform tracing. An arbitrary parent ID or matching trace IDs alone
-cannot establish a complete parent tree. Qualification must verify the actual caller
-and parents in the same backend across both views, resumes, chained invokes, and
-sampled and unsampled executions.
+`DASH0_XRAY_TRACES_ENABLED=true` does not import native X-Ray segments into OTLP.
+[Issue #297](https://github.com/aws/aws-durable-execution-docs/issues/297) records
+this limitation with JavaScript source `721217ae` and Dash0 Node layer v26 across
+both views and multiple resumes, with X-Ray mode off and on. Those captures do not
+qualify Dash0 backend/UI behavior or Python and Java combinations.
+
+For native Lambda platform spans, use an integration that receives both OTLP spans
+and their X-Ray ancestors. The alternative tracked in #297 uses a real caller span
+exported to the same backend, propagates its context and sampling decision, and
+selects `PassThrough` while retaining application instrumentation. It gives up native
+Lambda X-Ray platform tracing and remains unvalidated end to end. Do not treat it as
+a supported workaround.
 
 ## See also
 
