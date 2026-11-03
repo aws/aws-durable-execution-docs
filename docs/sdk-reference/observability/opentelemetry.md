@@ -74,7 +74,6 @@ runtime can leave spans missing.
 
 ### Invocation view
 
-Use this view to see each invocation's work as the execution progresses.
 Completed work uses checkpointed results on replay. A resumed operation or
 replayed context can produce another span segment without rerunning a completed
 step's body.
@@ -99,7 +98,6 @@ step's body.
 
 ### Execution view
 
-Use this view to keep the durable operation hierarchy beneath `Workflow`.
 An operation that suspends is exported when it completes, using its durable
 start and end times. Its span links to the invocation that exports the completion;
 it does not accumulate links to every earlier invocation.
@@ -433,27 +431,18 @@ a backend can report failure without diagnostic details.
 
 === "Python"
 
-    Released OTel 2.0.0 can leave a failed operation's status as `UNSET` when no
-    error object is supplied. Two fixes are merged on `main` but are not included
-    in that release:
-
-    - [PR #865](https://github.com/aws/aws-durable-execution-sdk-python/pull/865)
-        marks `FAILED`, `TIMED_OUT`, and `STOPPED` operations as `ERROR` even when
-        diagnostics are absent, and places terminal exception events at the span's
-        normalized end time.
-    - [PR #901](https://github.com/aws/aws-durable-execution-sdk-python/pull/901)
-        emits only the checkpointed exception fields, without inventing a missing
-        type, message, or stack trace. It omits the exception event when neither a
-        type nor a message was stored; the span status still records the failure.
+    In OTel 2.0.0, a failed operation without an error object can remain `UNSET`.
+    [PR #865](https://github.com/aws/aws-durable-execution-sdk-python/pull/865)
+    fixes that status and aligns terminal exception timestamps with span ends.
+    [PR #901](https://github.com/aws/aws-durable-execution-sdk-python/pull/901)
+    preserves only checkpointed exception fields and omits events lacking both a
+    type and a message. Both fixes are merged on `main` but absent from OTel 2.0.0.
 
     [PR #869](https://github.com/aws/aws-durable-execution-sdk-python/pull/869)
-    remains open. It exports visible terminal updates from invocation input and
-    checkpoint notifications when cached-parent replay skips the completed child.
-    It deduplicates successful observations within an invocation, without promising
-    exactly-once delivery across retries or exporter failures.
-
-    Use builds containing the respective changes until a release includes them.
-    The plugins cannot reconstruct operation metadata that the service has pruned.
+    remains open. It exports visible completion updates when cached-parent replay
+    skips a completed child, with deduplication within an invocation. It does not
+    guarantee exactly-once export. Until these fixes ship, use builds containing
+    the changes. Pruned operation metadata cannot be reconstructed.
 
 === "Java"
 
@@ -498,11 +487,10 @@ and logs identify the active span. `Workflow` appears after terminal completion.
 Span links correlate the two views but do not change parent-child relationships;
 CloudWatch does not currently visualize these links.
 
-If plugin spans are missing, check provider initialization warnings, exporter
-configuration, the layer's execution wrapper, and sampling. For the Java agent,
-also check `OTEL_JAVAAGENT_EXTENSIONS`. A missing `Workflow` can mean the execution
-has not finished or no terminal invocation exported it. A parent ID without a
-visible span can belong to the remote backend or an undelivered fallback root.
+If spans are missing, check provider warnings, exporter configuration, the layer's
+execution wrapper, and sampling. For Java agents, also check `OTEL_JAVAAGENT_EXTENSIONS`.
+`Workflow` requires a terminal invocation to export it. An unresolved parent can
+belong to the remote backend or an undelivered fallback root.
 
 ## See also
 
