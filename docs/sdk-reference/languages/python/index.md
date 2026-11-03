@@ -126,8 +126,7 @@ names, types, subtypes, order, nesting, and serialization while executions remai
 flight, and verify completed steps do not repeat their side effects on replay.
 
 For all API changes and before/after examples, see the
-[Python 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-python/blob/7d9528047d5d0a2c9237075033631e10b7ebfd4f/docs/migration-2.x-to-3.0.md)
-from the released SDK 3.0.0 commit.
+[Python 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-python/blob/main/docs/migration-2.x-to-3.0.md).
 
 ## 2.x Upgrade
 

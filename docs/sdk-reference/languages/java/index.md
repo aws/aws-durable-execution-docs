@@ -137,12 +137,12 @@ branches. Internal SDK polling and checkpoint coordination use SDK-managed threa
 | `withDurableExecutionClient(...)`        | Supply a `DurableExecutionClient`, primarily for tests and custom infrastructure.                                                       | Lambda-backed client                          |
 | `withSerDes(...)`                        | Set the default serializer for handler inputs, outputs, and durable operation state. See [Serialization](../../state/serialization.md). | `JacksonSerDes`                               |
 | `withExecutorService(...)`               | Set the executor for user-defined async and concurrent work.                                                                            | Cached daemon thread pool                     |
-| `withLoggerConfig(...)`                  | Configure replay suppression and MDC key compatibility. See [Logging](../../observability/logging.md).                                  | Suppress replay logs and use 2.x MDC keys     |
+| `withLoggerConfig(...)`                  | Configure replay suppression and MDC key compatibility. See [Logging](../../observability/logging.md).                                  | Suppress replay logs; `oldKeyNames=false`     |
 | `withPollingStrategy(...)`               | Configure delays while polling the durable execution backend.                                                                           | `PollingStrategies.Presets.DEFAULT`           |
 | `withCheckpointDelay(...)`               | Delay checkpoint submission briefly so concurrent updates can be batched.                                                               | `Duration.ZERO`                               |
 | `withDeserializeAfterSerialization(...)` | Round-trip serialized operation results and exceptions before checkpointing.                                                            | `true`                                        |
 | `withCheckpointEmptyMap(...)`            | Emit checkpoints for empty map operations. This is a temporary compatibility option.                                                    | `false`                                       |
-| `withPlugins(...)`                       | Register lifecycle plugins explicitly. See [Plugins](../../observability/plugins.md).                                                   | No explicit plugins                           |
+| `withPlugins(...)`                       | Register lifecycle plugin factories explicitly. See [Plugins](../../observability/plugins.md).                                          | No explicit plugins                           |
 
 `withDurableExecutionClient(...)` replaces the SDK's backend client. For normal
 production customization such as credentials, Region, HTTP settings, or AWS SDK retry
@@ -210,9 +210,8 @@ return DurableConfig.builder()
 
 ### Load plugins dynamically
 
-In 2.x, `withPlugins(...)` registers plugin instances in application code. In 3.x, it
-registers factories that create one plugin per invocation. See
-[Upgrade from 2.x to 3.0](#upgrade-from-2x-to-30) for the new contract.
+`withPlugins(...)` registers plugin factories in application code. Each factory creates
+a fresh plugin for each Lambda invocation.
 
 Java can also load plugin providers from the application class path. Set
 `DURABLE_EXECUTION_PLUGINS` to an ordered, comma-separated list of provider names:
@@ -222,9 +221,10 @@ DURABLE_EXECUTION_PLUGINS=otel-invocation,com.example.audit
 ```
 
 The SDK discovers `DurableExecutionPluginProvider` implementations with `ServiceLoader`
-and selects the providers named in the environment variable. Selected dynamically loaded
-plugins run first in the listed order, followed by plugins supplied through
-`withPlugins(...)`.
+and selects the providers named in the environment variable. Each provider implements
+`createPlugin(InvocationInfo)` to return a fresh plugin instance. Selected dynamically
+loaded plugins run first in the listed order, followed by plugins created by factories
+supplied through `withPlugins(...)`.
 
 For a Lambda layer, place the provider JAR under `java/lib`. The JAR must contain this
 service-provider configuration file:
@@ -235,10 +235,9 @@ META-INF/services/software.amazon.lambda.durable.plugin.DurableExecutionPluginPr
 
 The file contains the provider implementation class name. If you shade multiple
 providers into one JAR, configure the build to merge `META-INF/services` entries.
-Invalid or missing providers and duplicate configured or discovered provider names cause
-`DurableConfig` construction to throw `IllegalStateException`. In 2.x, this includes
-incompatible provider API versions. In 3.x, selected providers must implement
-`createPlugin(InvocationInfo)`; rebuild providers compiled against the old interface.
+Invalid or missing providers, duplicate configured or discovered provider names, and
+selected providers without a concrete `createPlugin(InvocationInfo)` implementation cause
+`DurableConfig` construction to throw `IllegalStateException`.
 
 ## Upgrade from 2.x to 3.0
 
@@ -304,7 +303,7 @@ Preserve operation names, order, nesting, and serialization while executions rem
 in flight.
 
 For all API changes and before/after examples, see the
-[Java 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/v3.0.0/docs/migration-2.x-to-3.x.md).
+[Java 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/main/docs/migration-2.x-to-3.x.md).
 
 ## 2.x Upgrade
 
