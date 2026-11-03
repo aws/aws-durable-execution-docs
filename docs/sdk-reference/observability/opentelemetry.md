@@ -362,10 +362,11 @@ versions. Ordinary application and ADOT spans retain their provider behavior.
     [JavaScript #1133](https://github.com/aws/aws-durable-execution-sdk-js/issues/1133)
     tracks runtime support. Coordinated sampling requires the existing compatible
     `DurableSampler` bridge on the resolved provider's tracer. Explicit provider
-    factories returning opaque or custom tracers without that bridge get only
-    best-effort per-span sampling. A synthesized sampled ancestor can make
-    `ParentBased` export spans even when the original propagated parent was
-    unsampled. This fallback does not provide coordinated execution sampling.
+    factories returning opaque or custom tracers without that bridge retain
+    provider per-span sampling. If the configured sampler cannot be consulted,
+    the fallback preserves explicit `Sampled=0/1` on a valid propagated trace,
+    even without a valid parent. It defaults to sampled only when no usable
+    decision exists. This fallback does not guarantee coordinated execution sampling.
     The global-provider path may disable telemetry when its required deterministic
     ID bridge is unavailable. With a compatible bridge, the override remains
     scoped to creating SDK spans.
