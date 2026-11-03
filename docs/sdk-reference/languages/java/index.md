@@ -11,14 +11,16 @@ The SDK supports Java 17 and newer. Virtual threads require Java 21.
 Add the execution SDK to the Lambda function package. Replace the version with the
 latest release from
 [Maven Central](https://central.sonatype.com/artifact/software.amazon.lambda.durable/aws-durable-execution-sdk-java).
-The examples use the released 3.0.0 artifacts. Before upgrading from 2.x, see
+The examples use the released 3.0.1 artifacts. See
+[Upgrade from 3.0.0 to 3.0.1](#upgrade-from-300-to-301) for the patch fixes. Before
+upgrading from 2.x, see
 [Upgrade from 2.x to 3.0](#upgrade-from-2x-to-30).
 
 ```xml
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java</artifactId>
-    <version>3.0.0</version>
+    <version>3.0.1</version>
 </dependency>
 <dependency>
     <groupId>com.amazonaws</groupId>
@@ -33,7 +35,7 @@ For local and cloud tests, add the testing SDK in test scope:
 <dependency>
     <groupId>software.amazon.lambda.durable</groupId>
     <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
-    <version>3.0.0</version>
+    <version>3.0.1</version>
     <scope>test</scope>
 </dependency>
 ```
@@ -240,6 +242,24 @@ Invalid or missing providers and duplicate configured or discovered provider nam
 incompatible provider API versions. In 3.x, selected providers must implement
 `createPlugin(InvocationInfo)`; rebuild providers compiled against the old interface.
 
+## Upgrade from 3.0.0 to 3.0.1
+
+[Java 3.0.1](https://github.com/aws/aws-durable-execution-sdk-java/releases/tag/v3.0.1)
+is a patch release for the SDK, testing library, OTel plugin, and Telemetry Exporter.
+Update the artifacts your application uses to the
+[coordinated versions below](#upgrade-dependencies-together), including test dependencies
+and Lambda layers.
+
+Callback failures that provide an error type without a message now preserve that type
+in the exception message and telemetry, including after replay. For example, a callback
+failure with type `PaymentDeclined` and no message produces `PaymentDeclined` without a
+`: null` or empty suffix.
+
+OTel operation exception events now report the stored original error type in
+`exception.type`, including errors from other languages. The events retain the
+throwable's message and stack trace. Review telemetry queries and assertions that
+previously expected the Java wrapper exception type.
+
 ## Upgrade from 2.x to 3.0
 
 Core 3.0 creates a fresh instrumentation plugin for each Lambda invocation. This isolates
@@ -249,20 +269,20 @@ JARs can update their dependencies without changing handler or durable operation
 
 ### Upgrade dependencies together
 
-The [Java 3.0.0 release](https://github.com/aws/aws-durable-execution-sdk-java/releases/tag/v3.0.0)
+The [Java 3.0.1 release](https://github.com/aws/aws-durable-execution-sdk-java/releases/tag/v3.0.1)
 is available on Maven Central. Use these coordinated versions; all artifacts use group
 ID `software.amazon.lambda.durable`:
 
 | Artifact                                                   | Version |
 | ---------------------------------------------------------- | ------- |
-| `aws-durable-execution-sdk-java`                           | `3.0.0` |
-| `aws-durable-execution-sdk-java-plugin-otel`               | `3.0.0` |
-| `aws-durable-execution-sdk-java-testing`                   | `3.0.0` |
-| `aws-durable-execution-sdk-java-plugin-telemetry-exporter` | `3.0.0` |
+| `aws-durable-execution-sdk-java`                           | `3.0.1` |
+| `aws-durable-execution-sdk-java-plugin-otel`               | `3.0.1` |
+| `aws-durable-execution-sdk-java-testing`                   | `3.0.1` |
+| `aws-durable-execution-sdk-java-plugin-telemetry-exporter` | `3.0.1` |
 
 Update the artifacts your application uses together, including test dependencies and
 Lambda layers. OTel and the Telemetry Exporter remain optional. Java's durable OTel plugin
-follows the SDK version and uses `3.0.0`, while TypeScript and Python version their OTel
+follows the SDK version and uses `3.0.1`, while TypeScript and Python version their OTel
 packages separately as `2.0.0`. Check `mvn dependency:tree` for older transitive SDK or
 plugin artifacts.
 
@@ -287,7 +307,7 @@ preserved without repeating environment discovery. Move custom exclusivity metad
 from instance `@ExclusivePluginGroup` annotations to the factory's `getExclusiveGroup()`.
 
 If you use `DurableExecutionTelemetry.durableExecutionTelemetry(config)`, upgrade the
-optional telemetry-exporter artifact to 3.0.0 too. Its return type changes to a factory,
+optional telemetry-exporter artifact to 3.0.1 too. Its return type changes to a factory,
 so recompile the registration code even though the source call stays the same.
 
 The Telemetry Exporter is stable in 3.0.0. If you used a preview build, review the
@@ -304,7 +324,7 @@ Preserve operation names, order, nesting, and serialization while executions rem
 in flight.
 
 For all API changes and before/after examples, see the
-[Java 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/v3.0.0/docs/migration-2.x-to-3.x.md).
+[Java 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/v3.0.1/docs/migration-2.x-to-3.x.md).
 
 ## 2.x Upgrade
 
