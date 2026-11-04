@@ -77,7 +77,6 @@ For both views, your observability platform's quotas and limits apply.
 | Top-level operation parent | `Workflow`                                                       | Current `Invocation`                                                                          |
 | Correlation link           | Operation or attempt to current `Invocation`                     | Operation or attempt to `Workflow`                                                            |
 | Continuation link          | Completed operation links only to the invocation that exports it | Later segment links to the initial logical operation span                                     |
-| Workflow export            | When the SDK observes execution success or failure               | When the SDK observes execution success or failure                                            |
 | Operation visibility       | When the operation completes                                     | At each invocation boundary                                                                   |
 | In-progress visibility     | Limited until operations and the execution complete              | Each invocation appears as it completes                                                       |
 | Better for                 | Shorter executions and a workflow-centered hierarchy             | Long executions and progress through individual invocations                                   |
@@ -92,6 +91,7 @@ runtime can leave spans missing.
 
 ### Execution view
 
+Operation spans are children of `Workflow` and link to the current `Invocation`.
 The factory selects this view by default. An operation that suspends is exported
 when it completes, using its durable
 start and end times. Its span links to the invocation that exports the completion;
@@ -117,7 +117,9 @@ it does not accumulate links to every earlier invocation.
 
 ### Invocation view
 
-Select invocation mode explicitly. Completed work uses checkpointed results on replay. A resumed operation or
+Operation spans are children of the `Invocation` that emitted them and link to
+`Workflow`, so each invocation's spans export as it ends. Select invocation mode
+explicitly. Completed work uses checkpointed results on replay. A resumed operation or
 replayed context can produce another span segment without rerunning a completed
 step's body.
 
@@ -153,8 +155,10 @@ and region:
 Enable active tracing to receive the durable backend's X-Ray trace context.
 OTLP-only backends may lack the referenced native Lambda spans; see
 [missing parents in an OTLP backend](#missing-parents-in-an-otlp-backend).
-For ADOT, add these properties to your existing SAM function and grant its role
-`AWSXRayDaemonWriteAccess` to export traces to CloudWatch through X-Ray:
+For ADOT, add these properties to your existing SAM function. `Policies` is
+additive: keep the `AWSLambdaBasicDurableExecutionRolePolicy` the function
+already needs, and add `AWSXRayDaemonWriteAccess` so active tracing and X-Ray
+export can write segments.
 
 ```yaml
 Layers:
@@ -163,6 +167,9 @@ Environment:
   Variables:
     AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
 Tracing: Active
+Policies:
+  - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
+  - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
 ```
 
 For a community language layer exporting directly to an OTLP backend, use:
@@ -179,6 +186,9 @@ Environment:
     OTEL_METRICS_EXPORTER: none
     OTEL_LOGS_EXPORTER: none
 Tracing: Active
+Policies:
+  - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
+  - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
 ```
 
 Configure `OTEL_EXPORTER_OTLP_HEADERS` if your backend requires authentication.
@@ -231,6 +241,23 @@ or a registered provider name.
 | TypeScript: Node.js module specifier | `@aws/durable-execution-sdk-js-otel` | `@aws/durable-execution-sdk-js-otel/otel-invocation` |
 | Python: package entry-point name     | `otel`                               | `otel-invocation`                                    |
 | Java: `ServiceLoader` provider name  | `otel`                               | `otel-invocation`                                    |
+
+Python and Java also accept the older `otel-execution` name for the execution
+view.
+
+!!! warning "Configure exactly one OTel view"
+
+    Registering two OTel factories fails validation, because both belong to the
+    `durable-otel-view` exclusive group. This applies to naming two views in
+    `DURABLE_EXECUTION_PLUGINS`, and to naming one there while also registering a
+    factory in handler code.
+
+    Two names for the *same* view are not portable. Java builds a separate
+    factory per provider, so `DURABLE_EXECUTION_PLUGINS=otel,otel-execution`
+    fails at startup with `Conflicting plugin factories otel-execution
+    (ExecutionOtelPlugin) and otel (ExecutionOtelPlugin)`. Python resolves both
+    names to one object, so it loads a single factory and logs that it skipped
+    the duplicate. Set one name in either language.
 
 ## Configure an application-owned provider
 
@@ -290,6 +317,11 @@ listening on loopback port 4318.
     ```
 
     Pass `mode="invocation"` after the configuration argument to select the invocation view.
+
+    `tracer_provider` is what the plugin uses, so `set_tracer_provider` is only
+    needed to point *other* instrumentation at the same provider. It takes effect
+    once per process and is ignored with a warning if a telemetry layer already
+    registered a global provider; omit it in that case.
 
 === "Java"
 
@@ -470,7 +502,7 @@ sampling, raw export, and backend/UI results.
 | Workflow   | `durable.execution.arn`, `durable.execution.status`                                                                                                          |
 | Invocation | `durable.execution.arn`, `durable.invocation.status`, `durable.invocation.first`                                                                             |
 | Operation  | `durable.execution.arn`, `durable.operation.id`, `durable.operation.type`, `durable.operation.name`, `durable.operation.subtype`, `durable.operation.status` |
-| Attempt    | `durable.execution.arn`, `durable.operation.id`, `durable.attempt.number`, `durable.attempt.outcome`                                                         |
+| Attempt    | `durable.execution.arn`, `durable.operation.id`, `durable.operation.type`, `durable.operation.name`, `durable.attempt.number`, `durable.attempt.outcome`     |
 
 Operation types include `STEP`, `WAIT`, `CONTEXT`, `CHAINED_INVOKE`, and `CALLBACK`.
 A context has an operation span without a separate attempt span. An invocation
