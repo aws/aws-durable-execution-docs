@@ -208,18 +208,19 @@ return DurableConfig.builder()
 
 ### Load plugins dynamically
 
-`withPlugins(...)` registers plugin instances in application code. Java can also load
+`withPlugins(...)` registers plugin factories in application code. Java can also load
 plugin providers from the application class path. Set `DURABLE_EXECUTION_PLUGINS` to an
 ordered, comma-separated list of provider names:
 
 ```text
-DURABLE_EXECUTION_PLUGINS=otel-invocation,com.example.audit
+DURABLE_EXECUTION_PLUGINS=otel,com.example.audit
 ```
 
 The SDK discovers `DurableExecutionPluginProvider` implementations with
-`ServiceLoader`, but creates only the providers named in the environment variable.
-Dynamically loaded plugins run first in the listed order, followed by plugins supplied
-through `withPlugins(...)`.
+`ServiceLoader` and selects the factories named in the environment variable.
+It creates a fresh plugin for each invocation. Dynamically loaded plugins run first
+in the listed order, followed by factories supplied through `withPlugins(...)`.
+The `otel` provider selects the default [OpenTelemetry execution view](../../observability/opentelemetry.md#execution-view).
 
 For a Lambda layer, place the provider JAR under `java/lib`. The JAR must contain this
 service-provider configuration file:
