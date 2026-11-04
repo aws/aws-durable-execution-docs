@@ -322,6 +322,7 @@ The object returned by `createCallback`.
       timeout?: Duration;
       heartbeatTimeout?: Duration;
       serdes?: Omit<Serdes<TOutput>, "serialize">;
+      subType?: string;
     }
     ```
 
@@ -334,15 +335,22 @@ The object returned by `createCallback`.
         callback fails.
     - `serdes` (optional) Custom deserializer for the callback result. See
         [Serialization](../state/serialization.md).
+    - `subType` (optional) A custom label for execution history and plugin events.
+        Use 1 to 32 characters from `A-Z`, `a-z`, `0-9`, hyphen, and underscore.
+        An empty value selects `"Callback"`. Keep the label stable across replay,
+        because replay compares it with the checkpoint.
 
 === "Python"
 
     ```python
+    from dataclasses import dataclass, field
+
     @dataclass(frozen=True)
     class CallbackConfig:
         timeout: Duration = Duration()
         heartbeat_timeout: Duration = Duration()
         serdes: SerDes | None = None
+        sub_type: str | None = field(default=None, kw_only=True)
     ```
 
     **Parameters:**
@@ -354,6 +362,11 @@ The object returned by `createCallback`.
         interval, the callback fails.
     - `serdes` (optional) Custom `SerDes` for the callback result. See
         [Serialization](../state/serialization.md).
+    - `sub_type` (optional, keyword-only) A label for history and plugin events.
+        Use 1 to 32 characters from `A-Z`, `a-z`, `0-9`, hyphen, and underscore.
+        `None` or `""` selects `"Callback"`. Invalid values raise `ValidationError`
+        before checkpointing. Keep the value stable: replay compares it with
+        the checkpoint. Avoid the SDK's built-in `OperationSubType` labels.
 
 === "Java"
 
@@ -568,6 +581,9 @@ submitter step.
     class WaitForCallbackConfig(CallbackConfig):
         retry_strategy: Callable[[Exception, int], RetryDecision] | None = None
     ```
+
+    The inherited `sub_type` labels the callback created by `wait_for_callback`.
+    Its surrounding child context keeps the `WaitForCallback` subtype.
 
     - `retry_strategy` (optional) A callable returning a `RetryDecision` for the submitter
         step. See [Retry strategies](../error-handling/retries.md).

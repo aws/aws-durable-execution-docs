@@ -170,6 +170,7 @@ The step will checkpoint the last error after exhausting all retry attempts.
       retryStrategy?: (error: Error, attemptCount: number) => RetryDecision;
       semantics?: StepSemantics;
       serdes?: Serdes<T>;
+      subType?: string;
     }
     ```
 
@@ -182,15 +183,22 @@ The step will checkpoint the last error after exhausting all retry attempts.
         `StepSemantics.AtMostOncePerRetry`.
     - `serdes` (optional) Custom `Serdes<T>` for the step result. See
         [Serialization](../state/serialization.md).
+    - `subType` (optional) A custom label for execution history and plugin events.
+        Use 1 to 32 characters from `A-Z`, `a-z`, `0-9`, hyphen, and underscore.
+        An empty value selects `"Step"`. Keep the label stable across replay,
+        because replay compares it with the checkpoint.
 
 === "Python"
 
     ```python
+    from dataclasses import dataclass, field
+
     @dataclass(frozen=True)
     class StepConfig:
         retry_strategy: Callable[[Exception, int], RetryDecision] | None = None
         step_semantics: StepSemantics = StepSemantics.AT_LEAST_ONCE_PER_RETRY
         serdes: SerDes | None = None
+        sub_type: str | None = field(default=None, kw_only=True)
     ```
 
     **Parameters:**
@@ -202,6 +210,11 @@ The step will checkpoint the last error after exhausting all retry attempts.
         `StepSemantics.AT_MOST_ONCE_PER_RETRY`.
     - `serdes` (optional) Custom `SerDes` for the step result. See
         [Serialization](../state/serialization.md).
+    - `sub_type` (optional, keyword-only) A label for history and plugin events.
+        Use 1 to 32 characters from `A-Z`, `a-z`, `0-9`, hyphen, and underscore.
+        `None` or `""` selects `"Step"`. Invalid values raise `ValidationError`
+        before checkpointing. Keep the value stable: replay compares it with
+        the checkpoint. Avoid the SDK's built-in `OperationSubType` labels.
 
 === "Java"
 

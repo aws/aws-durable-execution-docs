@@ -641,9 +641,11 @@ structured logger that works as a drop-in replacement for the SDK's default logg
 
 === "TypeScript"
 
-    The
+    Wrap the
     [Powertools for AWS Lambda (TypeScript)](https://docs.aws.amazon.com/powertools/typescript/latest/features/logger/)
-    `Logger` satisfies the `DurableLogger` interface. Pass it via `configureLogger`.
+    `Logger` with `createPowertoolsLogger`, and pass the result as `customLogger` to
+    `configureLogger`. Log entries then include the
+    [execution metadata](#execution-metadata).
 
     ```typescript
     --8<-- "examples/typescript/sdk-reference/observability/powertools-logger.ts"
