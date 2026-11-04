@@ -307,11 +307,12 @@ listening on loopback port 4318.
             .setEndpoint("http://localhost:4318/v1/traces")
             .build();
     var pluginFactory = OtelPlugin.factory(
+            OtelPlugin.Mode.EXECUTION,
             SdkTracerProvider.builder()
                     .addSpanProcessor(BatchSpanProcessor.builder(exporter).build()));
     ```
 
-    Pass `OtelPlugin.Mode.INVOCATION` as the first argument to select the invocation view.
+    Use `OtelPlugin.Mode.INVOCATION` as the first argument to select the invocation view.
 
 ### Plugin options
 
@@ -355,9 +356,10 @@ listening on loopback port 4318.
 
 === "Java"
 
-    `OtelPlugin` exposes `factory()`, `factory(config)`, `factory(providerBuilder)`,
-    and `factory(providerBuilder, config)` for the execution view. Each overload
-    also accepts `OtelPlugin.Mode.INVOCATION` as its first argument. Build
+    `OtelPlugin` exposes `factory()`, `factory(mode)`, `factory(mode, config)`,
+    `factory(mode, providerBuilder)`, and `factory(mode, providerBuilder, config)`.
+    Use `OtelPlugin.Mode.EXECUTION` or `OtelPlugin.Mode.INVOCATION` for `mode`.
+    Only `factory()` omits the mode and defaults to execution. Build
     `OtelPluginConfig` with:
 
     | Builder method             | Default                          | Purpose                        |
