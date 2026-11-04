@@ -155,10 +155,12 @@ and region:
 Enable active tracing to receive the durable backend's X-Ray trace context.
 OTLP-only backends may lack the referenced native Lambda spans; see
 [missing parents in an OTLP backend](#missing-parents-in-an-otlp-backend).
-For ADOT, add these properties to your existing SAM function. `Policies` is
-additive: keep the `AWSLambdaBasicDurableExecutionRolePolicy` the function
-already needs, and add `AWSXRayDaemonWriteAccess` so active tracing and X-Ray
-export can write segments.
+For ADOT, add these properties to your existing SAM function. When SAM creates
+its execution role, merge the shown entries into the function's `Policies` list.
+If the function specifies `Role`, SAM ignores `Policies`; attach
+`AWSXRayDaemonWriteAccess` directly to that execution role and retain its existing
+durable execution permissions. The same rule applies to the community-layer
+example below.
 
 ```yaml
 Layers:
@@ -247,15 +249,14 @@ view.
 
 !!! warning "Configure exactly one OTel view"
 
-    Registering two OTel factories fails validation, because both belong to the
-    `durable-otel-view` exclusive group. This applies to naming two views in
-    `DURABLE_EXECUTION_PLUGINS`, and to naming one there while also registering a
-    factory in handler code.
+    Registering two distinct OTel factories fails validation because the OTel
+    views share an exclusive group in each SDK. This applies to naming two views
+    in `DURABLE_EXECUTION_PLUGINS`, and to naming one there while also registering
+    a separate factory in handler code.
 
     Two names for the *same* view are not portable. Java builds a separate
     factory per provider, so `DURABLE_EXECUTION_PLUGINS=otel,otel-execution`
-    fails at startup with `Conflicting plugin factories otel-execution
-    (ExecutionOtelPlugin) and otel (ExecutionOtelPlugin)`. Python resolves both
+    fails at startup with `Conflicting plugin factories otel-execution (ExecutionOtelPlugin) and otel (ExecutionOtelPlugin)`. Python resolves both
     names to one object, so it loads a single factory and logs that it skipped
     the duplicate. Set one name in either language.
 
