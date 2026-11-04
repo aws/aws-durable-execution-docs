@@ -3,12 +3,12 @@ import java.util.Map;
 import software.amazon.lambda.durable.DurableConfig;
 import software.amazon.lambda.durable.DurableContext;
 import software.amazon.lambda.durable.DurableHandler;
-import software.amazon.lambda.durable.otel.ExecutionOtelPlugin;
+import software.amazon.lambda.durable.otel.OtelPlugin;
 
 public class ExecutionOtelExample extends DurableHandler<Map<String, String>, String> {
     @Override
     protected DurableConfig createConfiguration() {
-        return DurableConfig.builder().withPlugins(ExecutionOtelPlugin.factory()).build();
+        return DurableConfig.builder().withPlugins(OtelPlugin.factory()).build();
     }
 
     @Override

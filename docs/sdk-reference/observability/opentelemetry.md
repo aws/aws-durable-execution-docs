@@ -1,8 +1,9 @@
 # OpenTelemetry
 
 The OpenTelemetry plugins trace durable operations across Lambda invocations.
-Choose a workflow or invocation view, register its factory, and configure an
-OpenTelemetry provider through a telemetry layer or application code. The
+Create a factory for the execution view (the default) or select the invocation
+view explicitly. Configure an OpenTelemetry provider through a telemetry layer
+or application code. The
 provider owns exporters, resources, library instrumentation, and sampling policy.
 
 The plugins are available for TypeScript, Python, and Java. Go and C# do not yet
@@ -10,14 +11,16 @@ provide this integration.
 
 ## Install the plugin
 
-These examples use the current factory API: core SDK 3.x with OTel plugin 2.x
-for TypeScript and Python, and SDK/plugin 3.x for Java. Upgrade the core and
-plugin together, including copies supplied by Lambda layers. Older plugin
-instances cannot be registered with the 3.x factory API.
+These examples use the unified factory APIs. The version ranges below identify
+compatible SDK families; they do not guarantee that a release contains the new
+entry point. Use a build containing the change linked in your language's tab.
+Upgrade the core and plugin together, including copies supplied by Lambda layers.
 
 === "TypeScript"
 
-    Requires Node.js 22 or later:
+    Requires Node.js 22 or later and a plugin build containing
+    [`createOtelPluginFactory`](https://github.com/aws/aws-durable-execution-sdk-js/pull/1171).
+    OTel 2.0.0 does not include this entry point.
 
     ```bash
     npm install @aws/durable-execution-sdk-js@^3 \
@@ -26,6 +29,10 @@ instances cannot be registered with the 3.x factory API.
     ```
 
 === "Python"
+
+    Use a plugin build containing
+    [`create_otel_plugin_factory`](https://github.com/aws/aws-durable-execution-sdk-python/pull/905).
+    OTel 2.0.0 does not include this entry point.
 
     When a telemetry layer supplies the OpenTelemetry libraries:
 
@@ -43,7 +50,9 @@ instances cannot be registered with the 3.x factory API.
 
 === "Java"
 
-    Use the same 3.x version as the core SDK:
+    Use the same 3.x version as the core SDK, containing
+    [`OtelPlugin.factory`](https://github.com/aws/aws-durable-execution-sdk-java/pull/873).
+    SDK/plugin 3.0.1 does not include this entry point.
 
     ```xml
     <dependency>
@@ -55,8 +64,9 @@ instances cannot be registered with the 3.x factory API.
 
 ## Choose and register a view
 
-Register one OTel view factory. The SDK creates a separate plugin instance for
-each invocation, while the provider can be shared across invocations.
+Register one factory using the unified entry point for your language. Omitting
+the mode selects the execution view. The SDK creates a separate plugin instance
+for each invocation, while the provider can be shared across invocations.
 
 ### Choosing a plugin
 
@@ -80,33 +90,10 @@ Workflow spans can cover long durations, so backend ingestion limits still apply
 to both views. Export and flush are best effort; a timeout, stop, or terminated
 runtime can leave spans missing.
 
-### Invocation view
-
-Completed work uses checkpointed results on replay. A resumed operation or
-replayed context can produce another span segment without rerunning a completed
-step's body.
-
-=== "TypeScript"
-
-    ```typescript
-    --8<-- "examples/typescript/sdk-reference/observability/opentelemetry/invocation-plugin.ts"
-    ```
-
-=== "Python"
-
-    ```python
-    --8<-- "examples/python/sdk-reference/observability/opentelemetry/invocation-plugin.py"
-    ```
-
-=== "Java"
-
-    ```java
-    --8<-- "examples/java/sdk-reference/observability/opentelemetry/invocation-plugin.java"
-    ```
-
 ### Execution view
 
-An operation that suspends is exported when it completes, using its durable
+The factory selects this view by default. An operation that suspends is exported
+when it completes, using its durable
 start and end times. Its span links to the invocation that exports the completion;
 it does not accumulate links to every earlier invocation.
 
@@ -126,6 +113,30 @@ it does not accumulate links to every earlier invocation.
 
     ```java
     --8<-- "examples/java/sdk-reference/observability/opentelemetry/execution-plugin.java"
+    ```
+
+### Invocation view
+
+Select invocation mode explicitly. Completed work uses checkpointed results on replay. A resumed operation or
+replayed context can produce another span segment without rerunning a completed
+step's body.
+
+=== "TypeScript"
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/observability/opentelemetry/invocation-plugin.ts"
+    ```
+
+=== "Python"
+
+    ```python
+    --8<-- "examples/python/sdk-reference/observability/opentelemetry/invocation-plugin.py"
+    ```
+
+=== "Java"
+
+    ```java
+    --8<-- "examples/java/sdk-reference/observability/opentelemetry/invocation-plugin.java"
     ```
 
 ## Configure a telemetry layer
@@ -215,11 +226,11 @@ code or environment configuration.
 The value follows each SDK's discovery mechanism: an importable module specifier
 or a registered provider name.
 
-| Language and lookup                  | Invocation view                                      | Execution view                                      |
-| ------------------------------------ | ---------------------------------------------------- | --------------------------------------------------- |
-| TypeScript: Node.js module specifier | `@aws/durable-execution-sdk-js-otel/otel-invocation` | `@aws/durable-execution-sdk-js-otel/otel-execution` |
-| Python: package entry-point name     | `otel-invocation`                                    | `otel-execution`                                    |
-| Java: `ServiceLoader` provider name  | `otel-invocation`                                    | `otel-execution`                                    |
+| Language and lookup                  | Execution view (default)             | Invocation view                                      |
+| ------------------------------------ | ------------------------------------ | ---------------------------------------------------- |
+| TypeScript: Node.js module specifier | `@aws/durable-execution-sdk-js-otel` | `@aws/durable-execution-sdk-js-otel/otel-invocation` |
+| Python: package entry-point name     | `otel`                               | `otel-invocation`                                    |
+| Java: `ServiceLoader` provider name  | `otel`                               | `otel-invocation`                                    |
 
 ## Configure an application-owned provider
 
@@ -234,11 +245,11 @@ listening on loopback port 4318.
     the durable ID-generator factory; pass its result to the provider constructor.
 
     ```typescript
-    import { createInvocationOtelPluginFactory } from "@aws/durable-execution-sdk-js-otel";
+    import { createOtelPluginFactory } from "@aws/durable-execution-sdk-js-otel";
     import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
     import { BatchSpanProcessor, NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
 
-    const pluginFactory = createInvocationOtelPluginFactory({
+    const pluginFactory = createOtelPluginFactory({
       tracerProviderFactory: (createIdGenerator) => {
         const provider = new NodeTracerProvider({
           idGenerator: createIdGenerator(),
@@ -252,7 +263,7 @@ listening on loopback port 4318.
     });
     ```
 
-    Use `createExecutionOtelPluginFactory` for the execution view.
+    Set `mode: "invocation"` in the same options object to select the invocation view.
 
 === "Python"
 
@@ -264,7 +275,7 @@ listening on loopback port 4318.
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
     from aws_durable_execution_sdk_python_otel import (
-        InvocationOtelPluginFactory,
+        create_otel_plugin_factory,
         OtelPluginConfig,
     )
 
@@ -273,12 +284,12 @@ listening on loopback port 4318.
         OTLPSpanExporter(endpoint="http://localhost:4318/v1/traces")
     ))
     trace.set_tracer_provider(provider)
-    plugin_factory = InvocationOtelPluginFactory(
+    plugin_factory = create_otel_plugin_factory(
         OtelPluginConfig(tracer_provider=provider)
     )
     ```
 
-    Use `ExecutionOtelPluginFactory` for the execution view.
+    Pass `mode="invocation"` after the configuration argument to select the invocation view.
 
 === "Java"
 
@@ -290,27 +301,28 @@ listening on loopback port 4318.
     import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
     import io.opentelemetry.sdk.trace.SdkTracerProvider;
     import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
-    import software.amazon.lambda.durable.otel.InvocationOtelPlugin;
+    import software.amazon.lambda.durable.otel.OtelPlugin;
 
     var exporter = OtlpHttpSpanExporter.builder()
             .setEndpoint("http://localhost:4318/v1/traces")
             .build();
-    var pluginFactory = InvocationOtelPlugin.factory(
+    var pluginFactory = OtelPlugin.factory(
             SdkTracerProvider.builder()
                     .addSpanProcessor(BatchSpanProcessor.builder(exporter).build()));
     ```
 
-    Use `ExecutionOtelPlugin.factory` for the execution view.
+    Pass `OtelPlugin.Mode.INVOCATION` as the first argument to select the invocation view.
 
 ### Plugin options
 
 === "TypeScript"
 
-    Pass `OtelPluginConfig` to either `createInvocationOtelPluginFactory(config)`
-    or `createExecutionOtelPluginFactory(config)`.
+    Pass `OtelPluginFactoryOptions` to `createOtelPluginFactory(options)`. These
+    options extend `OtelPluginConfig` with the view selection.
 
     | Option                  | Default                        | Purpose                                                           |
     | ----------------------- | ------------------------------ | ----------------------------------------------------------------- |
+    | `mode`                  | `"execution"`                  | Select `"execution"` or `"invocation"`                            |
     | `tracerProviderFactory` | Global provider                | Build an application-owned provider                               |
     | `contextExtractor`      | `xRayContextExtractor`         | Extract this execution's upstream context                         |
     | `instrumentationName`   | `aws-durable-execution-sdk-js` | Instrumentation scope                                             |
@@ -326,8 +338,9 @@ listening on loopback port 4318.
 
 === "Python"
 
-    Pass `OtelPluginConfig` to `InvocationOtelPluginFactory(config)` or
-    `ExecutionOtelPluginFactory(config)`.
+    Pass `OtelPluginConfig` to `create_otel_plugin_factory(config)`. Select the
+    invocation view with `create_otel_plugin_factory(config, mode="invocation")`;
+    `mode` is a keyword argument, separate from `OtelPluginConfig`.
 
     | Option               | Default                            | Purpose                                          |
     | -------------------- | ---------------------------------- | ------------------------------------------------ |
@@ -342,8 +355,10 @@ listening on loopback port 4318.
 
 === "Java"
 
-    Both plugins expose `factory()`, `factory(config)`, `factory(providerBuilder)`,
-    and `factory(providerBuilder, config)`. Build `OtelPluginConfig` with:
+    `OtelPlugin` exposes `factory()`, `factory(config)`, `factory(providerBuilder)`,
+    and `factory(providerBuilder, config)` for the execution view. Each overload
+    also accepts `OtelPlugin.Mode.INVOCATION` as its first argument. Build
+    `OtelPluginConfig` with:
 
     | Builder method             | Default                          | Purpose                        |
     | -------------------------- | -------------------------------- | ------------------------------ |
