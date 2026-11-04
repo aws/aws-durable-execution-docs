@@ -110,4 +110,4 @@ Testing SDK, review invocation-count and history-order assertions against the sc
 fixes in the release notes.
 
 For all API changes and before/after examples, see the
-[TypeScript 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-js/blob/sdk-3.0.0/docs/migration-2.x-to-3.0.md).
+[TypeScript 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-js/blob/main/docs/migration-2.x-to-3.0.md).
