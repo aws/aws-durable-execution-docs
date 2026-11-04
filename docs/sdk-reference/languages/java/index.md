@@ -11,10 +11,8 @@ The SDK supports Java 17 and newer. Virtual threads require Java 21.
 Add the execution SDK to the Lambda function package. Replace the version with the
 latest release from
 [Maven Central](https://central.sonatype.com/artifact/software.amazon.lambda.durable/aws-durable-execution-sdk-java).
-The examples use the released 3.0.1 artifacts. See
-[Upgrade from 3.0.0 to 3.0.1](#upgrade-from-300-to-301) for the patch fixes. Before
-upgrading from 2.x, see
-[Upgrade from 2.x to 3.0](#upgrade-from-2x-to-30).
+The examples use the released 3.0.1 artifacts. Before upgrading from 2.x, see
+[Upgrade from 2.x to 3.x](#upgrade-from-2x-to-30).
 
 ```xml
 <dependency>
@@ -241,25 +239,7 @@ Invalid or missing providers, duplicate configured or discovered provider names,
 selected providers without a concrete `createPlugin(InvocationInfo)` implementation cause
 `DurableConfig` construction to throw `IllegalStateException`.
 
-## Upgrade from 3.0.0 to 3.0.1
-
-[Java 3.0.1](https://github.com/aws/aws-durable-execution-sdk-java/releases/tag/v3.0.1)
-is a patch release for the SDK, testing library, OTel plugin, and Telemetry Exporter.
-Update the artifacts your application uses to the
-[coordinated versions below](#upgrade-dependencies-together), including test dependencies
-and Lambda layers.
-
-Callback failures that provide an error type without a message now preserve that type
-in the exception message and telemetry, including after replay. For example, a callback
-failure with type `PaymentDeclined` and no message produces `PaymentDeclined` without a
-`: null` or empty suffix.
-
-OTel operation exception events now report the stored original error type in
-`exception.type`, including errors from other languages. The events retain the
-throwable's message and stack trace. Review telemetry queries and assertions that
-previously expected the Java wrapper exception type.
-
-## Upgrade from 2.x to 3.0
+## Upgrade from 2.x to 3.x {#upgrade-from-2x-to-30}
 
 Core 3.0 creates a fresh instrumentation plugin for each Lambda invocation. This isolates
 plugin state when invocations run concurrently. Applications that register no plugins,
@@ -323,7 +303,7 @@ Preserve operation names, order, nesting, and serialization while executions rem
 in flight.
 
 For all API changes and before/after examples, see the
-[Java 2.x to 3.0 migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/main/docs/migration-2.x-to-3.x.md).
+[Java 2.x to 3.x migration guide](https://github.com/aws/aws-durable-execution-sdk-java/blob/main/docs/migration-2.x-to-3.x.md).
 
 ## 2.x Upgrade
 

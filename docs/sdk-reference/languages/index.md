@@ -17,7 +17,3 @@ Core 3 is released for TypeScript, Python, and Java. TypeScript and Python use O
 [Java](java/index.md#upgrade-from-2x-to-30). Each summary covers package versions, plugin
 registration and behavior changes, and validation, and links to the SDK repository's full
 migration guide.
-
-For applications already on Java 3.0.0, see the
-[3.0.1 patch upgrade](java/index.md#upgrade-from-300-to-301) for callback failure and OTel
-error-reporting fixes.
