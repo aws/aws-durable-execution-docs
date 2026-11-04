@@ -256,9 +256,14 @@ view.
 
     Two names for the *same* view are not portable. Java builds a separate
     factory per provider, so `DURABLE_EXECUTION_PLUGINS=otel,otel-execution`
-    fails at startup with `Conflicting plugin factories otel-execution (ExecutionOtelPlugin) and otel (ExecutionOtelPlugin)`. Python resolves both
-    names to one object, so it loads a single factory and logs that it skipped
-    the duplicate. Set one name in either language.
+    fails at startup:
+
+    ```text
+    Conflicting plugin factories otel-execution (ExecutionOtelPlugin) and otel (ExecutionOtelPlugin)
+    ```
+
+    Python resolves both names to one object, so it loads a single factory and
+    logs that it skipped the duplicate. Set one name in either language.
 
 ## Configure an application-owned provider
 
