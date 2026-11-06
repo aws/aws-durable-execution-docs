@@ -237,30 +237,43 @@ For both plugins, your observability platform's quotas and limits apply.
 
 ## Trace parent and sampling
 
+Existing releases give explicit `Sampled=0/1` precedence. The
+[configured-sampler proposal](#proposed-configured-sampler-contract) changes that
+contract and is not a claim of released support.
+
 The plugins resolve the execution parent and the sampling decision
 independently. A missing or unusable `Sampled` field does not replace a valid
 remote parent with a synthetic root.
 
-| `_X_AMZN_TRACE_ID` state                                              | Canonical trace ID                                            | Common execution ancestor | Sampling                                                                |
-| --------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------- | ----------------------------------------------------------------------- |
-| Valid `Root`, `Parent`, `Sampled=1`                                   | Reuse `Root`                                                  | Remote `Parent`           | Preserve sampled                                                        |
-| Valid `Root`, `Parent`, `Sampled=0`                                   | Reuse `Root`                                                  | Remote `Parent`           | Preserve not sampled                                                    |
-| Valid `Root`, `Parent`, no valid `Sampled`                            | Reuse `Root`                                                  | Remote `Parent`           | Leave the sampled trace flag unset; configured sampler behavior applies |
-| Valid `Root`, missing or invalid `Parent`, `Sampled=1` or `Sampled=0` | Reuse `Root`                                                  | Synthetic execution root  | Preserve the explicit decision                                          |
-| Valid `Root`, missing or invalid `Parent`, no valid `Sampled`         | Reuse `Root`                                                  | Synthetic execution root  | Configured root sampler decides                                         |
-| Missing or invalid `Root`                                             | Derive from the execution ARN and stable execution start time | Synthetic execution root  | Configured root sampler decides                                         |
+| `_X_AMZN_TRACE_ID` state                                              | Canonical trace ID                                            | Common execution ancestor | Sampling                                                   |
+| --------------------------------------------------------------------- | ------------------------------------------------------------- | ------------------------- | ---------------------------------------------------------- |
+| Valid `Root`, `Parent`, `Sampled=1`                                   | Reuse `Root`                                                  | Remote `Parent`           | Preserve sampled                                           |
+| Valid `Root`, `Parent`, `Sampled=0`                                   | Reuse `Root`                                                  | Remote `Parent`           | Preserve not sampled                                       |
+| Valid `Root`, `Parent`, no valid `Sampled`                            | Reuse `Root`                                                  | Remote `Parent`           | Configured sampler behavior depends on the SDK integration |
+| Valid `Root`, missing or invalid `Parent`, `Sampled=1` or `Sampled=0` | Reuse `Root`                                                  | Synthetic execution root  | Preserve the explicit decision                             |
+| Valid `Root`, missing or invalid `Parent`, no valid `Sampled`         | Reuse `Root`                                                  | Synthetic execution root  | Configured root sampler decides                            |
+| Missing or invalid `Root`                                             | Derive from the execution ARN and stable execution start time | Synthetic execution root  | Configured root sampler decides                            |
 
 Only `Sampled=0` and `Sampled=1` carry authoritative upstream decisions. An
 absent or unusable value does not mean that the upstream system explicitly
-chose not to sample. Its OpenTelemetry span context still represents the value
+chose not to sample. A propagated OpenTelemetry parent can represent that value
 with an unset sampled bit.
 
-A `ParentBased` sampler treats a remote parent with an unset sampled bit as not
-sampled. A directly configured non-parent-based `TraceIdRatioBased` sampler can
+A `ParentBased` sampler treats a supplied remote parent with an unset sampled bit
+as not sampled. A directly configured non-parent-based `TraceIdRatioBased` sampler can
 decide from the canonical trace ID instead. The reused or derived trace ID
 remains stable across reinvocations, so trace-ID-ratio decisions also remain
-stable. Other sampler decisions can change between reinvocations unless the
-application persists them.
+stable when configuration stays unchanged. Random, time-dependent, load-dependent,
+or mutable-state-dependent local decisions are unsupported. The plugins do not
+checkpoint sampling decisions; caching or application persistence does not extend
+the supported sampling modes.
+
+=== "TypeScript"
+
+    The existing JavaScript integration evaluates the configured sampler at root
+    when `Sampled` is missing or unusable, even with valid `Root` and `Parent`.
+    It therefore uses the `ParentBased` root policy in this case. The proposal
+    below would supply the original remote parent instead.
 
 When `Root` and `Parent` are valid, the normal hierarchy is:
 
@@ -296,6 +309,97 @@ plugins derive the trace ID from the execution ARN and stable execution start
 time. Fallback mode ignores unrelated ambient context. TypeScript, Python, and
 Java use this same topology with global and application-owned providers. The
 selected sampling decision applies consistently to every descendant.
+
+### Proposed configured-sampler contract
+
+This proposal for [issue #295](https://github.com/aws/aws-durable-execution-docs/issues/295)
+applies to both Execution and Invocation views. It is unreleased. Each SDK must
+identify the first supporting release before this guide describes the behavior as
+available. Existing releases still give explicit `Sampled=0/1` precedence.
+
+The provider's configured sampler decides whether to inherit upstream sampling:
+
+| Configured sampler         | Sampled parent     | Unsampled parent   | No usable parent   |
+| -------------------------- | ------------------ | ------------------ | ------------------ |
+| `always_on`                | Sample             | Sample             | Sample             |
+| `always_off`               | Drop               | Drop               | Drop               |
+| `traceidratio`             | Trace ID and ratio | Trace ID and ratio | Trace ID and ratio |
+| `parentbased_always_on`    | Sample             | Drop               | Sample             |
+| `parentbased_always_off`   | Sample             | Drop               | Drop               |
+| `parentbased_traceidratio` | Sample             | Drop               | Trace ID and ratio |
+
+The sampling input uses the execution's stable canonical trace ID and the original
+propagated remote parent when both its trace ID and span ID are valid. Its sampled
+flag comes from the propagated context, before any durable decision is applied.
+A valid parent with an unset sampled flag is an unsampled parent for `ParentBased`,
+even when the header omits `Sampled`. With an incomplete or invalid parent, pass
+no parent to the sampler. A `Sampled` field alone does not create one.
+
+Direct samplers apply their policy to that input regardless of its parent flag.
+`ParentBased` uses its root policy only for the no-parent case. Do not substitute
+an ambient handler span or a synthetic sampled ancestor as the sampling input.
+Span parenting remains separate: a same-trace ambient span may parent an
+Invocation only when it satisfies the SDK's parent-selection checks, including
+sampling compatibility.
+
+Resolve the decision consistently and apply it to every SDK-created Workflow,
+Invocation, operation, attempt, and synthetic-root span. Recompute it across
+reinvocations using the same canonical trace ID, configuration, and applicable
+propagated parent decision. The determinism requirements above still apply; this
+proposal adds no sampling-decision store.
+
+In supported ADOT or OpenTelemetry autoconfiguration setups,
+`OTEL_TRACES_SAMPLER` selects the sampler and `OTEL_TRACES_SAMPLER_ARG` supplies the
+ratio. The plugin uses the provider's resolved sampler. It does not parse another
+copy of the environment settings or replace an application-owned provider.
+Unset and invalid settings follow that provider's defaults and validation;
+explicit programmatic configuration takes precedence where the provider defines
+it. Each SDK must document and test these behaviors for its supported provider
+versions. Ordinary application and ADOT spans retain their provider behavior.
+
+=== "TypeScript"
+
+    [JavaScript #1133](https://github.com/aws/aws-durable-execution-sdk-js/issues/1133)
+    tracks runtime support. Coordinated sampling requires the existing compatible
+    `DurableSampler` bridge on the resolved provider's tracer. Explicit provider
+    factories returning opaque or custom tracers without that bridge retain
+    provider per-span sampling. If the configured sampler cannot be consulted,
+    the fallback preserves explicit `Sampled=0/1` on a valid propagated trace,
+    even without a valid parent. It defaults to sampled only when no usable
+    decision exists. This fallback does not guarantee coordinated execution sampling.
+    The global-provider path may disable telemetry when its required deterministic
+    ID bridge is unavailable. With a compatible bridge, the override remains
+    scoped to creating SDK spans.
+
+=== "Python"
+
+    Runtime support is pending in
+    [Python #887](https://github.com/aws/aws-durable-execution-sdk-python/issues/887).
+
+=== "Java"
+
+    Runtime support is pending in
+    [Java #853](https://github.com/aws/aws-durable-execution-sdk-java/issues/853).
+
+To preserve upstream decisions after upgrading, choose `parentbased_*` with the
+appropriate no-parent policy. Direct `always_off` would drop every durable span
+even with `Sampled=1`, on both initial and resumed invocations. Direct
+`traceidratio` with a fixed `OTEL_TRACES_SAMPLER_ARG` would make the same decision
+for the same canonical trace ID across retries and resumes, regardless of the
+parent flag. A small batch need not sample exactly the configured proportion.
+Completed user work must remain skipped on replay.
+
+Before release, coordinate this change with the
+[language-neutral conformance contract](https://github.com/aws/aws-durable-execution-conformance-tests/blob/main/packages/aws-durable-execution-conformance-tests-otel/CONTRIBUTING.md).
+Its current sampling table requires unconditional upstream precedence, including
+headers without a valid parent. Revise that contract and add applicable policy,
+replay, and dropped-ambient-parent coverage alongside the SDK changes.
+
+Exporter assertions establish which spans were emitted. They do not establish
+X-Ray ingestion or console rendering. Test sampled durable spans with a dropped
+same-trace ambient parent separately, including a complete propagated remote
+parent. Honoring `always_off` alone does not establish that missing-parent cases
+are fixed.
 
 ## Span structure and attributes
 
