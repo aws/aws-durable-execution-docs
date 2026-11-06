@@ -50,7 +50,7 @@ Upgrade the core and plugin together, including copies supplied by Lambda layers
 
 === "Java"
 
-    Use the same 3.x version as the core SDK, containing
+    Use the same version as the core SDK, containing
     [`OtelPlugin.factory`](https://github.com/aws/aws-durable-execution-sdk-java/pull/873).
     SDK/plugin 3.0.1 does not include this entry point.
 
