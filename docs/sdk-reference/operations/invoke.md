@@ -292,6 +292,7 @@ When this function runs:
     public sealed class InvokeConfig
     {
         public string? TenantId { get; set; }
+        public ILambdaSerializer? Serializer { get; set; }
     }
     ```
 
@@ -299,9 +300,10 @@ When this function runs:
 
     - `TenantId` (optional) Tenant identifier for multi-tenant isolation.
 
-    The payload and result are serialized with the `ILambdaSerializer` registered on
-    `ILambdaContext.Serializer`; there are no per-invoke serializer fields. See
-    [Serialization](../state/serialization.md).
+    - `Serializer` (optional) Overrides serialization of the payload and result.
+        Null uses the serializer registered on `ILambdaContext.Serializer`. The
+        caller and target must agree on the format. See
+        [Serialization](../state/serialization.md).
 
 ## Naming invoke operations
 

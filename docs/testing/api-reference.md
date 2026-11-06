@@ -598,9 +598,11 @@ CI.
 
 === "C#"
 
-    The .NET SDK does not expose checkpoint-manipulation methods. To exercise failure and
-    retry paths, throw from inside a step and assert on `TestStep.Attempt` and the recorded
-    operation status. See the retry example in [Authoring](authoring.md).
+    Set `TestRunnerOptions.OmitCheckpointToken` to a predicate on the 1-based
+    checkpoint call number. Returning `true` accepts the checkpoint but omits
+    its token, suspending the invocation so the runner can exercise replay.
+    This option is available in Testing SDK 1.1.0 with Core 2.2.0. To test a
+    retry, throw from a step and inspect `TestStep.Attempt`.
 
 ### Control time
 
@@ -753,6 +755,7 @@ See [Authoring: Skip time in tests](authoring.md#skip-time-in-tests) for an over
         public int MaxInvocations { get; init; } = 100;
         public TimeSpan DefaultTimeout { get; init; } = TimeSpan.FromSeconds(30);
         public ILambdaSerializer? Serializer { get; init; }
+        public Func<int, bool>? OmitCheckpointToken { get; init; }
         public ILoggerFactory? LoggerFactory { get; init; }
         public string DurableExecutionArn { get; init; } // synthetic test ARN by default
     }

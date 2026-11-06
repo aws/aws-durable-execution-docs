@@ -10,10 +10,8 @@ public class SerdesErrorExample
 
     private async Task<ResultData> Workflow(object input, IDurableContext ctx)
     {
-        // The step result is serialized to checkpoint storage with the
-        // ILambdaSerializer registered on ILambdaContext.Serializer. When
-        // serialization or deserialization fails, the SDK surfaces the failure as
-        // an unhandled exception, returns a FAILED status, and does not retry.
+        // Result serialization and round-trip failures are terminal StepExceptions.
+        // The SDK checkpoints the failure without retrying the successful body.
         try
         {
             ResultData result = await ctx.StepAsync(
@@ -21,7 +19,7 @@ public class SerdesErrorExample
                 name: "build-result");
             return result;
         }
-        catch (Exception e)
+        catch (StepException e)
         {
             ctx.Logger.LogError("Serialization failed: {Message}", e.Message);
             throw;

@@ -372,6 +372,7 @@ Use map to apply the same operation to every item in a collection. Use
         public CompletionConfig CompletionConfig { get; set; } // default AllSuccessful()
         public NestingType NestingType { get; set; }           // default Nested
         public Func<TItem, int, string>? ItemNamer { get; set; }
+        public ILambdaSerializer? ItemSerializer { get; set; }
     }
     ```
 
@@ -379,18 +380,22 @@ Use map to apply the same operation to every item in a collection. Use
 
     - `MaxConcurrency` (optional) Maximum items running at once. `null` (default) is
         unlimited; must be at least 1 when set.
+
     - `CompletionConfig` (optional) When to stop. Default: `CompletionConfig.AllSuccessful()`.
         Any item failure completes the map with `FailureToleranceExceeded`. Set
         `CompletionConfig.AllCompleted()` to run every item regardless of failures.
+
     - `NestingType` (optional) `NestingType.Nested` (default) or `NestingType.Flat`. See
         [Nesting](#nesting).
+
     - `ItemNamer` (optional) A function that returns a custom name for each item, given the
         item and its zero-based index. Used in logs and traces. When `null` (default),
         items are named by index.
 
-    The `BatchResult` and per-item results are serialized with the `ILambdaSerializer`
-    registered on `ILambdaContext.Serializer`; there is no per-item serializer slot. See
-    [Serialization](../state/serialization.md).
+    - `ItemSerializer` (optional) Overrides each item or branch result serializer.
+        Null uses the serializer registered on `ILambdaContext.Serializer`. The
+        SDK owns the aggregate batch envelope; there is no whole-result override.
+        See [Serialization](../state/serialization.md).
 
 ### CompletionConfig
 
@@ -1317,8 +1322,8 @@ details below describe nested mode.
     checkpoints without re-executing completed items. In flat mode, the SDK records item
     results and errors inline on the parent map operation instead.
 
-    The SDK serializes results with the `ILambdaSerializer` registered on
-    `ILambdaContext.Serializer`; there is no per-item summary generator to configure.
+    Item results use `ItemSerializer` when set, or the serializer registered on
+    `ILambdaContext.Serializer`. There is no per-item summary generator.
 
 ## Nesting map operations
 

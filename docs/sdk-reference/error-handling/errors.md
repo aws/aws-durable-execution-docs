@@ -450,10 +450,11 @@ exception type when they encounter a value they cannot handle.
 
 === "C#"
 
-    The step result is serialized with the `ILambdaSerializer` registered on
-    `ILambdaContext.Serializer`. When serialization or deserialization fails, the SDK
-    surfaces the failure as an unhandled exception, returns a `FAILED` status, and does
-    not retry.
+    The step result uses `StepConfig.Serializer` when set, or the serializer
+    registered on `ILambdaContext.Serializer`. If serialization or round-trip
+    deserialization of a successful result fails, the SDK checkpoints a failure
+    and throws `StepException` without retrying the successful body.
+    Replay reproduces that failure without repeating its side effects.
 
     ```csharp
     --8<-- "examples/csharp/sdk-reference/error-handling/serdes-error.cs"

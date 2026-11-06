@@ -412,6 +412,8 @@ The object returned by `createCallback`.
     {
         public TimeSpan Timeout { get; set; }          // default TimeSpan.Zero (no timeout)
         public TimeSpan HeartbeatTimeout { get; set; } // default TimeSpan.Zero (no timeout)
+        public ILambdaSerializer? Serializer { get; set; }
+        public string? SubType { get; set; }
     }
     ```
 
@@ -419,12 +421,19 @@ The object returned by `createCallback`.
 
     - `Timeout` (optional) Maximum time to wait for the callback result. `TimeSpan.Zero`
         (default) disables the overall timeout. Positive values must be at least 1 second.
+
     - `HeartbeatTimeout` (optional) Maximum time between heartbeat signals from the external
         system. If the external system does not send a heartbeat within this interval, the
         callback fails. `TimeSpan.Zero` (default) disables the heartbeat timeout.
 
-    The callback result is serialized with the `ILambdaSerializer` registered on
-    `ILambdaContext.Serializer`; there is no per-callback serializer. See
+    - `Serializer` (optional) Overrides the serializer for this callback's result.
+        When null, the SDK uses the serializer registered on `ILambdaContext.Serializer`.
+
+    - `SubType` (optional) An execution-history label with 1 to 32 characters from
+        `A-Z`, `a-z`, `0-9`, hyphen, and underscore. Null or empty uses `"Callback"`.
+        Invalid labels raise `ArgumentException`. Keep the label stable on replay.
+
+    See
     [Serialization](../state/serialization.md).
 
 ### waitForCallback
