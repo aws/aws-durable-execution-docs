@@ -38,6 +38,16 @@ than inline in the operation. Keep `DurableContext` out of your domain logic.
     --8<-- "examples/go/patterns/code-organization/separate-logic.go"
     ```
 
+=== "Rust"
+
+    Domain functions take plain arguments and return plain values. Only the step closure
+    receives a `durable::StepContext`, so the domain logic stays free of SDK types. A
+    step closure must be `'static`, so each step moves in its own clone of `order`.
+
+    ```rust
+    --8<-- "examples/rust/patterns/code-organization/separate-logic.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -88,6 +98,16 @@ operations.
     --8<-- "examples/go/patterns/code-organization/child-context.go"
     ```
 
+=== "Rust"
+
+    The closure receives its own child `durable::DurableContext`. Call every durable
+    operation on that child. An operation on the outer context from inside the closure
+    fails the execution with a context usage error.
+
+    ```rust
+    --8<-- "examples/rust/patterns/code-organization/child-context.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -125,6 +145,18 @@ intent clear.
 
     ```go
     --8<-- "examples/go/patterns/code-organization/group-config.go"
+    ```
+
+=== "Rust"
+
+    Each step setting is a builder method. Collect the settings once in a value of your
+    own, such as the `StepConfig` struct here, and apply its fields with
+    `.semantics(..)` and `.retry_strategy_config(..)`. `durable::StepSemantics` is
+    `Copy`. `durable::builders::RetryStrategyConfig` is `Clone`, so clone it for each
+    step that reuses it.
+
+    ```rust
+    --8<-- "examples/rust/patterns/code-organization/group-config.rs"
     ```
 
 === "C#"
@@ -165,6 +197,17 @@ sandbox crashes, unlike language-specific constructs such as `Promise.all`,
 
     ```go
     --8<-- "examples/go/patterns/code-organization/parallelism.go"
+    ```
+
+=== "Rust"
+
+    Use `ctx.parallel` for a fixed set of branches and `ctx.map` for a variable-length
+    list. Every branch of one `parallel` returns the same type. The map closure also
+    receives the item index. Awaiting either builder returns the results of the
+    succeeded items as a `Vec`, in input order.
+
+    ```rust
+    --8<-- "examples/rust/patterns/code-organization/parallelism.rs"
     ```
 
 === "C#"

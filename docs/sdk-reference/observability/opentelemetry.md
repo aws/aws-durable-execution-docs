@@ -60,6 +60,11 @@ CloudWatch.
     The OpenTelemetry plugin for Go is a work in progress. Until it ships, this
     page covers TypeScript, Python, and Java.
 
+!!! note "Rust support"
+
+    The OpenTelemetry plugin for Rust is a work in progress. Until it ships, this
+    page covers TypeScript, Python, and Java.
+
 ## Install the plugin
 
 === "TypeScript"

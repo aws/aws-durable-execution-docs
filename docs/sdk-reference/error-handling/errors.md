@@ -51,6 +51,18 @@ it to your handler. You can catch it there and handle it as required.
     --8<-- "examples/go/sdk-reference/error-handling/basic-error-handling.go"
     ```
 
+=== "Rust"
+
+    The step body returns an error, and the step returns a `durable::OperationError` whose
+    `kind()` is `durable::OperationErrorKind::Step` when no retry remains. When the
+    failure reached the execution history, `err.wire()` returns a `durable::WireError`
+    with its recorded type and message on the first run and on replay. Return any other
+    error unchanged.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/basic-error-handling.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -253,6 +265,62 @@ error and the operation details.
     Sentinels such as `ErrCallbackTimedOut`, `ErrInvokeTimedOut`, `ErrWrongGoroutine`,
     and `ErrWrongContext` match with `errors.Is`.
 
+=== "Rust"
+
+    ```mermaid
+    graph TD
+      OE[OperationError]
+      OEK[OperationErrorKind]
+      OE -->|"kind()"| OEK
+      OEK --> SE["Step(StepError)"]
+      OEK --> WE["Wait(WaitError)"]
+      OEK --> IE["Invoke(InvokeError)"]
+      OEK --> CE["Callback(CallbackError)"]
+      OEK --> WCE["WaitForCondition(WaitForConditionError)"]
+      OEK --> CCE["ChildContext(ChildContextError)"]
+      OEK --> CbE["Combinator(CombinatorError)"]
+      OEK --> NDE["NonDeterministicExecution(NonDeterministicExecutionError)"]
+      SE -->|"kind()"| SEK[StepErrorKind]
+      CE -->|"kind()"| CEK[CallbackErrorKind]
+    ```
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/exception-hierarchy.rs"
+    ```
+
+    Awaiting a durable operation returns `Result<T, durable::OperationError>`.
+    `durable::OperationError::kind()` returns a `durable::OperationErrorKind` with one
+    variant per operation type, and each variant holds that operation's error. Each
+    operation error has its own `kind()`, such as `durable::StepError::kind()`, which
+    returns a `durable::StepErrorKind`. Match on these enums. Every kind enum is
+    `#[non_exhaustive]`, so a `match` needs a `_` arm. A non-exhaustive unit variant uses
+    `{ .. }`, as in `durable::StepErrorKind::ExecutionFailed { .. }`.
+
+    `durable::OperationError::wire()` returns the recorded failure as a
+    `durable::WireError` with its type, message, data, and stack trace when a wire record
+    exists. This works on the first run and on replay.
+    `std::error::Error::source(&err)` first returns the operation-specific error. That
+    error can carry the live cause, or a `durable::ReplayedFailure` with recorded fields
+    on replay. Use `kind()` and `wire()` for behavior that must remain the same on replay.
+    Print the whole source chain with `{err:#}`.
+
+    `durable::OperationErrorKind::Callback` covers every callback failure. Its
+    `durable::CallbackErrorKind` is `ExternalFailure` for a failure the external system
+    sent through `SendDurableExecutionCallbackFailure` or a callback that ended
+    `CANCELLED` or `STOPPED`, `TimedOut` for an overall timeout, `HeartbeatTimedOut` when
+    no heartbeat arrived in time, `SubmitterFailed` for a submitter function that
+    exhausted its retries, `DeserializationFailed` for an invalid payload, or `Internal`
+    for an SDK or service failure. Match `durable::OperationErrorKind::Callback(_)` to
+    handle every callback failure with a single branch.
+
+    `durable::OperationErrorKind::NonDeterministicExecution` reports an operation that
+    differs from the execution history or a recorded status that this SDK cannot
+    interpret. The SDK fails the execution whatever the handler does with this error.
+
+    `durable::StepErrorKind::Interrupted` reports an at-most-once step that Lambda
+    interrupted before the SDK checkpointed the result. See
+    [Step interrupted](#step-interrupted) below.
+
 === "C#"
 
     ```mermaid
@@ -340,6 +408,27 @@ invalid argument to an SDK operation, such as a negative duration.
     --8<-- "examples/go/sdk-reference/error-handling/validation-error.go"
     ```
 
+=== "Rust"
+
+    A constructor that can reject a value returns a `Result`.
+    `durable::builders::map_parallel::CompletionConfig::builder().build()` returns a
+    `durable::builders::map_parallel::CompletionConfigValidationError` when
+    `tolerated_failure_percentage` is NaN, infinite, or outside 0 to 100. It also rejects
+    a completion predicate combined with `min_successful`, `tolerated_failure_count`, or
+    `tolerated_failure_percentage`. `durable::OperationSubType::new` returns a
+    `durable::InvalidOperationSubType`, and `durable::Options::builder().build()` returns
+    a `durable::OptionsValidationError`.
+
+    Some operation settings fail later. A
+    `durable::builders::map_parallel::CompletionConfig` made with
+    `with_tolerated_failure_percentage` checks the percentage when the batch runs and
+    fails the batch when it is invalid. Setting `max_concurrency(0)` on a map or parallel
+    operation fails the execution, so the handler cannot catch it.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/validation-error.rs"
+    ```
+
 === "C#"
 
     The SDK throws `ArgumentException` (or `ArgumentOutOfRangeException`) for invalid
@@ -394,6 +483,19 @@ succeeded before deciding how to proceed.
     --8<-- "examples/go/sdk-reference/error-handling/step-interrupted.go"
     ```
 
+=== "Rust"
+
+    Use `.semantics(durable::StepSemantics::AtMostOncePerRetry)` for a step with side
+    effects that shouldn't run more than once. The SDK counts an interrupted attempt as
+    a failed attempt, so the step's retry strategy decides whether a new attempt runs.
+    When no retry remains, the step returns a `durable::OperationError` whose
+    `durable::StepErrorKind` is `Interrupted`, and the record's error type is
+    `StepInterruptedError`.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/step-interrupted.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -446,6 +548,24 @@ exception type when they encounter a value they cannot handle.
 
     ```go
     --8<-- "examples/go/sdk-reference/error-handling/serdes-error.go"
+    ```
+
+=== "Rust"
+
+    A custom [`durable::Serdes`](../state/serialization.md) returns an error from
+    `serialize` or `deserialize`. By default the failure is permanent. A step whose
+    result fails to serialize records the failure and returns a `durable::OperationError`
+    whose `durable::StepErrorKind` is `SerializationFailed`. A permanent failure while
+    deserializing a recorded result returns the same kind to the handler and records
+    nothing new.
+
+    Wrap the error with `durable::serdes::RetryableSerdesError::new` to mark it transient.
+    The SDK then ends the invocation without recording the serdes failure, and the
+    backend invokes the function again. After a retryable deserialization failure, the
+    next invocation decodes the recorded value again.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/serdes-error.rs"
     ```
 
 === "C#"

@@ -1,0 +1,16 @@
+impl FileSystemSerdes {
+    // ...
+    pub fn new(base_path: impl Into<String>) -> Self;
+    // ...
+    pub fn with_config(base_path: impl Into<String>, config: FileSystemSerdesConfig) -> Self;
+    // ...
+}
+
+// ...
+
+impl<T> Serdes<T> for FileSystemSerdes
+where
+    T: Serialize + DeserializeOwned + Send + 'static,
+{
+    // ...
+}

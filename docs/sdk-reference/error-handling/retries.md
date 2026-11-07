@@ -62,6 +62,18 @@ and linear backoff.
     --8<-- "examples/go/sdk-reference/error-handling/exponential-backoff.go"
     ```
 
+=== "Rust"
+
+    Build a `durable::builders::RetryStrategyConfig` with
+    `RetryStrategyConfig::builder()`, then pass it to the step with
+    `.retry_strategy_config(..)`. `build()` cannot fail. The invocation suspends during
+    a retry delay when all remaining SDK work is blocked. A retry that becomes due
+    while SDK work continues starts in the same invocation.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/exponential-backoff.rs"
+    ```
+
 === "C#"
 
     Use `RetryStrategy.Exponential(...)` to build an `IRetryStrategy`, then set it on
@@ -160,6 +172,38 @@ and linear backoff.
     `NewRetryStrategy()` returns one joined error that names every invalid field. The
     strategy rounds each delay to the nearest whole second, with a minimum of 1 second.
 
+=== "Rust"
+
+    Set each field with a method of `RetryStrategyConfigBuilder`, which
+    `RetryStrategyConfig::builder()` returns. `build()` fills every field you leave
+    unset with its default.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/retry-strategy-config-signature.rs"
+    ```
+
+    **Methods:**
+
+    - `max_attempts` Total attempts including the initial attempt. Default: `3`, or `6`
+        with a linear backoff.
+    - `initial_delay` A `std::time::Duration`. Default: 5 seconds, or 1 second with a
+        linear backoff.
+    - `max_delay` A `Duration` that caps the delay before jitter. Default: 5 minutes.
+    - `backoff_rate` Multiplier applied to the delay on each retry. It sets
+        `Backoff::Exponential { rate }`. Default: `2.0`.
+    - `backoff` A `Backoff` value, exponential or linear. `backoff` and `backoff_rate`
+        set the same value, so the last call wins. Default:
+        `Backoff::Exponential { rate: 2.0 }`.
+    - `jitter` A `JitterStrategy` value. Default: `JitterStrategy::Full`.
+    - `retry_if` A predicate over the `durable::StepError`. The SDK retries only the
+        errors for which it returns `true`. Without it, the SDK retries every error.
+        See [Retry only specific errors](#retry-only-specific-errors).
+
+    `build()` accepts any value. The strategy rounds each delay to the nearest whole
+    second, with a minimum of 1 second. `RetryStrategyConfig::default()` returns the
+    default preset from [Retry presets](#retry-presets), which differs from
+    `RetryStrategyConfig::builder().build()`.
+
 === "C#"
 
     ```csharp
@@ -210,6 +254,15 @@ and linear backoff.
 
     `RetryConfig` and `WaitConfig` default to `JitterFull`. `LinearRetryConfig` defaults
     to `JitterNone`.
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/jitter-strategy-signature.rs"
+    ```
+
+    A config from `RetryStrategyConfig::builder()` defaults to `JitterStrategy::Full`.
+    The `RetryStrategyConfig::linear()` preset uses `JitterStrategy::None`.
 
 === "C#"
 
@@ -274,6 +327,15 @@ retries rather than the rapid expansion of exponential backoff.
 
     ```go
     --8<-- "examples/go/sdk-reference/error-handling/linear-retry-strategy.go"
+    ```
+
+=== "Rust"
+
+    Pass `Backoff::Linear { increment }` to the builder's `.backoff(..)`, then pass the
+    config to the step with `.retry_strategy_config(..)`.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/linear-retry-strategy.rs"
     ```
 
 === "C#"
@@ -371,6 +433,27 @@ retries rather than the rapid expansion of exponential backoff.
     - `RetryableErrors` A slice of `ErrorMatcher`. When empty, every error is retryable.
         Entries must not be nil.
 
+=== "Rust"
+
+    The type is `durable::builders::Backoff`. Pass it to
+    `RetryStrategyConfigBuilder::backoff`. Set the other fields with the methods in
+    [RetryStrategyConfig signature](#retrystrategyconfig-signature).
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/linear-retry-strategy-config-signature.rs"
+    ```
+
+    **Variants:**
+
+    - `Exponential { rate }` Multiplies the delay by `rate` on each retry.
+    - `Linear { increment }` Adds `increment`, a `Duration`, to the delay on each
+        retry. You set `increment` in the variant. A zero `increment` gives a fixed
+        interval.
+
+    With a linear backoff, `build()` fills each unset field with the linear default.
+    `max_attempts` defaults to `6`, `initial_delay` to 1 second, `max_delay` to 5
+    minutes, and `jitter` to `JitterStrategy::Full`.
+
 === "C#"
 
     There is no linear config type in .NET. Build the delay from `RetryStrategy.FromDelegate`:
@@ -430,6 +513,17 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/go/sdk-reference/error-handling/retry-strategy-signature.go"
     ```
 
+=== "Rust"
+
+    A retry strategy is a function or closure that takes the `&durable::StepError` and
+    the 1-based attempt number, and returns a `durable::RetryDecision`. Pass it to the
+    step with `.retry_strategy(..)`. `StepError::source()` returns the error that the
+    step body returned.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/retry-strategy-signature.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -471,6 +565,16 @@ current attempt number after each failure. The attempt number is one-indexed.
 
     ```go
     --8<-- "examples/go/sdk-reference/error-handling/custom-retry-strategy.go"
+    ```
+
+=== "Rust"
+
+    Return `RetryDecision::Retry { delay }` to retry, or `RetryDecision::Stop` to stop.
+    The SDK rounds a fractional delay up to whole seconds, and a delay under 1 second
+    waits 1 second.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/custom-retry-strategy.rs"
     ```
 
 === "C#"
@@ -555,6 +659,20 @@ The SDK ships with preset strategies for common cases:
 
     The SDK ships no transient, critical, fixed, or resource-availability preset.
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/retry-presets.rs"
+    ```
+
+    **`RetryStrategyConfig::default()`** 6 attempts, 5s initial delay, 60s max, 2x
+    backoff, full jitter. This is the default when you set no retry strategy.
+
+    **`RetryStrategyConfig::linear()`** 6 attempts with linear delays of 1s, 2s, 3s, 4s,
+    5s and no jitter.
+
+    **`RetryStrategyConfig::no_retry()`** 1 attempt, fails immediately on error.
+
 === "C#"
 
     ```csharp
@@ -633,6 +751,40 @@ available to `step` to other operations, such as `invoke`, `waitForCallback`, an
     passes `ChildOption` values, such as `WithChildSerdes`, to each attempt's child
     context.
 
+=== "Rust"
+
+    `ctx.with_retry(f)` runs `f` and retries it on failure. `f` receives a
+    `DurableContext` and the 1-based attempt number, and may call any durable
+    operation. The SDK calls `f` once per attempt, so clone each captured value inside
+    it. The strategy runs only after `f` returns an `Err`. A suspension inside `f`
+    leaves the current attempt in progress.
+
+    Set the strategy with `.retry_strategy_config(..)` or `.retry_strategy(..)`.
+    Without one, the block uses `RetryStrategyConfig::default()`. A `retry_if`
+    predicate in this block receives the attempt's `durable::OperationError` as the
+    source of its `StepError`. Downcast to that `OperationError` and match its
+    `wire()` error type or message. Do not downcast the recorded error to the attempt
+    body's live error, which is unavailable on replay.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/with-retry-helper.rs"
+    ```
+
+    By default the block records one child context with the name you set with
+    `.name(..)`. Each attempt runs in its own child context, `attempt-<n>`, inside it.
+    Between attempts, a named block waits with a wait named `<name>-backoff-<n>`. A
+    block without a name creates waits without names. The invocation suspends during
+    this wait when all remaining SDK work is blocked.
+
+    When the strategy stops, the block fails with a `durable::ChildContextError` whose
+    source is the last attempt's error. `.without_child_context()` records no block.
+    The attempts then run in the caller's context as `<name>-attempt-<n>`, and the
+    block returns the last attempt's error unchanged.
+
+    `.virtual_context()` also records no block, but keeps the attempts and waits in a
+    separate operation namespace. The last call to `.virtual_context()` or
+    `.without_child_context()` selects the mode.
+
 === "C#"
 
     The .NET SDK has no separate `withRetry` helper, and `InvokeConfig` does not accept a
@@ -694,6 +846,20 @@ You can retry only certain error types and fail immediately on others.
     `ErrorAs` and `ErrorIs` match a live error, such as the one a step returns. Inside a
     default `Retry` group, match the recorded error with `ErrorTypeIs`, `ErrorContains`,
     or `ErrorMatches`.
+
+=== "Rust"
+
+    Pass a predicate to the builder's `.retry_if(..)`. The SDK retries a failed attempt
+    only when the predicate returns `true`. Any other error fails the step on that
+    attempt. Read the step body's error with `error.source()`, which needs the
+    `std::error::Error` trait in scope. Match its type with `is::<T>()` or
+    `downcast_ref::<T>()`, or match its message with
+    `error.source().map(ToString::to_string)`. The predicate must return the same answer
+    for the same error, because replay can call it again.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/retry-specific-errors.rs"
+    ```
 
 === "C#"
 

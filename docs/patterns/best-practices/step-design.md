@@ -50,6 +50,21 @@ different name on subsequent invocations.
     --8<-- "examples/go/patterns/step-design/step-names.go"
     ```
 
+=== "Rust"
+
+    Set the name with `.name(..)`, which takes a `&str` or a `String`. A name that
+    `format!` builds from the input is deterministic. A name built from
+    `SystemTime::now()` changes on the next invocation, and replay then fails the
+    execution with a non-determinism error.
+
+    ```rust
+    --8<-- "examples/rust/patterns/step-design/step-names.rs"
+    ```
+
+    ```rust
+    --8<-- "examples/rust/patterns/step-design/step-names-wrong.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -110,6 +125,19 @@ re-run.
     --8<-- "examples/go/patterns/step-design/one-thing-per-step.go"
     ```
 
+=== "Rust"
+
+    Give each side effect its own step so each one checkpoints independently. A single
+    step that performs all three repeats all three when it retries.
+
+    ```rust
+    --8<-- "examples/rust/patterns/step-design/one-thing-per-step-wrong.rs"
+    ```
+
+    ```rust
+    --8<-- "examples/rust/patterns/step-design/one-thing-per-step.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -152,6 +180,16 @@ Define a reusable step function once and reference it repeatedly from the workfl
 
     ```go
     --8<-- "examples/go/patterns/step-design/reusable-step.go"
+    ```
+
+=== "Rust"
+
+    Define the function once, free of SDK types, and call it from a step closure
+    wherever you reuse it. The closure must be `'static`, so it moves in an owned value,
+    such as a clone of `order`.
+
+    ```rust
+    --8<-- "examples/rust/patterns/step-design/reusable-step.rs"
     ```
 
 === "C#"
@@ -203,6 +241,21 @@ unit the SDK checkpoints. You cannot call other durable operations such as `step
 
     ```go
     --8<-- "examples/go/patterns/step-design/step-boundary.go"
+    ```
+
+=== "Rust"
+
+    A step body receives a `durable::StepContext`, whose only method is `attempt()`. A
+    body that captures a clone of the outer `durable::DurableContext` and starts an
+    operation on it compiles. At run time that call fails the execution with a context
+    usage error. Group operations with `ctx.run_in_child_context`.
+
+    ```rust
+    --8<-- "examples/rust/patterns/step-design/step-boundary-wrong.rs"
+    ```
+
+    ```rust
+    --8<-- "examples/rust/patterns/step-design/step-boundary.rs"
     ```
 
 === "C#"
@@ -261,6 +314,18 @@ options.
 
     ```go
     --8<-- "examples/go/patterns/step-design/handle-errors-in-step.go"
+    ```
+
+=== "Rust"
+
+    Pass a predicate to `retry_if` on `RetryStrategyConfig::builder()` to choose which
+    errors retry. The predicate receives the `durable::StepError`, whose `source()` is
+    the error the step body returned, so `is::<T>()` matches its type. Import
+    `std::error::Error` to call `source()`. A step fails on the first attempt whose
+    error the predicate rejects.
+
+    ```rust
+    --8<-- "examples/rust/patterns/step-design/handle-errors-in-step.rs"
     ```
 
 === "C#"

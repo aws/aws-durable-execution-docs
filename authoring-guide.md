@@ -4,7 +4,7 @@ This guide covers how to author documentation for AWS Lambda Durable Functions.
 For setup and contribution workflow, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Each SDK reference page must be equally useful to TypeScript, Python, Java, Go,
-and C# developers. No language is the implicit default. Language-specific quirks
+Rust, and C# developers. No language is the implicit default. Language-specific quirks
 belong inside the relevant tab, not in shared prose.
 
 ## Verify Against SDK Source
@@ -28,7 +28,7 @@ For each code example:
 
 ### SDK repositories
 
-You will need the SDK source for all five languages. Clone them alongside
+You will need the SDK source for all six languages. Clone them alongside
 the docs repo:
 
 | Repository | Source path to read |
@@ -37,17 +37,20 @@ the docs repo:
 | [aws-durable-execution-sdk-python](https://github.com/aws/aws-durable-execution-sdk-python) | `packages/aws-durable-execution-sdk-python/src/aws_durable_execution_sdk_python` |
 | [aws-durable-execution-sdk-java](https://github.com/aws/aws-durable-execution-sdk-java) | `sdk/src/main/java/software/amazon/lambda/durable` |
 | [aws-durable-execution-sdk-go](https://github.com/aws/aws-durable-execution-sdk-go) | `durable` |
+| [aws-durable-execution-sdk-rust](https://github.com/aws/aws-durable-execution-sdk-rust) | `src` |
 | [aws-lambda-dotnet](https://github.com/aws/aws-lambda-dotnet) | `Libraries/src/Amazon.Lambda.DurableExecution` |
 
 Testing SDKs are useful for confirming example code compiles and runs. The
 JavaScript, Python, Java, and C# testing SDKs all live in the same repos as
 their main SDKs, under `-testing` package paths (or
 `Amazon.Lambda.DurableExecution.Testing` for C#). The Go testing package,
-`durabletest`, lives in the same module as the Go SDK:
+`durabletest`, lives in the same module as the Go SDK. The Rust runners live in the
+SDK crate, behind its `test-util` feature:
 
 | Repository | Source path to read |
 |---|---|
 | [aws-durable-execution-sdk-go](https://github.com/aws/aws-durable-execution-sdk-go) | `durable/durabletest` |
+| [aws-durable-execution-sdk-rust](https://github.com/aws/aws-durable-execution-sdk-rust) | `src/test_util.rs`, `src/test_util/live.rs` |
 | [aws-lambda-dotnet](https://github.com/aws/aws-lambda-dotnet) | `Libraries/src/Amazon.Lambda.DurableExecution.Testing` |
 
 
@@ -64,6 +67,11 @@ their main SDKs, under `-testing` package paths (or
   `invoke.go`, `callback.go`, `child_context.go`, `wait_for_condition.go`,
   `batch.go` for `Map` and `Parallel`). Check `retry.go` for `RetryConfig` and
   `errors.go` for the error types. `go doc -all ./durable` lists the whole API.
+- **Rust**: `src/context.rs` for `DurableContext` and `StepContext`. Each operation
+  builder lives in its own file under `src/builders/`. Check `src/options.rs` for
+  `Options`, `src/error.rs` for the error types, `src/serdes.rs` for `Serdes`, and
+  `src/test_util.rs` for the runners. `cargo doc --no-deps --all-features --open`
+  lists the whole API.
 - **C#**: `IDurableContext.cs` for the interface (also defines `IStepContext`,
   `IExecutionContext`). Check `StepConfig.cs`, `RetryStrategy.cs` (also holds
   `StepSemantics` and `JitterStrategy`), `DurableFunction.cs` for `WrapAsync`, and
@@ -102,7 +110,7 @@ as a whole new page can.
 
 ## Language Neutrality
 
-Tab order is always: **TypeScript → Python → Java → Go → C#**.
+Tab order is always: **TypeScript → Python → Java → Go → Rust → C#**.
 
 If a language has a quirk, note it inside that language's tab:
 
@@ -139,6 +147,14 @@ If a language has a quirk, note it inside that language's tab:
     --8<-- "examples/go/operations/steps/basic-step.go"
     ```
 
+=== "Rust"
+
+    Chain `.name("...")` on the builder. Omit it to record no name.
+
+    ```rust
+    --8<-- "examples/rust/operations/steps/basic-step.rs"
+    ```
+
 === "C#"
 
     The name is optional. Omit it to infer one from the call site.
@@ -155,7 +171,7 @@ Durable Execution SDK. Integration pages live under
 `docs/sdk-reference/integrations/`. Some frameworks exist in one language.
 Pydantic AI is Python only.
 
-For a single-language integration, the five-language rules do not apply. State
+For a single-language integration, the six-language rules do not apply. State
 the framework's language in the first sentence. Write the rest of the page in
 that language alone. Use a plain code fence instead of content tabs, because
 tabs separate languages and this page has only one.
@@ -170,7 +186,7 @@ SDK reference pages follow this pattern:
 
 1. One or two short paragraphs explaining what the operation does and when
    to use it
-2. A minimal walkthrough example (tabs, all five languages)
+2. A minimal walkthrough example (tabs, all six languages)
 3. Method signature section with per-language tabs
 4. Parameters listed after the tabs (shared where identical, inside tabs
    where language-specific)
@@ -254,7 +270,7 @@ Model tone and structure on these pages:
 
 All code examples must:
 
-- Include all five languages (TypeScript, Python, Java, Go, C#)
+- Include all six languages (TypeScript, Python, Java, Go, Rust, C#)
 - Be functionally equivalent across languages
 - Include necessary imports
 - Be minimal. Show the concept, not a full application.
@@ -269,10 +285,11 @@ examples/
   python/{section}/{subsection}/{example-name}.py
   java/{section}/{subsection}/{example-name}.java
   go/{section}/{subsection}/{example-name}.go
+  rust/{section}/{subsection}/{example-name}.rs
   csharp/{section}/{subsection}/{example-name}.cs
 ```
 
-Use hyphens in filenames. All five languages must have the same set of files.
+Use hyphens in filenames. All six languages must have the same set of files.
 
 A Go walkthrough example is a complete `package main` program, so a reader can
 build and deploy it as it is. Its `func main` calls `durable.Start` with the
@@ -280,6 +297,14 @@ handler and any handler options, for example `durable.Start(handler)` or
 `durable.Start(handler, durable.WithLogHandler(logHandler))`. A Go test example
 is also `package main` and uses `durabletest`. A reader saves it under a
 `_test.go` name and runs it with `go test`. Format Go examples with `gofmt`.
+
+A Rust walkthrough example is a complete `src/main.rs`, so a reader can build and
+deploy it as it is. Its `#[tokio::main] async fn main` calls `durable::run(handler)`,
+or `durable::run_with_options(handler, options)` with handler options. A Rust test
+example is an integration test that a reader saves as `tests/<name>.rs`. It holds the
+handler and its `#[tokio::test]` functions, uses `test_util::LocalRunner`, and has no
+`main`. Format Rust examples with `rustfmt`, and lint them with clippy at the lint
+levels of the SDK's examples workspace, except `missing_docs`.
 
 ### Embedding in Docs
 
@@ -308,6 +333,12 @@ Use the `--8<--` snippet syntax with content tabs:
 
     ```go
     --8<-- "examples/go/operations/steps/basic-step.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/steps/basic-step.rs"
     ```
 
 === "C#"
@@ -352,6 +383,9 @@ one. Copy each declaration exactly as `go doc` prints it:
     func StepAsync[O any](ctx Context, name string, fn func(StepContext) (O, error), opts ...StepOption) *Future[O]
     ```
 ```
+
+For Rust, copy each declaration as written in the SDK source, with `...` for omitted
+lines.
 
 For TypeScript, show both overloads if they exist (e.g. named and unnamed).
 
@@ -434,14 +468,16 @@ grammar. The items below cover authoring mechanics.
 
 - [ ] All prose is language-neutral (no Python-only concepts described as universal)
 - [ ] No Table of Contents, no "Back to top" links, no "Back to X" links
-- [ ] Tab order is TypeScript → Python → Java → Go → C# everywhere
+- [ ] Tab order is TypeScript → Python → Java → Go → Rust → C# everywhere
 - [ ] Language-specific notes are inside tabs, not outside
-- [ ] All five languages have example files for every `--8<--` reference
+- [ ] All six languages have example files for every `--8<--` reference
 - [ ] Single-language integration pages use one language and a plain code fence instead of tabs
 - [ ] Every example verified against the actual SDK source
 - [ ] Java method signatures show both sync and async variants
 - [ ] Go method signatures show the `Async` variant where the SDK has one
 - [ ] Go examples are `gofmt`-formatted and build against the Go SDK
+- [ ] Rust examples are `rustfmt`-formatted, pass clippy at the examples' lint levels,
+  and build on Rust 1.94.1
 - [ ] TypeScript signatures show both overloads where they exist
 - [ ] Topic is not already covered (or duplicated) on another page
 - [ ] No contradictions with other pages

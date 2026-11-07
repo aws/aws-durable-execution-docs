@@ -68,6 +68,20 @@ end-to-end, combine at-most-once with a no-retry strategy.
     --8<-- "examples/go/patterns/idempotency/choose-semantics.go"
     ```
 
+=== "Rust"
+
+    `StepSemantics::AtLeastOncePerRetry` is the default. When an attempt was
+    interrupted, the body runs again under `AtLeastOncePerRetry`. Under
+    `AtMostOncePerRetry`, the retry strategy receives a `durable::StepError` whose kind
+    is `StepErrorKind::Interrupted`. When the strategy does not retry, the step returns
+    an `OperationError` that holds that `StepError`. For a call that must run at most
+    once end to end, combine `.semantics(StepSemantics::AtMostOncePerRetry)` with
+    `.retry_strategy_config(RetryStrategyConfig::no_retry())`.
+
+    ```rust
+    --8<-- "examples/rust/patterns/idempotency/choose-semantics.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -119,6 +133,16 @@ at-least-once retries are safe.
 
     ```go
     --8<-- "examples/go/patterns/idempotency/idempotency-tokens.go"
+    ```
+
+=== "Rust"
+
+    The step generates the key with the [`uuid`](https://crates.io/crates/uuid) crate.
+    Add it with `cargo add uuid --features v4`. The key moves into the `charge` step, so
+    every attempt of that step sends the same key.
+
+    ```rust
+    --8<-- "examples/rust/patterns/idempotency/idempotency-tokens.rs"
     ```
 
 === "C#"
