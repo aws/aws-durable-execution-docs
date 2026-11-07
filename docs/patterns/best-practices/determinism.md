@@ -67,6 +67,15 @@ code.
     --8<-- "examples/go/patterns/determinism/non-deterministic-in-step.go"
     ```
 
+=== "Rust"
+
+    The step generates the ID with the [`uuid`](https://crates.io/crates/uuid) crate.
+    Add it with `cargo add uuid --features v4`.
+
+    ```rust
+    --8<-- "examples/rust/patterns/determinism/non-deterministic-in-step.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -126,6 +135,21 @@ state there.
 
     ```go
     --8<-- "examples/go/patterns/determinism/return-value-passing.go"
+    ```
+
+=== "Rust"
+
+    A step closure must be `'static`, so it cannot borrow a local variable. The first
+    program shares the list with the step through `Arc<Mutex<_>>`. Replay skips the
+    body, so the list stays empty. The second program returns the value from the step
+    instead.
+
+    ```rust
+    --8<-- "examples/rust/patterns/determinism/return-value-passing-wrong.rs"
+    ```
+
+    ```rust
+    --8<-- "examples/rust/patterns/determinism/return-value-passing.rs"
     ```
 
 === "C#"
@@ -202,6 +226,22 @@ non-deterministic decision into a step and branch on the step's return value.
     `durablenocheck` build tag is a separate mechanism. It compiles out the run-time
     goroutine and context checks. See [Goroutines and
     `durable.Go`](../../sdk-reference/languages/go/index.md#goroutines-and-durablego).
+
+=== "Rust"
+
+    When a branch changes between invocations, the execution fails with the error type
+    `NonDeterministicExecutionError`, and the message names the expected and the actual
+    operation. Iterating a `HashMap` or `HashSet` to start operations also breaks
+    replay, because the iteration order changes between runs. Sort the items into a
+    `Vec` first.
+
+    ```rust
+    --8<-- "examples/rust/patterns/determinism/stable-branches-wrong.rs"
+    ```
+
+    ```rust
+    --8<-- "examples/rust/patterns/determinism/stable-branches.rs"
+    ```
 
 === "C#"
 

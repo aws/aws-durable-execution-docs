@@ -1,0 +1,23 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  DurableFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: provided.al2023
+      Handler: bootstrap
+      Architectures: [x86_64]
+      CodeUri: .
+      DurableConfig:
+        ExecutionTimeout: 3600
+        RetentionPeriodInDays: 7
+      Policies:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
+      AutoPublishAlias: prod
+    Metadata:
+      BuildMethod: rust-cargolambda
+
+Outputs:
+  AliasArn:
+    Value: !Ref DurableFunction.Alias

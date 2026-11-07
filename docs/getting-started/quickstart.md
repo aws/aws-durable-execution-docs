@@ -1,7 +1,7 @@
 # Quickstart
 
 Create and deploy your first durable function using the AWS CLI. This guide covers
-TypeScript, Python, Java, Go, and C#.
+TypeScript, Python, Java, Go, Rust (Preview), and C#.
 
 !!! note "Adding all your dependencies to the deployment package"
 
@@ -31,6 +31,12 @@ TypeScript, Python, Java, Go, and C#.
 === "Go"
 
     - Go 1.24 or later
+
+=== "Rust"
+
+    - Rust 1.94.1 or later
+    - [cargo-lambda](https://www.cargo-lambda.info/), a Cargo subcommand that builds
+        Lambda functions, installed with `pip3 install cargo-lambda`
 
 === "C#"
 
@@ -111,6 +117,19 @@ Note the role ARN returned. You'll need it in the next step.
 
     This is the whole program. For the build and packaging detail, see the
     [Go SDK guide](../sdk-reference/languages/go/index.md).
+
+=== "Rust"
+
+    Save as `src/main.rs`
+
+    ```rust
+    --8<-- "examples/rust/getting-started/quickstart.rs"
+    ```
+
+    This is the whole program. `durable::init_default_subscriber()` installs the log
+    subscriber that writes each record between operations once per execution. For the
+    build and packaging detail, see the
+    [SDK guide](../sdk-reference/languages/rust/index.md).
 
 === "C#"
 
@@ -244,6 +263,37 @@ execution role you just created.
       --handler bootstrap \
       --architectures x86_64 \
       --zip-file fileb://function.zip \
+      --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
+    ```
+
+=== "Rust"
+
+    Create a crate and add the SDK from its GitHub repository, with the crates the
+    function uses:
+
+    ```console
+    cargo new my-function && cd my-function
+    cargo add aws-durable-execution-sdk --git https://github.com/aws/aws-durable-execution-sdk-rust
+    cargo add lambda_runtime serde_json tracing
+    cargo add serde --features derive
+    cargo add tokio --features macros
+    ```
+
+    Save the function code above as `src/main.rs`. Build it with cargo-lambda, which
+    links the binary against a glibc that the `provided.al2023` runtime has.
+    `--output-format zip` writes `target/lambda/my-function/bootstrap.zip`, which holds
+    the `bootstrap` binary that the runtime runs. Then deploy:
+
+    ```console
+    cargo lambda build --release --x86-64 --output-format zip
+
+    aws lambda create-function \
+      --function-name my-durable-function \
+      --runtime provided.al2023 \
+      --role arn:aws:iam::123456789012:role/durable-function-role \
+      --handler bootstrap \
+      --architectures x86_64 \
+      --zip-file fileb://target/lambda/my-function/bootstrap.zip \
       --durable-config '{"ExecutionTimeout": 900, "RetentionPeriodInDays": 1}'
     ```
 

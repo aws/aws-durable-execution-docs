@@ -6,6 +6,7 @@ Language-specific installation and setup for the AWS Durable Execution SDK.
 - [Python](python/index.md)
 - [Java](java/index.md)
 - [Go](go/index.md)
+- [Rust (Preview)](rust/index.md)
 - [C#](csharp/index.md)
 
 ## Upgrade an existing application

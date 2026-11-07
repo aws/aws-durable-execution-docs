@@ -106,6 +106,27 @@ After updating your code, publish a new version and point your alias to it.
       --function-version <new-version>
     ```
 
+=== "Zip (Rust)"
+
+    ```console
+    cargo lambda build --release --x86-64 --output-format zip
+
+    aws lambda update-function-code \
+      --function-name my-durable-function \
+      --zip-file fileb://target/lambda/my-function/bootstrap.zip
+
+    aws lambda wait function-updated \
+      --function-name my-durable-function
+
+    aws lambda publish-version \
+      --function-name my-durable-function
+
+    aws lambda update-alias \
+      --function-name my-durable-function \
+      --name prod \
+      --function-version <new-version>
+    ```
+
 Running executions will continue to use the version they started with. New invocations
 use the updated alias.
 

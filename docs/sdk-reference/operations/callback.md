@@ -55,6 +55,15 @@ You send the callback ID to an external system. The external system uses that ID
     --8<-- "examples/go/operations/callbacks/basic-example.go"
     ```
 
+=== "Rust"
+
+    The SDK decodes the callback payload as JSON into the payload type you name, here
+    `serde_json::Value`.
+
+    ```rust
+    --8<-- "examples/rust/operations/callbacks/basic-example.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -97,6 +106,18 @@ function and then waits for the result.
 
     ```go
     --8<-- "examples/go/operations/callbacks/wait-for-callback-example.go"
+    ```
+
+=== "Rust"
+
+    The submitter is a closure that takes a `durable::StepContext` and the callback ID
+    as a `String`, and returns a future of `Result<(), durable::BoxError>`. The SDK runs
+    the submitter as a step and retries it on failure with the default step retry
+    strategy, 6 attempts with exponential backoff. The SDK decodes the callback payload
+    as JSON into the payload type you name, here `serde_json::Value`.
+
+    ```rust
+    --8<-- "examples/rust/operations/callbacks/wait-for-callback-example.rs"
     ```
 
 === "C#"
@@ -223,6 +244,45 @@ sequenceDiagram
     `*CallbackError`. A result the deserializer cannot decode into `O` returns a
     `*SerdesError`.
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/callbacks/create-callback-signature.rs"
+    ```
+
+    **Parameters:**
+
+    - `O` (required) The payload type. By default the SDK decodes the payload as JSON
+        into `O`, so `O` must implement `serde::Serialize` and
+        `serde::de::DeserializeOwned`. See [CallbackConfig](#callbackconfig) to change
+        the deserializer.
+    - `name` (optional) A name for the callback, set with `.name()`. Omit the call to
+        leave the callback unnamed.
+    - The other builder methods are listed in [CallbackConfig](#callbackconfig).
+
+    **Returns:** `durable::builders::CreateCallbackBuilder<O>`. Await it to get
+    `Result<durable::builders::callback::Callback<O>, durable::OperationError>`. Call
+    `callback.id()` to get the ID to send to the external system, and
+    `callback.result().await` to suspend until the external system calls back. `.future()`
+    returns a lazy `durable::DurableFuture<durable::builders::callback::Callback<O>>`
+    without starting the operation. `.spawn()` starts the creation at once and returns
+    the future to await later.
+
+    **Errors:** The callback's own failure surfaces from `callback.result()` as a
+    `durable::OperationError` whose `kind()` is `durable::OperationErrorKind::Callback`.
+    Its `durable::CallbackErrorKind` is `ExternalFailure` for a failure the external
+    system sends or a callback that ends `CANCELLED` or `STOPPED`, `TimedOut` or
+    `HeartbeatTimedOut` for a timeout, `DeserializationFailed` for a payload that does
+    not decode into `O`, or `Internal` for an SDK or service failure. For
+    `ExternalFailure`, `err.wire()` returns the recorded type, data, and stack trace,
+    and the recorded message, or `Callback failed` when the message is absent or empty.
+    For a timeout, `err.wire()` returns the recorded type, message, and data, with
+    `Callback timed out` when the message is absent or empty.
+
+    Awaiting the builder returns a `durable::OperationError` of kind
+    `durable::OperationErrorKind::NonDeterministicExecution` when replay finds a
+    different operation at this point.
+
 === "C#"
 
     ```csharp
@@ -298,6 +358,33 @@ The object returned by `createCallback`.
         `*CallbackError`. When the invocation suspends, it returns the suspension
         signal, which you return unchanged. Pass the context of the code that reads
         the outcome.
+
+=== "Rust"
+
+    ```rust
+    pub struct Callback<O> {
+        // ...
+    }
+
+    impl<O: Send + 'static> Callback<O> {
+        // ...
+        pub fn id(&self) -> &str;
+        // ...
+        pub fn result(self) -> DurableFuture<O>;
+        // ...
+        pub fn spawn_result(self) -> DurableFuture<O>;
+        // ...
+    }
+    ```
+
+    - `id()` The unique ID to send to the external system.
+    - `result()` Returns a `durable::DurableFuture<O>`. Await it to suspend until the
+        external system calls back. It resolves to `Result<O, durable::OperationError>`,
+        and the error's `kind()` is `durable::OperationErrorKind::Callback` when the
+        callback fails or times out. It consumes the handle, so read `id()` first.
+    - `spawn_result()` Waits for the result on its own task and returns a
+        `durable::DurableFuture<O>` for it, so other operations can run while the
+        callback is pending.
 
 === "C#"
 
@@ -404,6 +491,45 @@ The object returned by `createCallback`.
         value selects the default, and the SDK's own subtypes are rejected. The
         subtype is part of the operation's identity on replay, so it must not
         change between invocations.
+
+=== "Rust"
+
+    Call these methods on the builder that `create_callback` returns.
+
+    ```rust
+    impl<O: Send + 'static, S> CreateCallbackBuilder<O, S> {
+        // ...
+        pub fn timeout(mut self, timeout: Duration) -> Self;
+        // ...
+        pub fn heartbeat_timeout(mut self, timeout: Duration) -> Self;
+        // ...
+        pub fn sub_type(mut self, sub_type: OperationSubType) -> Self;
+        // ...
+        pub fn serdes<S2>(self, serdes: S2) -> CreateCallbackBuilder<O, S2>
+        where
+            S2: Serdes<O>;
+        // ...
+    }
+    ```
+
+    **Parameters:**
+
+    - `timeout` Maximum time to wait for the result, as a `std::time::Duration` rounded
+        up to whole seconds and capped at `i32::MAX` seconds. Omit it or pass a zero
+        duration to disable the timeout. On expiry the callback fails with
+        `durable::CallbackErrorKind::TimedOut`.
+    - `heartbeat_timeout` Maximum interval between heartbeats, with the same duration
+        handling. On expiry the callback fails with
+        `durable::CallbackErrorKind::HeartbeatTimedOut`.
+    - `sub_type` The operation subtype recorded for the callback in place of
+        `Callback`. `durable::OperationSubType::new` accepts 1 to 32 characters from
+        `A-Z`, `a-z`, `0-9`, `-`, and `_`, and returns a
+        `durable::InvalidOperationSubType` error for any other value. The subtype is part
+        of the operation's identity on replay, so it must not change between invocations.
+    - `serdes` Deserializer for the callback payload, in place of the default
+        `durable::JsonSerdes`. It must implement `durable::Serdes<O>`. With `O` set to
+        `String`, `durable::PassthroughSerdes` returns the payload unchanged. See
+        [Serialization](../state/serialization.md).
 
 === "C#"
 
@@ -522,6 +648,49 @@ callback ID rather than coding it yourself.
     three match `*CallbackError`. A result the deserializer cannot decode returns a
     `*SerdesError` whose `Operation` is the `WaitForCallback` name.
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/callbacks/wait-for-callback-signature.rs"
+    ```
+
+    **Parameters:**
+
+    - `O` (required) The payload type, named with `wait_for_callback::<O>`. By default
+        the SDK decodes the payload as JSON into `O`.
+    - `submitter` (required) A closure that receives a `durable::StepContext` and the
+        callback ID, and returns a future of `Result<(), durable::BoxError>` that
+        delivers the ID to the external system. Every such closure that is `Clone`,
+        `Send`, and `'static`, and whose future is `Send` and `'static`, implements
+        `durable::builders::Submitter`. The SDK runs it
+        as a step and retries it on failure. It is `Clone` because each attempt calls a
+        fresh clone.
+    - `name` (optional) A name for the operation, set with `.name()`. Omit the call to
+        leave the operation unnamed.
+    - The other builder methods are listed in
+        [WaitForCallbackConfig](#waitforcallbackconfig).
+
+    **Returns:** `durable::builders::WaitForCallbackBuilder<O, F>`. Await it to get
+    `Result<O, durable::OperationError>`, the callback result. `.future()` returns a lazy
+    `durable::DurableFuture<O>` without starting the operation. `.spawn()` starts the
+    operation at once and returns the future to await later.
+
+    **Errors:** A `durable::OperationError` whose `kind()` is
+    `durable::OperationErrorKind::Callback`. Its `durable::CallbackErrorKind` is
+    `ExternalFailure`, `TimedOut`, `HeartbeatTimedOut`, `SubmitterFailed` when the
+    submitter step exhausts its retries, `DeserializationFailed` for a payload that does
+    not decode into `O`, or `Internal` for another SDK or service failure. For
+    `ExternalFailure`, `err.wire()` has type `Callback.ExternalFailure` and keeps the
+    external data and message, or `Callback failed` when the message is absent or empty.
+    For `TimedOut` and `HeartbeatTimedOut`, `err.wire()` has type `Callback.Timeout` or
+    `Callback.Heartbeat` and keeps the recorded data and message, or `Callback timed out`
+    when the message is absent or empty. A `DeserializationFailed` error repeats on
+    every invocation that reads the recorded payload.
+
+    Replay can also return a `durable::OperationError` of kind
+    `durable::OperationErrorKind::NonDeterministicExecution` when the recorded operation
+    at this point does not match.
+
 === "C#"
 
     ```csharp
@@ -598,6 +767,36 @@ submitter step.
         `WithSubmitterRetry` is not a `CallbackOption`, so passing it to
         `CreateCallback` is a compile error.
 
+=== "Rust"
+
+    The builder that `wait_for_callback` returns has `timeout`, `heartbeat_timeout`, and
+    `serdes`, as described in [CallbackConfig](#callbackconfig), and two methods for the
+    submitter step.
+
+    ```rust
+    impl<O, F, S> WaitForCallbackBuilder<O, F, S>
+    where
+        O: Send + 'static,
+        F: Submitter,
+    {
+        // ...
+        pub fn submitter_retry<R>(mut self, strategy: R) -> Self
+        where
+            R: Fn(&crate::StepError, u32) -> crate::RetryDecision + Send + Sync + 'static;
+        // ...
+        pub fn submitter_retry_config(mut self, config: crate::builders::RetryStrategyConfig) -> Self;
+        // ...
+    }
+    ```
+
+    - `submitter_retry` A function that receives the `durable::StepError` and the number
+        of the attempt that failed, starting at 1, and returns a
+        `durable::RetryDecision` for the submitter step. See
+        [Retry strategies](../error-handling/retries.md).
+    - `submitter_retry_config` A `durable::builders::RetryStrategyConfig` for the
+        submitter step. The last call to either method wins. Omit both and the submitter
+        retries with the default step strategy, 6 attempts with exponential backoff.
+
 === "C#"
 
     ```csharp
@@ -661,6 +860,16 @@ help detect stalled external systems sooner.
     --8<-- "examples/go/operations/callbacks/callback-config.go"
     ```
 
+=== "Rust"
+
+    On expiry, `callback.result()` returns a `durable::OperationError` whose
+    `durable::CallbackErrorKind` is `TimedOut`, or `HeartbeatTimedOut` for a missed
+    heartbeat.
+
+    ```rust
+    --8<-- "examples/rust/operations/callbacks/callback-config.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -687,6 +896,11 @@ describes what the callback is waiting for.
 === "Go"
 
     The name is the second argument, after the context. Pass `""` to omit it.
+
+=== "Rust"
+
+    Set the name with `.name()` on the builder. Omit the call to leave the callback
+    unnamed.
 
 === "C#"
 
