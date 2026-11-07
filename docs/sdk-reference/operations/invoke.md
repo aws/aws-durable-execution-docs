@@ -81,6 +81,16 @@ sequenceDiagram
     --8<-- "examples/go/operations/invoke/process-order.go"
     ```
 
+=== "Rust"
+
+    Write the output type first, with a turbofish such as
+    `ctx.invoke::<ValidationResult, _>(...)`. The input type is inferred from the
+    argument.
+
+    ```rust
+    --8<-- "examples/rust/operations/invoke/process-order.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -188,6 +198,36 @@ When this function runs:
     cancellation, `errors.Is` also matches `durable.ErrInvokeTimedOut`,
     `durable.ErrExecutionStopped`, or `durable.ErrExecutionCancelled`.
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/invoke/invoke-method-signature.rs"
+    ```
+
+    **Parameters:**
+
+    - `function_id` (required) The function name or ARN. A durable target needs a
+        version or alias qualifier. An on-demand target does not.
+    - `input` (required) The payload sent to the invoked function. With the default
+        `durable::JsonSerdes`, its type needs `Serialize` and `DeserializeOwned`.
+    - `.name(...)` (optional) A name for the invoke. Omit the call to leave it
+        unnamed.
+    - The configuration methods in [InvokeConfig](#invokeconfig) (optional).
+
+    The type parameters are `<O, I>`, with the output type `O` written first and the
+    input type `I` inferred from `input`.
+
+    **Returns:** an `InvokeBuilder`. Use `.await` to run the invoke and get
+    `Result<O, durable::OperationError>`. `.spawn()` starts the invoke now and returns
+    a `durable::DurableFuture<O>` that resolves to the same `Result`.
+
+    **Errors:** `durable::OperationError` of kind `OperationErrorKind::Invoke` when the
+    target fails, times out, is stopped, or is cancelled. Its `kind()` is
+    `durable::InvokeErrorKind::FunctionFailed` then, and `SerializationFailed` when
+    the input cannot be serialized or the result cannot be deserialized.
+    `err.status()` returns `"FAILED"`, `"TIMED_OUT"`, `"STOPPED"`, or `"CANCELLED"`,
+    which tells the failure modes apart.
+
 === "C#"
 
     ```csharp
@@ -286,6 +326,39 @@ When this function runs:
         or call `durable.ConfigureSerdes`.
     - `WithTenantID` (optional) Tenant identifier for multi-tenant isolation.
 
+=== "Rust"
+
+    Configure an invoke with methods on its `InvokeBuilder` before `.await`.
+
+    ```rust
+    impl<O, I, PS, RS> InvokeBuilder<O, I, PS, RS>
+    where
+        O: Send + 'static,
+        I: Send + 'static,
+    {
+        pub fn name(mut self, name: impl Into<String>) -> Self;
+        // ...
+        pub fn serdes<RS2>(self, serdes: RS2) -> InvokeBuilder<O, I, PS, RS2>
+        where
+            RS2: Serdes<O>;
+        // ...
+        pub fn payload_serdes<PS2>(self, serdes: PS2) -> InvokeBuilder<O, I, PS2, RS>
+        where
+            PS2: Serdes<I>;
+        // ...
+        pub fn tenant_id(mut self, tenant_id: impl Into<String>) -> Self;
+        // ...
+    }
+    ```
+
+    **Parameters:**
+
+    - `payload_serdes` (optional) A custom `durable::Serdes<I>` for the payload sent to
+        the invoked function. Defaults to `durable::JsonSerdes`.
+    - `serdes` (optional) A custom `durable::Serdes<O>` for the result returned from
+        the invoked function. Defaults to `durable::JsonSerdes`.
+    - `tenant_id` (optional) Tenant identifier for multi-tenant isolation.
+
 === "C#"
 
     ```csharp
@@ -324,6 +397,11 @@ names to describe what the invocation does rather than which function it calls.
 
     The name is the second argument, after the context. Pass `""` to omit it.
 
+=== "Rust"
+
+    Set the name with `.name("...")` on the builder. Omit the call to leave the
+    invoke unnamed.
+
 === "C#"
 
     The name is the optional `name` argument. Omit it to infer one from the call site.
@@ -354,6 +432,12 @@ Configure invoke behavior using `InvokeConfig`:
 
     ```go
     --8<-- "examples/go/operations/invoke/invoke-with-config.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/invoke/invoke-with-config.rs"
     ```
 
 === "C#"
@@ -397,6 +481,19 @@ failures without letting them terminate the calling function.
 
     ```go
     --8<-- "examples/go/operations/invoke/handle-invocation-error.go"
+    ```
+
+=== "Rust"
+
+    A failed invoke returns a `durable::OperationError` of kind
+    `OperationErrorKind::Invoke`. Match on `err.kind()`, then read the invoked
+    function's recorded error message with `err.wire()`, which is the same on the
+    first run and on replay. `err.status()` returns `"FAILED"`, `"TIMED_OUT"`,
+    `"STOPPED"`, or `"CANCELLED"`. A cancelled invoke records no error, so its
+    `wire()` returns `None`.
+
+    ```rust
+    --8<-- "examples/rust/operations/invoke/handle-invocation-error.rs"
     ```
 
 === "C#"

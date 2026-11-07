@@ -50,6 +50,15 @@ Here's a simple example that polls until a job completes:
     --8<-- "examples/go/core/wait/wait-for-condition.go"
     ```
 
+=== "Rust"
+
+    The check receives the `durable::StepContext` first, then the state, and returns
+    the next state. The wait strategy decides when to stop.
+
+    ```rust
+    --8<-- "examples/rust/core/wait/wait-for-condition.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -129,6 +138,32 @@ applied.
     --8<-- "examples/go/core/wait/wait-for-condition-signature.go"
     ```
 
+=== "Rust"
+
+    `initial_state` is the second argument of `wait_for_condition`. Set the operation
+    name with `.name(...)`. The name is part of replay identity, so it must stay the
+    same each time the handler replays. Set the strategy with `.wait_strategy(...)`,
+    which takes a [`WaitStrategy`](#strategy-builder-helper), or with
+    `.wait_strategy_fn(...)`, which takes a function. Without a strategy, the check runs
+    once and the operation returns the state it produced. The SDK round-trips the initial state through the
+    serdes before the first check. So with the default `durable::JsonSerdes`, the
+    state type needs `Clone`, `Serialize`, and `DeserializeOwned`.
+
+    In a check, `StepContext::attempt()` returns the 1-based poll attempt, the same
+    number the wait strategy receives. A check that returns `Err` fails the operation
+    at once, without a call to the strategy. `.await` returns a
+    `durable::OperationError` of kind `OperationErrorKind::WaitForCondition`, whose
+    `kind()` is a `durable::WaitForConditionErrorKind`:
+
+    - `CheckFailed` when the check returns `Err`.
+    - `MaxChecksExceeded` when the strategy returns `WaitDecision::Exhausted`. Its
+        `checks()` returns the number of checks performed.
+    - `SerializationFailed` when the state cannot be serialized or deserialized.
+
+    ```rust
+    --8<-- "examples/rust/core/wait/wait-for-condition-signature.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -186,6 +221,22 @@ provide.
     --8<-- "examples/go/core/wait/wait-strategy-signature.go"
     ```
 
+=== "Rust"
+
+    The strategy receives the state and the 1-based attempt, and returns a
+    `durable::builders::wait_for_condition::WaitDecision`.
+
+    - `WaitDecision::complete()` stops polling and returns the state.
+    - `WaitDecision::continue_with(delay)` polls again after `delay`, rounded up to
+        whole seconds with a minimum of one second.
+    - `WaitDecision::exhausted(reason)` stops polling and fails the operation with
+        `WaitForConditionErrorKind::MaxChecksExceeded`. The record carries the error
+        type `"WaitForCondition.MaxChecksExceeded"` and the message `reason`.
+
+    ```rust
+    --8<-- "examples/rust/core/wait/wait-strategy-signature.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -226,6 +277,17 @@ continue polling or not.
 
     ```go
     --8<-- "examples/go/core/wait/custom-strategy.go"
+    ```
+
+=== "Rust"
+
+    To stop and fail, return `WaitDecision::exhausted(reason)` from the strategy, or
+    return `Err` from the check. Pass the strategy with
+    `.wait_strategy_fn(strategy())`. `JobState` is the state type from the
+    [walkthrough](#walkthrough).
+
+    ```rust
+    --8<-- "examples/rust/core/wait/custom-strategy.rs"
     ```
 
 === "C#"
@@ -299,6 +361,23 @@ re-use common wait strategy logic without having to code your own function.
     `durable.NewWaitStrategy` returns an error for an invalid configuration, and
     `durable.MustNewWaitStrategy` panics. When the strategy reaches `MaxAttempts` with
     the condition unmet, the operation fails with a `*durable.WaitForConditionError`.
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/core/wait/strategy-helper.rs"
+    ```
+
+    `WaitStrategy::builder` takes a completion predicate in place of
+    `shouldContinuePolling`. The predicate returns `true` when the condition is met,
+    and polling stops when it does. Pass the built strategy to
+    `.wait_strategy(strategy())`. The jitter values are
+    `durable::builders::JitterStrategy::Full`, `Half`, and `None`.
+
+    A method you do not call keeps the default listed below. The SDK does not check
+    the values. A computed delay is rounded to the nearest second, with a minimum of
+    one second. When the strategy reaches `max_attempts` with the condition unmet, the
+    operation fails with `WaitForConditionErrorKind::MaxChecksExceeded`.
 
 === "C#"
 

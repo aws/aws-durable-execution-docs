@@ -67,6 +67,18 @@ Your durable function receives a `DurableContext` instead of the default Lambda 
     --8<-- "examples/go/getting-started/durable-context.go"
     ```
 
+=== "Rust"
+
+    The type is `durable::DurableContext`. The handler receives the event first and the
+    context second. `ctx.lambda_context()` returns the standard Lambda context, with the
+    request ID and the deadline. Each durable operation is a method on the context that
+    returns a builder, and awaiting the builder runs the operation, such as
+    `ctx.step(...).name("my-step").await`.
+
+    ```rust
+    --8<-- "examples/rust/getting-started/durable-context.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -194,6 +206,12 @@ Let's trace through a simple workflow:
 
     ```go
     --8<-- "examples/go/getting-started/execution-model.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/getting-started/execution-model.rs"
     ```
 
 === "C#"

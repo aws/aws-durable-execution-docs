@@ -99,6 +99,7 @@ nav = [
       { "Python" = "sdk-reference/languages/python/index.md" },
       { "Java" = "sdk-reference/languages/java/index.md" },
       { "Go" = "sdk-reference/languages/go/index.md" },
+      { "Rust (Preview)" = "sdk-reference/languages/rust/index.md" },
       { "C#" = "sdk-reference/languages/csharp/index.md" },
     ]},
     { "Integrations" = [

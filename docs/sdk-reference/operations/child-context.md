@@ -41,6 +41,12 @@ multiple child contexts concurrently.
     --8<-- "examples/go/operations/child-contexts/basic-child-context.go"
     ```
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/child-contexts/basic-child-context.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -136,6 +142,39 @@ multiple child contexts concurrently.
     the escaping error, for example `"StepError"`. `errors.As` against an inner SDK
     error type such as `*StepError` succeeds. Your own error types do not match, so
     match them on `ErrorType`.
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/child-contexts/run-in-child-context-signature.rs"
+    ```
+
+    **Parameters:**
+
+    - `f` (required) A closure that receives the child `durable::DurableContext` and
+        returns a future of `Result<O, durable::BoxError>`. A body that returns an error
+        is not retried.
+    - `name` (optional) A name for the child context, set with `.name()`. Omit the call
+        to leave the child context unnamed.
+    - The other builder methods are listed in [Child Config](#child-config).
+
+    **Returns:** `durable::builders::ChildBuilder<O, F, Fut>`. Await it to get
+    `Result<O, durable::OperationError>`. `.spawn()` starts the child context at once and
+    returns a `durable::DurableFuture<O>` to await later. `.future()` returns a
+    `durable::DurableFuture<O>` without starting it, for combinators such as
+    `ctx.try_join_all`. The SDK does not store a result whose serialized form exceeds
+    256KB. On replay it runs `f` again to rebuild that result, and the operations
+    inside return their checkpointed results.
+
+    **Errors:** Match `err.kind()` against
+    `durable::OperationErrorKind::ChildContext(child_error)`. When `f` returns an error,
+    `child_error.kind()` is `durable::ChildContextErrorKind::ChildFailed`, and
+    `std::error::Error::source(child_error)` returns the error from `f` on the live run or
+    a `durable::ReplayedFailure` on replay. When the child failure was checkpointed,
+    `err.wire()` provides the recorded type and message on both paths. It returns `None`
+    for an unrecorded failure, such as one from a virtual child context. A permanent
+    result-serdes failure gives `durable::ChildContextErrorKind::Internal`. To return a
+    different error, call `map_err` on the awaited result.
 
 === "C#"
 
@@ -234,6 +273,33 @@ multiple child contexts concurrently.
         as their parent. Replay runs the body again on every invocation that reaches it.
         `Map` and `Parallel` use the same mechanism for `NestingFlat` items.
 
+=== "Rust"
+
+    Call these methods on the builder that `run_in_child_context` returns.
+
+    ```rust
+    --8<-- "examples/rust/operations/child-contexts/child-config-signature.rs"
+    ```
+
+    **Parameters:**
+
+    - `sub_type` An operation subtype for observability, recorded in place of
+        `RunInChildContext`. `durable::OperationSubType::new` accepts 1 to 32 characters
+        from `A-Z`, `a-z`, `0-9`, `-`, and `_`. The subtype is part of the operation's
+        identity on replay, so it must not change between invocations.
+    - `serdes` Custom `durable::Serdes<O>` for the child context result, in place of the
+        default `durable::JsonSerdes`. See [Serialization](../state/serialization.md).
+    - `summary` A summary function the SDK calls only when the serialized result exceeds
+        the 256KB checkpoint limit. The SDK stores the summary as the checkpoint payload
+        and never reads it back. Keep the summary under 256KB because the service
+        rejects a larger payload.
+    - `virtual_context` Makes the child virtual. The SDK records no operation for the
+        child context. The operations inside it record the same parent as an operation
+        called directly on the calling context. The body runs again on every invocation
+        that reaches it, and its operations return their recorded results.
+
+    To change the error a child context returns, call `map_err` on the awaited result.
+
 === "C#"
 
     ```csharp
@@ -302,6 +368,18 @@ corrupt execution state and cause non-deterministic behaviour.
     --8<-- "examples/go/operations/child-contexts/context-function.go"
     ```
 
+=== "Rust"
+
+    Pass a closure directly. It receives the child `durable::DurableContext` and returns
+    a future, usually an `async move` block, that resolves to
+    `Result<O, durable::BoxError>`. Run operations on the child context. An operation
+    called on the captured parent context while the child body runs fails the execution
+    with a context usage error.
+
+    ```rust
+    --8<-- "examples/rust/operations/child-contexts/context-function.rs"
+    ```
+
 === "C#"
 
     Pass an `async (child, ct) => ...` lambda directly. The function receives its own
@@ -348,6 +426,16 @@ corrupt execution state and cause non-deterministic behaviour.
     --8<-- "examples/go/operations/child-contexts/pass-arguments.go"
     ```
 
+=== "Rust"
+
+    Move arguments into the closure. The closure is `'static`, so it owns the values it
+    captures. The result leaves the child context through the return value, which the
+    SDK checkpoints.
+
+    ```rust
+    --8<-- "examples/rust/operations/child-contexts/pass-arguments.rs"
+    ```
+
 === "C#"
 
     Capture arguments in the closure:
@@ -391,6 +479,15 @@ Name child contexts to make them easier to identify in logs and tests.
 
     ```go
     --8<-- "examples/go/operations/child-contexts/named-child-context.go"
+    ```
+
+=== "Rust"
+
+    Set the name with `.name()` on the builder. Omit the call to leave the child context
+    unnamed.
+
+    ```rust
+    --8<-- "examples/rust/operations/child-contexts/named-child-context.rs"
     ```
 
 === "C#"
@@ -469,6 +566,22 @@ sequentially in the parent.
     --8<-- "examples/go/operations/child-contexts/concurrent-child-contexts.go"
     ```
 
+=== "Rust"
+
+    Start each child context with `.spawn()`, which starts it at once and returns a
+    `durable::DurableFuture`, then await the futures. You can also call `.spawn()` on
+    operations on the same context. In either form, the child-context and step builders
+    claim an ID when you call the operation method. The IDs stay the same on replay as
+    long as the handler calls those methods in the same order. Combinators such as
+    `ctx.race` and `ctx.select_ok` claim their own IDs on the first poll or on `.spawn()`,
+    and record which branch won. An operation called on a task or thread that does not
+    own the context, such as one started with `tokio::spawn`, fails the execution with a
+    context usage error.
+
+    ```rust
+    --8<-- "examples/rust/operations/child-contexts/concurrent-child-contexts.rs"
+    ```
+
 === "C#"
 
     Don't `await` each child context immediately. Start them all, then await together.
@@ -504,6 +617,12 @@ them to verify the child context ran and produced the expected result.
 
     ```go
     --8<-- "examples/go/operations/child-contexts/test-child-context.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/child-contexts/test-child-context.rs"
     ```
 
 === "C#"

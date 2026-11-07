@@ -39,6 +39,16 @@ execute the same operation concurrently for each item in a collection.
     All branches must return the same type. For branches of different result
     types, use [`ParallelMixed`](#contextparallel).
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/parallel/simple-parallel.rs"
+    ```
+
+    Each branch is a `durable::Branch<O>`, and all branches return the same type `O`.
+    For branches of different result types, use
+    [`parallel_mixed`](#contextparallel).
+
 === "C#"
 
     ```csharp
@@ -216,6 +226,64 @@ execute the same operation concurrently for each item in a collection.
     error. For a branch that never started or was abandoned it returns a
     `*durable.BranchNotCompletedError`.
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/parallel/parallel-signature.rs"
+    ```
+
+    **Parameters:**
+
+    - `branches` Any `IntoIterator` of `durable::Branch<O>` values. Build a branch with
+        `Branch::new(name, factory)` or `Branch::unnamed(factory)`. The factory receives
+        the branch's own `DurableContext`, and the SDK calls it when it starts the
+        branch. A branch from `Branch::unnamed`, or with an empty name, is named
+        `parallel-branch-<index>`.
+
+    `parallel` returns a `ParallelBuilder<O>`. Set the name and the options with its
+    methods, such as `.name("check-services")`, and then await it. Without
+    `.name(...)` the parallel operation is unnamed. See
+    [ParallelConfig](#parallelconfig).
+
+    **Returns:** `.await` gives `Result<Vec<O>, durable::OperationError>`, the results of
+    the succeeded branches in input order. `.await_batch().await` gives the whole
+    `BatchResult<O>`. With the default `durable::JsonSerdes`, `O` must implement
+    `serde::Serialize` and `serde::de::DeserializeOwned`. See
+    [Result types](#result-types). `.future()` returns a lazy
+    `durable::DurableFuture<Vec<O>>` for `ctx.join_all`, `ctx.try_join_all`, `ctx.race`,
+    or `ctx.select_ok`. `.spawn()` and `.spawn_batch()` start the parallel operation at
+    once.
+
+    **Errors:** `.await` returns an error when the batch completes with
+    `CompletionReason::FailureToleranceExceeded`, which the default fail-fast
+    configuration gives at the first branch failure, or with
+    `CompletionReason::CustomCompletionFailed`. When a branch failed,
+    `durable::OperationErrorKind::ChildContext` contains a child error whose kind is
+    `durable::ChildContextErrorKind::ChildFailed`, and `wire()` holds the branch's
+    recorded failure. A custom failed outcome with no failed branch has child kind
+    `BatchCompletionFailed` and recorded type `BatchCompletionError`. Failure tolerance
+    exceeded with no failed branch has child kind `Internal`. `.await_batch()` returns
+    these branch and completion outcomes in the `BatchResult` instead. Both forms can
+    return an `OperationError` for a task ownership violation or an invalid completion
+    configuration. For a nonempty parallel operation, a percentage from
+    `with_tolerated_failure_percentage` is invalid when it is not finite or is outside
+    0.0 to 100.0. A panic in a branch propagates to the caller. See
+    [Error handling](#error-handling).
+
+    For branches of different result types, use `parallel_mixed` with a
+    `durable::BranchSet`. `BranchSet::add` adds a branch and returns a
+    `durable::BranchHandle<T>` for its result. `BranchSet::add_with_serdes` also sets
+    the serializer of that branch. `.await` on `parallel_mixed` returns the
+    `CompletionReason`, and returns an error in the same cases as `parallel`. `.spawn()`
+    starts it at once and returns a `durable::DurableFuture<CompletionReason>`.
+    `.summary(...)` sets a summary for a batch result too large to checkpoint. The
+    summary reads each branch's value with `BatchResult::value` and the key that
+    `BranchHandle::key` returns. See [Checkpointing](#checkpointing). After the
+    operation returns, `BranchHandle::into_result` gives the branch's value or its
+    error. For a branch that never started, or was still running when the batch
+    completed, it returns an error of kind
+    `durable::ChildContextErrorKind::NotCompleted`.
+
 === "C#"
 
     ```csharp
@@ -365,6 +433,66 @@ execute the same operation concurrently for each item in a collection.
 
     `ToleratedFailurePercentage` is supported for parallel.
 
+=== "Rust"
+
+    Configure `parallel` with methods on the `ParallelBuilder` it returns. Call them
+    before you await the builder. Name branches with `Branch::new`.
+
+    ```rust
+    impl<O: Send + 'static, IS, RS> ParallelBuilder<O, IS, RS> {
+        pub fn name(mut self, name: impl Into<String>) -> Self
+        ...
+        pub fn max_concurrency(mut self, max: usize) -> Self
+        ...
+        pub fn completion(mut self, config: CompletionConfig) -> Self
+        ...
+        pub fn serdes<IS2>(self, serdes: IS2) -> ParallelBuilder<O, IS2, RS>
+        where
+            IS2: Serdes<O>,
+        ...
+        pub fn result_serdes<RS2>(self, serdes: RS2) -> ParallelBuilder<O, IS, RS2>
+        where
+            RS2: Serdes<String>,
+        ...
+        pub fn nesting(mut self, mode: NestingMode) -> Self
+        ...
+        pub fn summary(
+            mut self,
+            summary: impl Fn(&BatchResult<O>) -> String + Send + Sync + 'static,
+        ) -> Self
+        ...
+    }
+    ```
+
+    `NestingMode` is non-exhaustive, so a `match` needs a `_` arm.
+
+    **Parameters:**
+
+    - `name` A name for the parallel operation. Default: unnamed.
+    - `max_concurrency` Maximum branches running at once. Default: unlimited. `0` fails
+        the execution with an `Invalid max_concurrency: 0` error, which the handler cannot
+        catch.
+    - `completion` When to stop. Default: fail-fast. See
+        [CompletionConfig](#completionconfig).
+    - `serdes` A custom `durable::Serdes<O>` for individual branch results. Default:
+        `durable::JsonSerdes`. See [Serialization](../state/serialization.md).
+    - `result_serdes` A custom `durable::Serdes<String>` for the whole batch record,
+        which it receives as JSON text. Its `deserialize` must return the exact text that
+        `serialize` received. Default: `durable::PassthroughSerdes`, which stores the text
+        unchanged.
+    - `nesting` `NestingMode::Normal` (default) or `NestingMode::Flat`. See
+        [Nesting](#nesting).
+    - `summary` A function invoked when the serialized batch result exceeds 256KB. See
+        [Checkpointing](#checkpointing).
+
+    The builder that `parallel_mixed` returns has `name`, `max_concurrency`,
+    `completion`, `result_serdes`, `nesting`, and `summary`. Set the serializer of each
+    of its branches with `BranchSet::add_with_serdes`. `CompletionConfig`,
+    `NestingMode`, and the result types are in the `durable::builders::map_parallel`
+    module.
+
+    `tolerated_failure_percentage` is supported for parallel.
+
 === "C#"
 
     ```csharp
@@ -483,6 +611,77 @@ execution and the completion status of the result.
     fail-fast. To run every branch regardless of failures, set
     `ToleratedFailurePercentage: aws.Int(100)`, which is never exceeded. For
     first-successful, set `MinSuccessful: 1`.
+
+=== "Rust"
+
+    Build a `CompletionConfig` with one of its constructors, or with
+    `CompletionConfig::builder()` to set several thresholds. Pass it with
+    `.completion(...)`.
+
+    ```rust
+    impl CompletionConfig {
+        pub fn builder() -> CompletionConfigBuilder
+        ...
+        pub fn with_min_successful(min: usize) -> Self
+        ...
+        pub fn with_tolerated_failure_count(count: usize) -> Self
+        ...
+        pub fn with_tolerated_failure_percentage(pct: f64) -> Self
+        ...
+        pub fn with_completion_predicate<F>(predicate: F) -> Self
+        where
+            F: Fn(&BatchStats<'_>) -> CompletionDecision + Send + Sync + 'static,
+        ...
+    }
+
+    impl CompletionConfigBuilder {
+        ...
+        pub fn min_successful(mut self, min: usize) -> Self
+        ...
+        pub fn tolerated_failure_count(mut self, count: usize) -> Self
+        ...
+        pub fn tolerated_failure_percentage(mut self, pct: f64) -> Self
+        ...
+        pub fn completion_predicate<F>(mut self, predicate: F) -> Self
+        where
+            F: Fn(&BatchStats<'_>) -> CompletionDecision + Send + Sync + 'static,
+        ...
+        pub fn build(self) -> Result<CompletionConfig, CompletionConfigValidationError>
+        ...
+    }
+
+    pub enum CompletionDecision {
+        Continue,
+        Complete(CompletionOutcome),
+    }
+
+    pub enum CompletionOutcome {
+        Succeeded,
+        Failed,
+    }
+    ```
+
+    `CompletionDecision` and `CompletionOutcome` are non-exhaustive, so a `match` needs
+    a `_` arm.
+
+    - `min_successful` Completes the batch once this many branches succeed. On its own
+        it tolerates every failure.
+    - `tolerated_failure_count` Fails the batch once more than this many branches fail.
+        `0` fails on the first failure.
+    - `tolerated_failure_percentage` Fails the batch once the failure percentage,
+        computed against the total branch count, is strictly greater than this value.
+        The value must be finite and from 0.0 to 100.0. `build()` rejects an invalid
+        value before execution. For a nonempty parallel operation,
+        `with_tolerated_failure_percentage(...)` returns an `OperationError` for an
+        invalid value when the operation runs. An empty parallel operation does not
+        evaluate the threshold.
+    - `completion_predicate` A custom predicate. `build()` returns an error when it is
+        combined with a threshold. See [Completion strategies](#completion-strategies).
+
+    When several thresholds are set, the first one reached ends the batch. The default
+    (no `.completion(...)`) is fail-fast. To run every branch regardless of failures,
+    use `CompletionConfig::with_tolerated_failure_percentage(100.0)`, which is never
+    exceeded. For first-successful, use `CompletionConfig::with_min_successful(1)`.
 
 === "C#"
 
@@ -748,6 +947,120 @@ execution and the completion status of the result.
 
     Inspect the returned error and the result.
 
+=== "Rust"
+
+    `.await_batch()` returns a `BatchResult<O>`, the same type that map returns. It
+    carries each branch's result and error.
+
+    ```rust
+    pub struct BatchResult<O> {
+        pub items: Vec<BatchItem<O>>,
+        pub reason: CompletionReason,
+    }
+
+    impl<O> BatchResult<O> {
+        ...
+        pub fn results(&self) -> Vec<&O>
+        ...
+        pub fn success_count(&self) -> usize
+        ...
+        pub fn failure_count(&self) -> usize
+        ...
+        pub fn has_failure(&self) -> bool
+        ...
+        pub fn status(&self) -> BatchStatus
+        ...
+        pub fn total_count(&self) -> usize
+        ...
+        pub fn errors(&self) -> Vec<BatchError<'_>>
+        ...
+        pub fn succeeded(&self) -> impl Iterator<Item = &BatchItem<O>> + '_
+        ...
+        pub fn failed(&self) -> impl Iterator<Item = &BatchItem<O>> + '_
+        ...
+        pub fn started(&self) -> impl Iterator<Item = &BatchItem<O>> + '_
+        ...
+        pub fn started_count(&self) -> usize
+        ...
+        pub fn into_result(self) -> Result<Self, OperationError>
+        ...
+    }
+    ...
+
+    pub enum BatchItemStatus {
+        Succeeded,
+        Failed,
+        Started,
+    }
+
+    pub struct BatchItem<O> {
+        pub index: usize,
+        pub name: String,
+        pub status: BatchItemStatus,
+        pub result: Option<O>,
+        pub error_message: Option<String>,
+        pub error_type: Option<String>,
+        pub error_data: Option<String>,
+        pub stack_trace: Vec<String>,
+    }
+    ...
+
+    pub enum BatchStatus {
+        Succeeded,
+        Failed,
+    }
+    ...
+
+    pub struct BatchError<'a> {
+        pub index: usize,
+        pub name: &'a str,
+        pub message: &'a str,
+        pub error_type: Option<&'a str>,
+    }
+
+    pub enum CompletionReason {
+        AllCompleted,
+        MinSuccessfulReached,
+        FailureToleranceExceeded,
+        CustomCompletionSucceeded,
+        CustomCompletionFailed,
+    }
+    ```
+
+    The structs and enums in this block are non-exhaustive. Enum matches need a `_` arm,
+    and struct patterns need `..`.
+
+    - **`items`** one `BatchItem` per started branch, in input order. Branches that
+        never started are omitted.
+    - **`reason`** why the operation completed. See
+        [Completion strategies](#completion-strategies).
+    - **`results()`** references to the results of succeeded branches, in input order
+    - **`errors()`** a `BatchError` for each failed branch, with its index, name,
+        message, and error type
+    - **`succeeded()` / `failed()` / `started()`** iterators over the branches with that
+        status
+    - **`success_count()` / `failure_count()` / `started_count()` / `total_count()`**
+        branch counts. `total_count()` excludes branches that never started.
+    - **`status()`** the outcome of a custom predicate when one completed the batch.
+        Otherwise `BatchStatus::Failed` if any branch failed, also within the failure
+        tolerance, and `BatchStatus::Succeeded` if none failed.
+    - **`has_failure()`** `true` if any branch failed
+    - **`into_result()`** returns the first failed branch's `ChildFailed` error, if any.
+        When no branch failed and the status is `Failed`, it returns a
+        `BatchCompletionFailed` error. Otherwise it returns the `BatchResult`. See
+        [Errors](#contextparallel).
+
+    A `BatchItem` holds `result` when its status is `BatchItemStatus::Succeeded`, and
+    the recorded failure (`error_message`, `error_type`, `error_data`, `stack_trace`)
+    when it is `BatchItemStatus::Failed`. `name` is the name from `Branch::new`, or
+    `parallel-branch-<index>`. `BatchItemStatus::Started` marks a branch that was
+    running when the batch completed. `CompletionReason::as_str()` and
+    `BatchStatus::as_str()` return the wire forms, such as `ALL_COMPLETED` and
+    `SUCCEEDED`.
+
+    `parallel_mixed` returns the `CompletionReason`. Read each branch's outcome from its
+    `BranchHandle`.
+
 === "C#"
 
     ```csharp
@@ -864,6 +1177,18 @@ the parent context.
     --8<-- "examples/go/operations/parallel/named-branches.go"
     ```
 
+=== "Rust"
+
+    A branch is a `durable::Branch<O>`, built from a function or closure that receives
+    the branch's `DurableContext` and returns a future of
+    `Result<O, durable::BoxError>`. `Branch::new(name, ...)` names the branch.
+    `Branch::unnamed(...)` records it as `parallel-branch-<index>`. Pass an `async fn`
+    directly, as `task_a` is passed here.
+
+    ```rust
+    --8<-- "examples/rust/operations/parallel/named-branches.rs"
+    ```
+
 === "C#"
 
     A branch is a plain `Func<IDurableContext, CancellationToken, Task<T>>`, or a
@@ -911,6 +1236,16 @@ the parent context.
     --8<-- "examples/go/operations/parallel/pass-arguments.go"
     ```
 
+=== "Rust"
+
+    Capture arguments in a `move` closure. Each closure owns the values it captures, so
+    a branch built in a loop or by `map` gets its own value. The branch factory must be
+    `'static`, so capture owned values or `&'static str` values.
+
+    ```rust
+    --8<-- "examples/rust/operations/parallel/pass-arguments.rs"
+    ```
+
 === "C#"
 
     Capture arguments in the closure. Copy the loop variable to a local so each branch
@@ -943,6 +1278,12 @@ Name your parallel operations to make them easier to identify in logs and tests.
     each branch with `Branch.Name`. An empty name becomes
     `parallel-branch-<index>`.
 
+=== "Rust"
+
+    Set the name with `.name(...)`. Omit the call to leave the operation unnamed. Name
+    each branch with `Branch::new(name, ...)`. A branch from `Branch::unnamed(...)`, or
+    with an empty name, is named `parallel-branch-<index>`.
+
 === "C#"
 
     The name is the optional `name` argument. Omit it to infer one from the call site. Use
@@ -974,6 +1315,15 @@ Configure parallel behavior using `ParallelConfig`:
 
     ```go
     --8<-- "examples/go/operations/parallel/parallel-config.go"
+    ```
+
+=== "Rust"
+
+    Set the options with methods on the builder that `ctx.parallel` returns. See
+    [ParallelConfig](#parallelconfig).
+
+    ```rust
+    --8<-- "examples/rust/operations/parallel/parallel-config.rs"
     ```
 
 === "C#"
@@ -1138,6 +1488,45 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
     --8<-- "examples/go/operations/parallel/custom-completion.go"
     ```
 
+=== "Rust"
+
+    The `BatchResult`'s `reason` field records the stop condition. Branches that never
+    started are omitted from `items`. A branch that started but did not complete appears
+    with `BatchItemStatus::Started`. The parallel operation does not leave abandoned
+    branches running. The SDK cancels each one at its next `.await`, and none of its
+    later checkpoints is written.
+
+    | `CompletionConfig`                     | Early exit `reason`                                     | Full completion `reason`                                         |
+    | -------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------- |
+    | none (default, fail-fast)              | `FailureToleranceExceeded`                              | `AllCompleted`                                                   |
+    | `with_tolerated_failure_count(n)`      | `FailureToleranceExceeded`                              | `AllCompleted`                                                   |
+    | `with_tolerated_failure_percentage(p)` | `FailureToleranceExceeded`                              | `AllCompleted`                                                   |
+    | `with_min_successful(n)`               | `MinSuccessfulReached`                                  | `AllCompleted`                                                   |
+    | `with_completion_predicate(...)`       | `CustomCompletionSucceeded` or `CustomCompletionFailed` | custom reason if it returns `Complete`; otherwise `AllCompleted` |
+
+    The default is fail-fast. Use `with_completion_predicate` when the thresholds cannot
+    express the rule. The predicate receives a `BatchStats` with `succeeded()`,
+    `failed()`, `settled()`, `total_items()`, and `items()`, one `CompletionItem` per
+    branch. Each item carries its zero-based `index`, caller-supplied `name`, and current
+    `status`. The predicate returns a `CompletionDecision`. Return
+    `CompletionDecision::Continue` to keep going, or
+    `CompletionDecision::Complete(CompletionOutcome::Succeeded)` or
+    `CompletionDecision::Complete(CompletionOutcome::Failed)` to stop and classify the
+    result. With a predicate set, a branch failure does not stop the batch by itself. A
+    `Failed` outcome makes `.await` return a `ChildFailed` error for the first failed
+    branch, or a `BatchCompletionFailed` error when no branch failed.
+
+    ```rust
+    --8<-- "examples/rust/operations/parallel/custom-completion.rs"
+    ```
+
+    The SDK calls the predicate before each branch starts and after each branch settles,
+    so it must handle the initial zero-progress snapshot. It must be a pure function of
+    the `BatchStats` it receives, and it must be monotonic. Once it returns `Complete`
+    with an outcome, it must return the same decision for every later snapshot. It
+    cannot be combined with the thresholds. A branch that is waiting to start has `None`
+    as its `status` in `items()`.
+
 === "C#"
 
     The `IBatchResult`'s `CompletionReason` indicates the stop condition with which the
@@ -1184,6 +1573,12 @@ ongoing work in abandoned branches, but cancellation is not guaranteed.
 
     ```go
     --8<-- "examples/go/operations/parallel/completion-config.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/parallel/completion-config.rs"
     ```
 
 === "C#"
@@ -1239,6 +1634,22 @@ propagating it immediately. Other branches continue running.
 
     ```go
     --8<-- "examples/go/operations/parallel/error-handling.go"
+    ```
+
+=== "Rust"
+
+    `.await` returns only the results of succeeded branches. It returns an error when
+    the failure tolerance is exceeded, which the default fail-fast configuration does
+    at the first branch failure. The SDK then cancels the branches still running and
+    never starts the branches not yet started. With a tolerance such as
+    `with_tolerated_failure_count(1)`, `.await` skips the failed branches. To inspect
+    them, use `.await_batch()`, which returns the `BatchResult`. Call `into_result()` to
+    propagate the first branch error, or inspect `errors()` to handle errors
+    individually. A `BatchError`'s `message` is the branch's recorded error message,
+    such as `operation error: step: execution failed: task 2 failed`.
+
+    ```rust
+    --8<-- "examples/rust/operations/parallel/error-handling.rs"
     ```
 
 === "C#"
@@ -1340,6 +1751,27 @@ language-specific details below describe nested mode.
     character per started branch. Pass `WithBatchSummary` to add your own string
     under the `summary` key.
 
+=== "Rust"
+
+    `.nesting(...)` selects the checkpoint shape, as for `map`. The SDK checkpoints the
+    whole batch result when it is at most 256KB serialized. On replay, the SDK reads
+    that result without running the branches. A larger result is not stored. The
+    checkpoint then holds a compact record. In `NestingMode::Normal` replay rebuilds
+    each branch from that branch's own checkpoint. In `NestingMode::Flat` replay runs
+    the branches again. The record holds `type` (`ParallelResult`), `totalCount`,
+    `successCount`, `failureCount`, `startedCount`, `completionReason`, `status`, and
+    `itemStatuses`, one character per started branch. Pass `.summary(...)` to add your
+    own string under the `summary` key. The record is for observability only.
+
+    `parallel_mixed` writes the same record, and its `.summary(...)` adds the same
+    `summary` key. Its summary function receives a
+    `BatchResult<durable::BranchValue>`, and each `durable::BranchValue` hides its
+    branch's value. Take each branch's `durable::BranchKey` with `BranchHandle::key`,
+    move the keys into the summary function, and read each value with
+    `BatchResult::value(&key)`. It returns `None` for a branch that failed, was still
+    running when the batch completed, or never started. The handles are empty while
+    the summary function runs.
+
 === "C#"
 
     In nested mode, the SDK reconstructs `IBatchResult` from per-branch checkpoints.
@@ -1374,6 +1806,12 @@ Each nested parallel creates its own set of child contexts.
 
     ```go
     --8<-- "examples/go/operations/parallel/nested-parallel.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/parallel/nested-parallel.rs"
     ```
 
 === "C#"
