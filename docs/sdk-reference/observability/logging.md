@@ -39,6 +39,20 @@ IDs, log sampling, and X-Ray tracing integration.
     --8<-- "examples/go/sdk-reference/observability/basic-usage.go"
     ```
 
+=== "Rust"
+
+    Log with the macros of [`tracing`](https://docs.rs/tracing), the instrumentation
+    crate the SDK uses, such as `tracing::info!`. A record written during an
+    invocation carries `executionArn`, `requestId`, and `tenantId` when the
+    invocation has one. A subscriber is the `tracing` component that formats and writes
+    records. Call `durable::init_default_subscriber()` once in `main` to install the
+    SDK's default subscriber, which writes each record between operations once per
+    execution. The SDK installs no subscriber on its own.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/observability/basic-usage.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -114,6 +128,25 @@ IDs, log sampling, and X-Ray tracing integration.
 
     The four named `slog` levels are `LevelDebug`, `LevelInfo`, `LevelWarn`, and
     `LevelError`.
+
+=== "Rust"
+
+    Log with the `tracing` macros. Pass structured fields as `key = value` pairs before
+    the message. `%value` records a field with its `Display` form, and `?value` with
+    its `Debug` form.
+
+    ```rust
+    tracing::trace!(key = value, "message");
+    tracing::debug!(key = value, "message");
+    tracing::info!(key = value, "message");
+    tracing::warn!(key = value, "message");
+    tracing::error!(key = value, "message");
+    tracing::event!(tracing::Level::INFO, key = value, "message");
+    ```
+
+    The five levels are `TRACE`, `DEBUG`, `INFO`, `WARN`, and `ERROR`. The same macros
+    work in the handler, in a step body, in a condition check, and in a child context
+    body. The SDK adds the fields of the place where the macro runs.
 
 === "C#"
 
@@ -227,6 +260,48 @@ IDs, log sampling, and X-Ray tracing integration.
     `checkpoint flushed`, `invocation suspending`, and `operation completed`.
     The handler's level is the only switch for these `DEBUG` records.
 
+=== "Rust"
+
+    The default subscriber writes one JSON object per record when
+    `AWS_LAMBDA_LOG_FORMAT` is `JSON` in any case, and text otherwise. Lambda gives
+    a durable function the JSON log format by default, so the default subscriber
+    writes JSON there. Each record is one line with every field at the top level. The
+    keys come in the order `requestId`, `timestamp`, `level`, `executionArn`,
+    `tenantId`, `operationId`, `operationName`, `attempt`, then the other fields of
+    the record and of its spans, and `message` last. A key without a value is left out, except
+    `timestamp`, `level`, and `message`. On Lambda the other fields include the
+    runtime's `xrayTraceId`. A record from a step looks like:
+
+    ```json
+    {
+      "requestId": "cf9500de-...",
+      "timestamp": "2026-11-08T08:40:32.208Z",
+      "level": "INFO",
+      "executionArn": "arn:aws:lambda:...",
+      "operationId": "6b86b273...",
+      "operationName": "process",
+      "attempt": 1,
+      "xrayTraceId": "Root=1-...",
+      "message": "Running step"
+    }
+    ```
+
+    `timestamp` is ISO 8601 UTC with millisecond precision and a `Z` suffix.
+    `level` is `TRACE`, `DEBUG`, `INFO`, `WARN`, or `ERROR`. `message` is `""` for a
+    record without one.
+
+    `RUST_LOG` gives the directives of an `EnvFilter`, such as
+    `info,my_crate=debug`. When `RUST_LOG` is unset or holds only invalid directives,
+    the level is `AWS_LAMBDA_LOG_LEVEL`, else `INFO`. A level that does not parse selects
+    `INFO`. The subscriber writes to stdout.
+
+    The SDK also writes records of its own. At `DEBUG` it writes lifecycle records on
+    the target `aws_durable_execution_sdk::lifecycle`, with the messages
+    `operation_started`, `operation_succeeded`, `operation_failed`,
+    `operation_retry_scheduled`, `operation_replayed`, `execution_started`,
+    `execution_resumed`, and `execution_suspended`. A plugin hook that fails writes one
+    `WARN` record on the target `aws_durable_execution_sdk::plugin`.
+
 === "C#"
 
     The SDK writes through `Microsoft.Extensions.Logging.ILogger` and attaches
@@ -291,6 +366,17 @@ All DurableContext fields, plus:
     The SDK has one `Context` type. A child context comes from
     `RunInChildContext`, `Go`, `Map`, `Parallel`, or `WaitForCallback`.
 
+=== "Rust"
+
+    - `operationId` the ID of the child context operation
+    - `operationName` the name given to the child context, when it has one
+
+    A `run_in_child_context` body, a map item, a parallel branch, and a
+    `wait_for_callback` body each run in a child context. A map item that you do not
+    name reports `map-item-<index>`, and such a parallel branch reports
+    `parallel-branch-<index>`. Inside a child context, a step's records carry the
+    step's `operationId`, `operationName`, and `attempt` in place of the child's.
+
 === "C#"
 
     - `operationId` the deterministic operation ID of the child context operation
@@ -346,6 +432,20 @@ instead of DurableContext's logger adds step-specific fields (`operationId`,
 
     ```go
     --8<-- "examples/go/sdk-reference/observability/step-context-logger.go"
+    ```
+
+=== "Rust"
+
+    A record written in a step body, a `wait_for_condition` check, or a
+    `wait_for_callback` submitter carries the operation's `operationId`, its
+    `operationName` when it has one, and `attempt`. The SDK enters the operation's span
+    around the body, so every `tracing` macro there adds these fields. `attempt` counts
+    from 1 and grows on each retry of a step and on each check of a condition. The
+    submitter's records carry the `operationName` of the `wait_for_callback`, when it
+    has one.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/observability/step-context-logger.rs"
     ```
 
 === "C#"
@@ -415,6 +515,23 @@ Logs inside a retrying step body always emit, because the step has not completed
     To change the mode from inside the handler, call `ConfigureLogging`. See
     [Configure logger](#configure-logger).
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/observability/replay-suppression.rs"
+    ```
+
+    The subscriber that `durable::init_default_subscriber()` installs filters its
+    output with `durable::ReplayFilterLayer`, which drops the records written while the
+    SDK replays. To emit logs on every replay, install a subscriber without that filter
+    in `main`, such as `lambda_runtime::tracing::init_default_subscriber()`. It reads
+    the same environment variables. Its JSON record puts the message and fields under
+    `fields` and the span fields under `span` and `spans`.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/observability/disable-replay-suppression.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -460,6 +577,22 @@ You can change where the SDK's logger sends its entries.
 
     ```go
     --8<-- "examples/go/sdk-reference/observability/custom-logger.go"
+    ```
+
+=== "Rust"
+
+    Install any `tracing` subscriber in `main`. `lambda_runtime::tracing::subscriber`
+    re-exports [`tracing-subscriber`](https://docs.rs/tracing-subscriber), the crate
+    that builds subscribers from layers. To keep replay suppression, set
+    `durable::ReplayFilterLayer` as the filter of the layer that writes records. The
+    SDK creates its spans at `INFO`, so every filter must keep `INFO` spans enabled.
+    A filter above `INFO` hides the spans from `ReplayFilterLayer`, and the records
+    then repeat on every replay and lose the SDK's fields. The SDK's span fields reach
+    every layer. The stock `fmt::layer().json()` writes the message and fields under
+    `fields` and the span fields under `span` and `spans`.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/observability/custom-logger.rs"
     ```
 
 === "C#"
@@ -574,6 +707,36 @@ You can change where the SDK's logger sends its entries.
     returns an error that wraps `ErrWrongGoroutine`. It also returns an error
     for a `Context` the SDK did not create. It returns no other error.
 
+=== "Rust"
+
+    Install the default subscriber once in `main`, before `durable::run`.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/observability/configure-logger-signature.rs"
+    ```
+
+    **Parameters:**
+
+    - `writer` (`init_default_subscriber_with_writer` only) Any `MakeWriter`, such as a
+        non-blocking writer. `init_default_subscriber()` writes to stdout.
+
+    **Returns:** `Ok(())` when the subscriber is installed.
+
+    **Errors:** the `try_init` error when a global subscriber is already installed, for
+    example by an earlier call.
+
+    **Environment variables:**
+
+    - `RUST_LOG` The `EnvFilter` directives, such as `info,my_crate=debug`. A valid
+        directive here sets the level.
+    - `AWS_LAMBDA_LOG_LEVEL` The level when `RUST_LOG` is unset or holds only invalid
+        directives. When it is unset too, the level is `INFO`.
+    - `AWS_LAMBDA_LOG_FORMAT` `JSON` in any case selects JSON output. Any other value
+        selects text.
+
+    Both functions read these variables when you call them. The subscriber applies to
+    the whole process.
+
 === "C#"
 
     Configure the logger on the handler's `IDurableContext`.
@@ -628,6 +791,18 @@ You can change where the SDK's logger sends its entries.
     an existing handler, and install it with `durable.WithLogHandler`. The SDK attaches
     its structured attributes through the handler's `WithAttrs` method.
 
+=== "Rust"
+
+    The logger interface is the `tracing` `Subscriber` trait. Build a subscriber from
+    `tracing-subscriber` layers, or use any crate that provides one.
+    `durable::ReplayFilterLayer` is a per-layer filter that drops the records written
+    while the SDK replays. Create it with `ReplayFilterLayer::new()` or `Default`. In
+    the declaration, `subscriber` is the `tracing-subscriber` crate.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/observability/logger-interface.rs"
+    ```
+
 === "C#"
 
     The C# SDK uses `Microsoft.Extensions.Logging.ILogger` directly. There is no
@@ -676,6 +851,12 @@ structured logger that works as a drop-in replacement for the SDK's default logg
     Powertools for AWS Lambda has no Go version. For structured JSON output, install any
     `slog.Handler`, such as `slog.NewJSONHandler` or a third-party handler, with
     `durable.WithLogHandler`. See [Custom logger](#custom-logger).
+
+=== "Rust"
+
+    Powertools for AWS Lambda offers no Rust library. For structured JSON output, call
+    `durable::init_default_subscriber()`, or install any `tracing` subscriber with
+    `durable::ReplayFilterLayer`. See [Custom logger](#custom-logger).
 
 === "C#"
 

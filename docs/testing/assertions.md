@@ -44,6 +44,17 @@ Look up a step by name and check its status and result.
     --8<-- "examples/go/testing/assertions/assert-step.go"
     ```
 
+=== "Rust"
+
+    The local runner, `durable::test_util::LocalRunner`, returns a `TestResult` when the
+    run completes. Use `result.operation(name)` to get the first operation with that
+    name. `result_json::<T>()` decodes the step's recorded result from JSON into `T`,
+    and returns `None` when the operation recorded no result.
+
+    ```rust
+    --8<-- "examples/rust/testing/assertions/assert-step.rs"
+    ```
+
 === "C#"
 
     Use `result.GetStep(name)` to get the `TestStep`, then call `GetResult<T>()` to
@@ -89,6 +100,17 @@ Look up a wait operation and check that it was scheduled with the expected durat
 
     ```go
     --8<-- "examples/go/testing/assertions/assert-wait.go"
+    ```
+
+=== "Rust"
+
+    Match `op.details()` against `TestOperationDetails::Wait` to read the `WaitDetails`.
+    `duration()` returns the recorded duration in whole seconds, and
+    `scheduled_end_time()` returns the time the wait was scheduled to end as a
+    `SystemTime`. The runner's virtual clock completes the wait immediately.
+
+    ```rust
+    --8<-- "examples/rust/testing/assertions/assert-wait.rs"
     ```
 
 === "C#"
@@ -146,6 +168,19 @@ then completes it from the test.
     --8<-- "examples/go/testing/assertions/assert-callback.go"
     ```
 
+=== "Rust"
+
+    Take a handle with `run.operation("approval")` before you await the run.
+    `wait_for_data(WaitingStatus::Submitted)` returns once the submitter has run, and
+    `send_callback(CallbackReply::success(&value)?)` completes the callback of that
+    `wait_for_callback`. Then await the run to get the result. `CallbackReply::success`
+    encodes the value as JSON, and the handler decodes the payload as JSON into a
+    `serde_json::Value`.
+
+    ```rust
+    --8<-- "examples/rust/testing/assertions/assert-callback.rs"
+    ```
+
 === "C#"
 
     Use `StartAsync()` to drive the workflow to the callback, `WaitForCallbackAsync()` to
@@ -185,6 +220,15 @@ operations to assert on what ran inside the context.
 
     ```go
     --8<-- "examples/go/testing/assertions/assert-child-context.go"
+    ```
+
+=== "Rust"
+
+    A child context is an operation of kind `durable::OperationKind::Context`.
+    `result.children(op)` returns the operations directly inside it, in order.
+
+    ```rust
+    --8<-- "examples/rust/testing/assertions/assert-child-context.rs"
     ```
 
 === "C#"
@@ -235,6 +279,16 @@ status to count failures and successes separately.
 
     ```go
     --8<-- "examples/go/testing/assertions/filter-by-status.go"
+    ```
+
+=== "Rust"
+
+    The SDK records one operation per step, so a retried step is a single record whose
+    status is its final outcome. `StepDetails::attempt()` counts the completed retries,
+    which is 2 after three attempts. Filter `result.operations()` by `op.status()`.
+
+    ```rust
+    --8<-- "examples/rust/testing/assertions/filter-by-status.rs"
     ```
 
 === "C#"

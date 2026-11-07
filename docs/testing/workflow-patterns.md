@@ -34,6 +34,12 @@ that all steps ran and that the final result reflects the full chain.
     --8<-- "examples/go/testing/examples/sequential-workflow.go"
     ```
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/testing/examples/sequential-workflow.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -68,6 +74,12 @@ operations.
 
     ```go
     --8<-- "examples/go/testing/examples/child-context.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/testing/examples/child-context.rs"
     ```
 
 === "C#"
@@ -105,6 +117,12 @@ branches completed.
     --8<-- "examples/go/testing/examples/parallel-workflow.go"
     ```
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/testing/examples/parallel-workflow.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -139,6 +157,12 @@ steps to verify which ones ran before the failure.
 
     ```go
     --8<-- "examples/go/testing/examples/partial-failures.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/testing/examples/partial-failures.rs"
     ```
 
 === "C#"
@@ -190,6 +214,16 @@ skipping. Each SDK handles this differently.
     --8<-- "examples/go/testing/examples/long-waits.go"
     ```
 
+=== "Rust"
+
+    The local runner's virtual clock moves past the wait between invocations, so the
+    day-long wait completes in milliseconds. `TestOperation::wait_duration()` reports
+    the recorded duration.
+
+    ```rust
+    --8<-- "examples/rust/testing/examples/long-waits.rs"
+    ```
+
 === "C#"
 
     `TestRunnerOptions.SkipTime` defaults to `true`, so the runner completes STARTED
@@ -227,6 +261,12 @@ the polling loop the same way it drives retries.
 
     ```go
     --8<-- "examples/go/testing/examples/polling.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/testing/examples/polling.rs"
     ```
 
 === "C#"

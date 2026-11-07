@@ -97,6 +97,38 @@ CI.
 
     **Returns:** `*LocalRunner[I, O]`
 
+=== "Rust"
+
+    `durable::test_util::LocalRunner` runs the handler in process. The `test_util`
+    module requires the SDK's `test-util` cargo feature, which you enable on a
+    dev-dependency as [Install the testing SDK](authoring.md#install-the-testing-sdk)
+    shows.
+
+    ```rust
+    impl LocalRunner {
+        // ...
+        pub fn new() -> Self;
+        // ...
+        pub fn options(mut self, options: crate::Options) -> Self;
+        // ...
+    }
+    ```
+
+    `LocalRunner::default()` returns the same runner as `LocalRunner::new()`. Each
+    setting is a builder method that takes the runner and returns it (see
+    [LocalDurableTestRunnerSetupParameters](#localdurabletestrunnersetupparameters)).
+    You pass the handler to `run`, so one runner can run several handlers. The runner
+    needs no setup or teardown.
+
+    **Parameters:**
+
+    - `options` (optional) The production handler's `durable::Options`. Every setting
+        applies as in production except the transport. The runner ignores `sdk_config`,
+        `lambda_client`, and `execution_client`, and uses its in-memory backend.
+        Defaults to `Options::default()`.
+
+    **Returns:** `LocalRunner`
+
 === "C#"
 
     The local runner type is `DurableTestRunner<TInput, TOutput>`. Construct it with the
@@ -217,6 +249,44 @@ CI.
     handler that returns an error produces a nil error and a result with status
     `FAILED`.
 
+=== "Rust"
+
+    ```rust
+    pub fn run<E, O, F, Fut>(&self, handler: F, event: E) -> RunHandle<O>
+    where
+        E: Serialize + DeserializeOwned + Send + 'static,
+        O: Serialize + DeserializeOwned + Send + 'static,
+        F: Fn(E, DurableContext) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<O, BoxError>> + Send;
+    // ...
+    pub fn max_invocations(mut self, max: usize) -> Self;
+    ```
+
+    `run` returns a `durable::test_util::RunHandle<O>` at once. `RunHandle` is a future.
+    Awaiting it drives the full replay loop until the execution succeeds or fails,
+    nothing can advance it, or the invocation cap is reached. The run starts when the
+    test first awaits a future of the run, such as the `RunHandle`.
+
+    **Parameters:**
+
+    - `handler` (required) The durable handler, the function you pass to `durable::run`.
+        Its event and output types need `Serialize` and `DeserializeOwned`.
+    - `event` (required) The handler input. The runner encodes it as JSON.
+    - `max` (optional) The invocation cap, set with `max_invocations`. Defaults to 100.
+        A value of 0 counts as 1.
+
+    **Returns:** `RunHandle<O>`. Awaiting it returns
+    `Result<TestResult<O>, TestRunnerError>`. When nothing can advance the execution, or
+    the cap is reached, the result has status `ExecutionStatus::Running` and
+    `error_message()` says why the run ended.
+
+    **Errors:** Awaiting the handle returns `Err(TestRunnerError)` only when the runner
+    itself fails. That happens when the event does not encode as JSON
+    (`EventSerialization`), the output of a succeeded execution does not decode into `O`
+    (`OutputDeserialization`), or a response envelope has a status other than
+    `SUCCEEDED`, `FAILED`, and `PENDING` (`UnexpectedEnvelope`). A handler that returns
+    an error produces `Ok` with a result whose status is `ExecutionStatus::Failed`.
+
 === "C#"
 
     ```csharp
@@ -275,6 +345,15 @@ CI.
 
     For a callback or chained invoke, run to `PENDING`, resolve the pending operation,
     then call `RunUntilComplete` again.
+
+=== "Rust"
+
+    `run` returns the `RunHandle` at once and drives nothing until the test awaits a
+    future of the run. Before you await the `RunHandle`, take operation handles from it
+    and await their controls, such as `wait_for_data` and `send_callback` (see [Drive a
+    callback from an operation](#drive-a-callback-from-an-operation)). The run moves on
+    only while the test awaits a future of the run, such as the `RunHandle` or
+    `wait_for_data`. So await the operation controls first and the `RunHandle` last.
 
 === "C#"
 
@@ -358,6 +437,40 @@ CI.
     **Returns:** A `*TestOperation`, or nil if not found. `OperationsByType` returns a
     `[]TestOperation`.
 
+=== "Rust"
+
+    Take operation handles from the `RunHandle` that `run` returns. A handle names an
+    operation by name, index, or ID, and finds it each time you use the handle. So you
+    can take a handle before the operation exists. After the run,
+    `result.operation(name)` and `result.operations_named(name)` find operations by
+    name, `result.children(parent)` finds the children of an operation, and
+    `result.operations()` returns the whole history in first-checkpoint order (see
+    [Operations](#operations)).
+
+    ```rust
+    pub fn operation(&self, name: &str) -> OperationHandle;
+    // ...
+    pub fn operation_by_index(&self, index: usize) -> OperationHandle;
+    // ...
+    pub fn operation_by_name_and_index(&self, name: &str, index: usize) -> OperationHandle;
+    // ...
+    pub fn operation_by_id(&self, id: &str) -> OperationHandle;
+    // ...
+    pub fn snapshot(&self) -> Option<TestOperation>;
+    ```
+
+    **Parameters:**
+
+    - `name` (required) The operation name, matched exactly. `operation` names the first
+        operation with that name.
+    - `index` (required) A zero-based index, in `TestResult::operations` order. For
+        `operation_by_name_and_index` it counts operations with that name. For
+        `operation_by_index` it counts all operations.
+    - `id` (required) The unique operation ID.
+
+    **Returns:** An `OperationHandle`. Its `snapshot()` returns the operation as it is
+    now, as a `TestOperation`, or `None` while no operation matches.
+
 === "C#"
 
     The .NET runner does not expose operation lookups; inspect operations through the
@@ -440,6 +553,68 @@ CI.
     unnamed inner callback, so its `Name` is empty. The `WaitForCallback` name is on the
     callback's parent operation.
 
+=== "Rust"
+
+    Answer a callback in one of two ways. Queue a reply on the runner before the run
+    with `callback` or `callback_for`, or send one during the run from an operation
+    handle (see [Drive a callback from an
+    operation](#drive-a-callback-from-an-operation)). Both take a
+    `durable::test_util::CallbackReply`.
+
+    ```rust
+    pub fn callback(mut self, reply: CallbackReply) -> Self;
+    // ...
+    pub fn callback_for(mut self, name: impl Into<String>, reply: CallbackReply) -> Self;
+    ```
+
+    A pending callback is a callback that waits for a reply. Between invocations, the
+    runner visits the pending callbacks in the order they were first checkpointed. It
+    gives each one the first queued `callback_for` reply that names it, else the first
+    queued `callback` reply, else nothing. A name matches the callback's own name, or
+    the name of the `wait_for_callback` that contains it. Queued replies arrive before
+    the virtual clock moves. When the run ends because nothing can advance the
+    execution, the result has status `Running`, and its `error_message()` names each
+    queued `callback_for` reply that matched no callback.
+
+    ```rust
+    impl CallbackReply {
+        pub fn success<T: Serialize>(value: &T) -> Result<Self, BoxError>;
+        // ...
+        pub fn raw(payload: impl Into<String>) -> Self;
+        // ...
+        pub fn failure(failure: CallbackFailure) -> Self;
+        // ...
+        pub fn timeout() -> Self;
+        // ...
+        pub fn heartbeat_timeout() -> Self;
+        // ...
+    }
+    ```
+
+    - `success(value)` The callback succeeds with the JSON encoding of `value`. Returns
+        an error when `value` does not encode as JSON.
+    - `raw(payload)` The callback succeeds with `payload` unchanged. The handler decodes
+        it with the callback's [serdes](../sdk-reference/state/serialization.md).
+    - `failure(failure)` The callback fails with the error fields of `failure`.
+    - `timeout()` The callback times out with the message `Callback timed out`.
+    - `heartbeat_timeout()` The callback times out with the error type
+        `Callback.Heartbeat` and the message `Callback timed out on heartbeat`.
+
+    ```rust
+    impl CallbackFailure {
+        pub fn new(error_type: impl Into<String>, error_message: impl Into<String>) -> Self;
+        // ...
+        pub fn with_error_data(mut self, error_data: impl Into<String>) -> Self;
+        // ...
+        pub fn with_stack_trace(mut self, frames: Vec<String>) -> Self;
+        // ...
+    }
+    ```
+
+    `CallbackFailure::new` sets the error type and message. `with_error_data` and
+    `with_stack_trace` add the error data and the stack trace frames.
+    `CallbackFailure::default()` leaves every field unset.
+
 === "C#"
 
     Callbacks are driven from the runner. After `StartAsync`, wait for the callback ID, then
@@ -506,6 +681,13 @@ CI.
     func (r *LocalRunner[I, O]) TimeoutChainedInvoke(name string) error
     ```
 
+=== "Rust"
+
+    Register a target for the invoked function. See [Register mock handlers for
+    invoke](#register-mock-handlers-for-invoke). An invoke of a function name with no
+    registered target fails the execution, and the result's `error_message()` names the
+    function.
+
 === "C#"
 
     The .NET SDK does not expose per-invoke completion methods. Instead, register the
@@ -548,6 +730,41 @@ CI.
     func PlainFunction[I, O any](handler func(context.Context, I) (O, error)) Function
     const MaxInvokeDepth = 10
     ```
+
+=== "Rust"
+
+    ```rust
+    pub fn register_function<I, O, F, Fut>(mut self, name: impl Into<String>, function: F) -> Self
+    where
+        I: DeserializeOwned + Send + 'static,
+        O: Serialize + Send + 'static,
+        F: Fn(I) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<O, BoxError>> + Send + 'static;
+    // ...
+    pub fn register_durable_function<E, O, F, Fut>(
+        mut self,
+        name: impl Into<String>,
+        handler: F,
+    ) -> Self
+    where
+        E: Serialize + DeserializeOwned + Send + 'static,
+        O: Serialize + DeserializeOwned + Send + 'static,
+        F: Fn(E, DurableContext) -> Fut + Send + Sync + 'static,
+        Fut: Future<Output = Result<O, BoxError>> + Send;
+    ```
+
+    Both methods return the runner for chaining. `name` is the function name the handler
+    passes to `ctx.invoke`, matched exactly. A later registration under the same name
+    replaces the earlier one. When an invocation suspends, the runner runs the target of
+    each pending invoke once, before the virtual clock moves.
+
+    `register_function` registers a plain function. The runner decodes its input from
+    the invoke payload and encodes its output as JSON. An `Err` fails the invoke.
+    `register_durable_function` runs the handler as its own durable execution, with a
+    fresh in-memory backend and a copy of the runner's settings. The runner gives that
+    execution none of its registered functions, queued callback replies, or injected
+    checkpoint failures. So a registered durable target cannot invoke another registered
+    target.
 
 === "C#"
 
@@ -596,6 +813,44 @@ CI.
     func (r *LocalRunner[I, O]) OmitTokenOnCheckpoint(n int)
     ```
 
+=== "Rust"
+
+    These builder methods make the in-memory backend fail or delay checkpoint calls.
+
+    ```rust
+    pub fn fail_next_checkpoints(self, count: usize) -> Self;
+    // ...
+    pub fn fail_checkpoints_after(mut self, skip: usize, count: usize) -> Self;
+    // ...
+    pub fn fail_checkpoints_after_retryable(mut self, skip: usize, count: usize) -> Self;
+    // ...
+    pub fn withdraw_checkpoints_after(mut self, n: usize) -> Self;
+    // ...
+    pub fn checkpoint_latency(mut self, latency: std::time::Duration) -> Self;
+    ```
+
+    - `fail_next_checkpoints(count)` Rejects the next `count` checkpoint calls with a
+        non-retryable error and stores nothing for them. The SDK sends no further
+        checkpoint and fails the execution with the error type
+        `CheckpointUnrecoverableExecutionError`.
+    - `fail_checkpoints_after(skip, count)` Lets `skip` checkpoint calls through, then
+        rejects the next `count` calls in the same way.
+    - `fail_checkpoints_after_retryable(skip, count)` Lets `skip` checkpoint calls
+        through, then rejects the next `count` calls with a retryable error. The
+        invocation fails, the runner invokes again, and replay resumes from the stored
+        state.
+    - `withdraw_checkpoints_after(n)` Answers checkpoint request `n + 1` without a
+        checkpoint token, once. Requests count from 1 across invocations. The backend
+        applies that request, the SDK sends nothing more in that invocation, and the
+        runner invokes again at once.
+    - `checkpoint_latency(latency)` Delays each checkpoint response by `latency` in
+        Tokio time, to expose races. Defaults to zero. It does not move the virtual
+        clock.
+
+    One checkpoint fault applies at a time. Each `fail_*` call replaces the fault that
+    an earlier `fail_*` call set, so `fail_next_checkpoints(count)` is the same as
+    `fail_checkpoints_after(0, count)`.
+
 === "C#"
 
     The .NET SDK does not expose checkpoint-manipulation methods. To exercise failure and
@@ -642,6 +897,15 @@ CI.
     func (r *LocalRunner[I, O]) CompletePendingTimers() bool
     ```
 
+=== "Rust"
+
+    Time is virtual and always skipped. The runner keeps a virtual clock in whole
+    seconds that starts at 0 for each run. Between invocations, it moves the clock to
+    the earliest pending wait or retry end and fires every wait and retry due by then,
+    so waits and retries end in time order. Time moves only between invocations. To
+    check a wait's duration, read `WaitDetails::duration` (see [Wait
+    details](#wait-details)).
+
 === "C#"
 
     Set `SkipTime` on `TestRunnerOptions`. When true (the default), both `WaitAsync` delays
@@ -687,6 +951,12 @@ See [Authoring: Skip time in tests](authoring.md#skip-time-in-tests) for an over
     ```go
     func (r *LocalRunner[I, O]) Reset()
     ```
+
+=== "Rust"
+
+    A runner holds only settings, and `run` borrows it. Each run starts from an empty
+    history and gets its own copy of the queued callback replies, so one runner serves
+    several cases with no reset.
 
 === "C#"
 
@@ -741,6 +1011,46 @@ See [Authoring: Skip time in tests](authoring.md#skip-time-in-tests) for an over
     func WithMaxInvocations(n int) RunnerOption
     const DefaultMaxInvocations = 100
     ```
+
+=== "Rust"
+
+    Configure the runner with builder methods on `LocalRunner`. Each takes the runner
+    and returns it. These methods set how the in-memory backend pages the execution
+    state:
+
+    ```rust
+    pub fn single_page(mut self) -> Self;
+    // ...
+    pub fn initial_page_size(mut self, size: usize) -> Self;
+    // ...
+    pub fn checkpoint_page_size(mut self, size: usize) -> Self;
+    ```
+
+    **Methods:**
+
+    - `options(options)` The production handler's `durable::Options`. Defaults to
+        `Options::default()`. See [Create a runner](#create-a-runner).
+    - `max_invocations(max)` The invocation cap. Defaults to 100. See [Run the
+        handler](#run-the-handler).
+    - `single_page()` Serves the whole execution state in one page. By default the
+        backend pages the state, as the service does.
+    - `initial_page_size(size)` The number of operations in the first page of state that
+        each invocation receives. Defaults to 1. A value of 0 counts as 1.
+    - `checkpoint_page_size(size)` The number of stored operations above which a
+        checkpoint response is paged. Defaults to 1. A value of 0 counts as 1.
+    - `checkpoint_latency(latency)` The delay of each checkpoint response, in Tokio
+        time. Defaults to zero. See [Simulate failures](#simulate-failures).
+    - `fail_next_checkpoints`, `fail_checkpoints_after`,
+        `fail_checkpoints_after_retryable`, and `withdraw_checkpoints_after` Injected
+        checkpoint failures. None by default. See [Simulate
+        failures](#simulate-failures).
+    - `callback` and `callback_for` Queued callback replies. None by default. See [Drive
+        callbacks](#drive-callbacks).
+    - `register_function` and `register_durable_function` Invoke targets. None by
+        default. See [Register mock handlers for
+        invoke](#register-mock-handlers-for-invoke).
+
+    Time is always virtual. See [Control time](#control-time).
 
 === "C#"
 
@@ -814,6 +1124,29 @@ error, and the full operation history.
     Status ExecutionStatus
     ```
 
+=== "Rust"
+
+    ```rust
+    impl<O> TestResult<O> {
+        // ...
+        pub fn status(&self) -> ExecutionStatus;
+        // ...
+        pub fn is_success(&self) -> bool;
+        // ...
+        pub fn is_failure(&self) -> bool;
+        // ...
+        pub fn is_suspended(&self) -> bool;
+        // ...
+    }
+    ```
+
+    **Returns:** `status()` returns a `durable::test_util::ExecutionStatus` (see
+    [Execution status](#execution-status)). `is_success()` is `true` for `Succeeded`.
+    `is_failure()` is `true` for `Failed`, `TimedOut`, and `Stopped`. `is_suspended()`
+    is `true` for `Running`. Under `LocalRunner`, a run that ends because nothing can
+    advance the execution, or because it reached the invocation cap, has status
+    `Running`.
+
 === "C#"
 
     ```csharp
@@ -869,6 +1202,21 @@ error, and the full operation history.
     func ResultAs[O any](r *TestResult) (O, error)
     ```
 
+=== "Rust"
+
+    ```rust
+    pub fn output(&self) -> Option<&O>;
+    // ...
+    pub fn into_output(self) -> Option<O>;
+    ```
+
+    **Returns:** The handler output, already decoded into the handler's output type `O`,
+    when the status is `Succeeded`, and `None` otherwise. `output()` borrows it and
+    `into_output()` takes it.
+
+    **Errors:** When the output of a succeeded execution does not decode into `O`,
+    awaiting the `RunHandle` returns `Err(TestRunnerError::OutputDeserialization)`.
+
 === "C#"
 
     ```csharp
@@ -917,6 +1265,22 @@ error, and the full operation history.
     ```go
     Error *TestError
     ```
+
+=== "Rust"
+
+    ```rust
+    pub fn error(&self) -> Option<&crate::WireError>;
+    // ...
+    pub fn error_type(&self) -> Option<&str>;
+    // ...
+    pub fn error_message(&self) -> Option<&str>;
+    ```
+
+    **Returns:** `error()` returns the error as a `durable::WireError` (see
+    [TestResultError](#testresulterror)), or `None` when the execution succeeded. When
+    the execution failed, it is the recorded error. While the status is `Running`, it
+    says why the run ended. `error_type()` and `error_message()` read the same record.
+    Under `LocalRunner`, a failure recorded with no error type reads `Error`.
 
 === "C#"
 
@@ -988,6 +1352,39 @@ error, and the full operation history.
     func (r *TestResult) OperationsByType(opType string) []TestOperation
     ```
 
+=== "Rust"
+
+    ```rust
+    pub fn operations(&self) -> &[TestOperation];
+    // ...
+    pub fn operation(&self, name: &str) -> Option<&TestOperation>;
+    // ...
+    pub fn operations_named<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> impl Iterator<Item = &'a TestOperation> + 'a;
+    // ...
+    pub fn children<'a>(
+        &'a self,
+        parent: &'a TestOperation,
+    ) -> impl Iterator<Item = &'a TestOperation> + 'a;
+    ```
+
+    `operations()` lists every operation the execution checkpointed, in first-checkpoint
+    order. It includes nested operations and excludes the execution operation. To filter
+    by status, filter the slice, for example
+    `result.operations().iter().filter(|op| op.status() == durable::OperationStatus::Succeeded)`.
+
+    **Parameters:**
+
+    - `name` (required) The operation name, matched exactly. `operation` returns the
+        first match, and `operations_named` returns every match.
+    - `parent` (required) An operation of this result. `children` returns the operations
+        whose parent is `parent`.
+
+    **Returns:** A slice or an iterator of `TestOperation`. `operation` returns `None`
+    when no operation has the name.
+
 === "C#"
 
     ```csharp
@@ -1035,6 +1432,22 @@ error, and the full operation history.
     func (r *TestResult) EventTypes() []string
     ```
 
+=== "Rust"
+
+    ```rust
+    pub fn history_events(&self) -> &[Event];
+    ```
+
+    `Event` is the service model type `durable::lambda_types::Event`, and
+    `event.event_type()` returns its `durable::lambda_types::EventType`. `CloudRunner`
+    returns the events of `GetDurableExecutionHistory` unchanged. `LocalRunner`
+    synthesizes the events with the same service model types and order, with one
+    `InvocationCompleted` event for each invocation. `LocalRunner` moves time only
+    between invocations, so a local run can take more invocations, and record more
+    `InvocationCompleted` events, than the same execution takes on Lambda.
+    `TestOperation::events()` returns the events of one operation (see [Common
+    accessors](#common-accessors)).
+
 === "C#"
 
     The .NET `TestResult<TOutput>` does not expose raw history events. Assert on the folded
@@ -1076,6 +1489,42 @@ error, and the full operation history.
     }
     ```
 
+=== "Rust"
+
+    ```rust
+    pub fn invocation_count(&self) -> usize;
+    // ...
+    pub fn invocations(&self) -> &[TestInvocation];
+    ```
+
+    `invocations()` holds one `TestInvocation` for each `InvocationCompleted` history
+    event, in history order. Under `LocalRunner`, invocation `n`, counting from 1, has
+    the request ID `local-invocation-{n}`, and the list has `invocation_count()`
+    records. Under `CloudRunner`, `invocation_count()` counts the `InvocationCompleted`
+    events, or the number of polls when the history holds no such event.
+
+    ```rust
+    impl TestInvocation {
+        // ...
+        pub fn start_time(&self) -> Option<std::time::SystemTime>;
+        // ...
+        pub fn end_time(&self) -> Option<std::time::SystemTime>;
+        // ...
+        pub fn request_id(&self) -> Option<&str>;
+        // ...
+        pub fn error(&self) -> Option<&crate::WireError>;
+        // ...
+    }
+    ```
+
+    When an `InvocationCompleted` event omits its details, `start_time()`, `end_time()`,
+    and `request_id()` return `None`. A time also returns `None` when its timestamp lies
+    outside the range of `SystemTime`. `error()` is `None` for an invocation that
+    returned a `SUCCEEDED` or `PENDING` result. For a `FAILED` result it holds the
+    result's error. Under `LocalRunner`, an invocation fault, such as a retryable
+    checkpoint failure, also sets `error()`. Its error type is `None`, and its message
+    is the fault's text.
+
 === "C#"
 
     ```csharp
@@ -1115,6 +1564,40 @@ error, and the full operation history.
     func (r *TestResult) WriteTree(w io.Writer, columns ...TreeColumn) error
     func DefaultTreeColumns() []TreeColumn
     ```
+
+=== "Rust"
+
+    ```rust
+    pub fn display_with(&self, columns: PrintColumns) -> impl std::fmt::Display + '_;
+    ```
+
+    `TestResult` implements `Display`, which prints a table of the operations with every
+    column, so `println!("{result}")` writes it to stdout. `display_with` prints only
+    the columns that `columns` enables.
+
+    ```rust
+    pub struct PrintColumns {
+        pub parent_id: bool,
+        pub name: bool,
+        pub kind: bool,
+        pub sub_type: bool,
+        pub status: bool,
+        pub start_time: bool,
+        pub end_time: bool,
+        pub duration: bool,
+    }
+    ```
+
+    `PrintColumns::default()` enables every column. Set fields to `false` to hide
+    columns. The struct is `#[non_exhaustive]`, so code outside the SDK builds it with
+    `default()`. The columns, in order, are `parentId`, `name`, `type`, `subType`,
+    `status`, `startTime`, `endTime`, and `duration`. The fields `parent_id`, `name`,
+    `kind`, `sub_type`, `status`, `start_time`, `end_time`, and `duration` enable them.
+
+    The table has a header line and one line per operation, with the cells separated by
+    `|` and a space on each side. Times print as ISO 8601 UTC with three fractional
+    digits. The duration prints in whole milliseconds, such as `1000ms`. An absent value
+    prints `-`. A result with no operations prints `No operations found.`
 
 === "C#"
 
@@ -1169,6 +1652,28 @@ error, and the full operation history.
     	StackTrace []string
     }
     ```
+
+=== "Rust"
+
+    ```rust
+    impl WireError {
+        // ...
+        pub fn error_type(&self) -> Option<&str>;
+        // ...
+        pub fn error_message(&self) -> Option<&str>;
+        // ...
+        pub fn error_data(&self) -> Option<&str>;
+        // ...
+        pub fn stack_trace(&self) -> &[String];
+        // ...
+    }
+    ```
+
+    The result error is `durable::WireError`, the type the SDK also returns from
+    `OperationError::wire()`. Its fields are private, so a test compares the accessors.
+    `stack_trace()` is an empty slice when no frames were recorded. `Display` writes the
+    type and the message as `type: message`, either one alone when the other is absent,
+    or `unknown error` when both are absent.
 
 === "C#"
 
@@ -1263,6 +1768,99 @@ shared set of accessors.
     func (o *TestOperation) IsTerminal() bool
     ```
 
+=== "Rust"
+
+    `durable::test_util::TestOperation` is a copy of one operation record, read through
+    accessor methods.
+
+    ```rust
+    impl TestOperation {
+        // ...
+        pub fn id(&self) -> &str;
+        // ...
+        pub fn events(&self) -> &[Event];
+        // ...
+        pub fn kind(&self) -> OperationKind;
+        // ...
+        pub fn sub_type(&self) -> Option<&str>;
+        // ...
+        pub fn status(&self) -> OperationStatus;
+        // ...
+        pub fn succeeded(&self) -> bool;
+        // ...
+        pub fn failed(&self) -> bool;
+        // ...
+        pub fn result(&self) -> Option<&str>;
+        // ...
+        pub fn result_json<T: DeserializeOwned>(&self) -> Result<Option<T>, serde_json::Error>;
+        // ...
+        pub fn is_wait_for_callback(&self) -> bool;
+        // ...
+        pub fn wait_duration(&self) -> Option<std::time::Duration>;
+        // ...
+        pub fn error(&self) -> Option<&crate::WireError>;
+        // ...
+        pub fn error_type(&self) -> Option<&str>;
+        // ...
+        pub fn error_message(&self) -> Option<&str>;
+        // ...
+        pub fn name(&self) -> Option<&str>;
+        // ...
+        pub fn parent_id(&self) -> Option<&str>;
+        // ...
+        pub fn start_time(&self) -> Option<std::time::SystemTime>;
+        // ...
+        pub fn end_time(&self) -> Option<std::time::SystemTime>;
+        // ...
+        pub fn details(&self) -> TestOperationDetails<'_>;
+        // ...
+    }
+    ```
+
+    - `id()` The unique operation ID.
+    - `events()` The history events of this operation, in history order.
+    - `kind()` The `durable::OperationKind` (see [Operation type](#operation-type)).
+    - `sub_type()` The sub-type, such as `"Step"` or `"WaitForCallback"`, or `None`. The
+        constants of `durable::OperationSubType` hold the built-in values.
+    - `status()` The `durable::OperationStatus` (see [Operation
+        status](#operation-status)). `succeeded()` is `true` for `Succeeded`, and
+        `failed()` is `true` for `Failed`.
+    - `result()` The serialized result, JSON with the default serdes. Under
+        `CloudRunner`, a result over the history's inline size limit is `None`.
+    - `result_json::<T>()` The result decoded from JSON into `T`. It returns `Ok(None)`
+        when `result()` is `None`, and the `serde_json::Error` when the result does not
+        decode into `T`.
+    - `is_wait_for_callback()` `true` for the `Context` operation of a
+        `wait_for_callback`, whose sub-type is `WaitForCallback`.
+    - `wait_duration()` The recorded duration of a wait, as `WaitDetails::duration()`
+        returns it, or `None` for an operation of another kind.
+    - `error()`, `error_type()`, and `error_message()` The recorded error (see
+        [TestResultError](#testresulterror)).
+    - `name()` The operation name, or `None` for an unnamed operation.
+    - `parent_id()` The ID of the operation that contains this one, or `None` for a
+        top-level operation. `TestResult::children` returns an operation's children.
+    - `start_time()` and `end_time()` The start and end times. `end_time()` is `None`
+        until the operation ends. Under `LocalRunner`, each time is the run's start time
+        plus virtual seconds.
+    - `details()` The details of the operation's kind.
+
+    To test for a callback, compare `op.kind() == durable::OperationKind::Callback`. To
+    test for a `wait_for_callback`, call `op.is_wait_for_callback()`.
+
+    `details()` returns the variant of `TestOperationDetails` that matches `kind()`:
+
+    ```rust
+    pub enum TestOperationDetails<'a> {
+        Context(&'a ContextDetails),
+        Step(&'a StepDetails),
+        Wait(&'a WaitDetails),
+        Callback(&'a CallbackDetails),
+        ChainedInvoke,
+    }
+    ```
+
+    The enum is `#[non_exhaustive]`, so a `match` on it needs a `_` arm.
+
 === "C#"
 
     The docs "Operation" type maps to `TestStep` in .NET. Common accessors:
@@ -1338,6 +1936,31 @@ shared set of accessors.
     func OperationResultAs[O any](op *TestOperation) (O, error)
     ```
 
+=== "Rust"
+
+    ```rust
+    impl StepDetails {
+        pub fn attempt(&self) -> u32;
+        // ...
+        pub fn next_attempt_time(&self) -> Option<std::time::SystemTime>;
+        // ...
+    }
+    ```
+
+    Match the `TestOperationDetails::Step` variant of `details()`, for example
+    `if let TestOperationDetails::Step(step) = op.details()`. Read the step's result and
+    error on the operation (see [Common accessors](#common-accessors)).
+
+    - `attempt()` The number of completed retries, counting from 0. A step that succeeds
+        on its first attempt records 0. A step that fails on its only attempt records 0.
+        A step that fails twice and then succeeds records 2. Both runners report the
+        same value. Inside the step body, `StepContext::attempt()` counts attempts from
+        1, so the third attempt reads 3 there and the record reads 2.
+    - `next_attempt_time()` The time the next attempt was scheduled for after the latest
+        retry, or `None` for a step that was never retried. A step retry and a
+        `wait_for_condition` check that asks to continue both set it. Both runners
+        report the same value.
+
 === "C#"
 
     `TestStep` exposes step details through kind-aware accessors rather than a separate
@@ -1389,6 +2012,22 @@ shared set of accessors.
     }
     ```
 
+=== "Rust"
+
+    ```rust
+    impl WaitDetails {
+        pub fn duration(&self) -> Option<std::time::Duration>;
+        // ...
+        pub fn scheduled_end_time(&self) -> Option<std::time::SystemTime>;
+        // ...
+    }
+    ```
+
+    Match the `TestOperationDetails::Wait` variant of `details()`. `duration()` is the
+    recorded wait duration in whole seconds. `scheduled_end_time()` is the time the wait
+    was scheduled to end. Under `LocalRunner`, it is the virtual time the wait started
+    plus its duration. Each is `None` when the history recorded no value.
+
 === "C#"
 
     ```csharp
@@ -1435,6 +2074,22 @@ shared set of accessors.
     }
     ```
 
+=== "Rust"
+
+    ```rust
+    impl CallbackDetails {
+        pub fn callback_id(&self) -> Option<&str>;
+        // ...
+    }
+    ```
+
+    Match the `TestOperationDetails::Callback` variant of `details()`. `callback_id()`
+    is the ID the handler sees. Read the callback's result and error on the operation. A
+    `wait_for_callback` records a named `Context` operation with the sub-type
+    `WaitForCallback`. Its children are an unnamed callback operation and the unnamed
+    step that runs the submitter. Find the callback with
+    `result.children(context).find(|op| op.kind() == durable::OperationKind::Callback)`.
+
 === "C#"
 
     ```csharp
@@ -1477,6 +2132,12 @@ shared set of accessors.
     	StackTrace   []string
     }
     ```
+
+=== "Rust"
+
+    A chained invoke has the `TestOperationDetails::ChainedInvoke` variant, which
+    carries no data. Read the invoke's result and error on the operation with `result()`
+    and `error()`.
 
 === "C#"
 
@@ -1531,6 +2192,21 @@ shared set of accessors.
     }
     ```
 
+=== "Rust"
+
+    ```rust
+    impl ContextDetails {
+        pub fn replay_children(&self) -> bool;
+        // ...
+    }
+    ```
+
+    Match the `TestOperationDetails::Context` variant of `details()`.
+    `replay_children()` is `true` when the context closed with the `ReplayChildren`
+    option. Only `LocalRunner` reports it, and `CloudRunner` reports `false`. Read the
+    context's result and error on the operation, and its child operations with
+    `TestResult::children`.
+
 === "C#"
 
     A child context is a `TestStep` with `Kind == OperationKind.Context`. Read its result
@@ -1563,6 +2239,11 @@ shared set of accessors.
     The execution outcome is on the result as `Status`, `RawResult`, and `Error`.
     `Operations` excludes the execution operation.
 
+=== "Rust"
+
+    The execution outcome is on the result as `status()`, `output()`, and `error()`.
+    `operations()` excludes the execution operation.
+
 === "C#"
 
     The .NET SDK does not expose execution details on a step. The top-level execution
@@ -1591,6 +2272,60 @@ shared set of accessors.
 === "Go"
 
     Drive callbacks from the runner. See [Drive callbacks](#drive-callbacks).
+
+=== "Rust"
+
+    Take an `OperationHandle` from the `RunHandle` (see [Inspect
+    operations](#inspect-operations)). Await its controls first and the `RunHandle`
+    last.
+
+    ```rust
+    impl OperationHandle {
+        pub fn snapshot(&self) -> Option<TestOperation>;
+        // ...
+        pub async fn wait_for_data(
+            &self,
+            status: WaitingStatus,
+        ) -> Result<TestOperation, TestRunnerError>;
+        // ...
+        pub async fn send_callback(&self, reply: CallbackReply) -> Result<(), TestRunnerError>;
+        // ...
+        pub async fn send_callback_heartbeat(&self) -> Result<(), TestRunnerError>;
+        // ...
+    }
+    ```
+
+    - `snapshot()` The operation as it is now, or `None` while no operation matches.
+    - `wait_for_data(status)` Waits until the operation reaches `status` (see [Waiting
+        operation status](#waiting-operation-status)), and returns the operation at that
+        moment. It returns at once when the operation already reached the status.
+    - `send_callback(reply)` Sends a `CallbackReply` (see [Drive
+        callbacks](#drive-callbacks)). The target is the operation when it is a
+        callback, or the callback inside it when it is a `wait_for_callback` context.
+        Under `LocalRunner`, the reply applies at once.
+    - `send_callback_heartbeat()` Sends a heartbeat to the same target. `LocalRunner`
+        runs no heartbeat timer, so a heartbeat changes nothing there.
+
+    **Errors:** `wait_for_data` returns `TestRunnerError::OperationNotReached` when the
+    execution ends before the operation reaches the status. Under `CloudRunner`, it also
+    returns `OperationNotReached` when the `max_poll_attempts` budget runs out first.
+    `send_callback` returns `OperationNotFound`, `NotACallback`, or `CallbackNotPending`
+    when the handle names no pending callback. `send_callback_heartbeat` returns those
+    errors when the handle cannot resolve a callback ID. Under `LocalRunner`, it also
+    returns `CallbackNotPending` after the callback stops waiting and
+    `NoHeartbeatTimeout` when the handler set no heartbeat timeout. Under `CloudRunner`,
+    it sends the heartbeat without checking the operation status, and a service
+    rejection returns `Aws`.
+
+    A run fails when awaiting the `RunHandle` returns `Err`. A `wait_for_data` that is
+    pending at that moment returns the same error. A `wait_for_data` first awaited after
+    the run failed returns the stored operation when it already reached the status, and
+    the run's error otherwise. Under `LocalRunner`, `send_callback` and
+    `send_callback_heartbeat` return the run's error after the run failed. Under
+    `CloudRunner`, they return it only when the run fails before the invoke returns the
+    execution ARN, and otherwise go on and return their own outcome. A failed history
+    read or callback call of a `CloudRunner` control returns `Aws` from that control
+    only, and the run goes on.
 
 === "C#"
 
@@ -1652,6 +2387,30 @@ The terminal status of a durable execution.
     )
     ```
 
+=== "Rust"
+
+    `durable::test_util::ExecutionStatus`, which `TestResult::status()` returns:
+
+    ```rust
+    pub enum ExecutionStatus {
+        Running,
+        Succeeded,
+        Failed,
+        TimedOut,
+        Stopped,
+    }
+    ```
+
+    | Value       | Meaning                                                                     |
+    | ----------- | --------------------------------------------------------------------------- |
+    | `Running`   | The execution is still in progress                                          |
+    | `Succeeded` | The handler returned a value                                                |
+    | `Failed`    | The execution failed                                                        |
+    | `TimedOut`  | The execution exceeded its execution timeout. Only `CloudRunner` reports it |
+    | `Stopped`   | The execution was stopped. Only `CloudRunner` reports it                    |
+
+    The enum is `#[non_exhaustive]`, so a `match` on it needs a `_` arm.
+
 === "C#"
 
     `InvocationStatus` from `Amazon.Lambda.DurableExecution`:
@@ -1703,6 +2462,43 @@ The status of an individual operation.
     ```go
     func (o *TestOperation) IsTerminal() bool
     ```
+
+=== "Rust"
+
+    `durable::OperationStatus`, which `TestOperation::status()` returns:
+
+    ```rust
+    pub enum OperationStatus {
+        Started,
+        Pending,
+        Ready,
+        Succeeded,
+        Failed,
+        Cancelled,
+        TimedOut,
+        Stopped,
+    }
+
+    impl OperationStatus {
+        pub fn wire_str(self) -> &'static str;
+        // ...
+    }
+    ```
+
+    | Value       | `wire_str()` | Meaning                                                                             |
+    | ----------- | ------------ | ----------------------------------------------------------------------------------- |
+    | `Started`   | `STARTED`    | The operation started and is still in progress                                      |
+    | `Pending`   | `PENDING`    | The operation waits for a retry delay to elapse                                     |
+    | `Ready`     | `READY`      | The retry delay elapsed and the next attempt can run. Only `LocalRunner` reports it |
+    | `Succeeded` | `SUCCEEDED`  | The operation completed successfully                                                |
+    | `Failed`    | `FAILED`     | The operation failed                                                                |
+    | `Cancelled` | `CANCELLED`  | The operation was cancelled                                                         |
+    | `TimedOut`  | `TIMED_OUT`  | The operation reached its timeout                                                   |
+    | `Stopped`   | `STOPPED`    | The operation was stopped                                                           |
+
+    `wire_str()` returns the service's string for the status.
+    `durable::lambda_types::OperationStatus` is the service model type of the same name,
+    and `TestOperation` does not use it.
 
 === "C#"
 
@@ -1759,6 +2555,35 @@ The status of an individual operation.
     func (r *TestResult) OperationsByType(opType string) []TestOperation
     ```
 
+=== "Rust"
+
+    `durable::OperationKind`, which `TestOperation::kind()` returns:
+
+    ```rust
+    pub enum OperationKind {
+        Step,
+        Wait,
+        Context,
+        Callback,
+        ChainedInvoke,
+        Execution,
+    }
+
+    impl OperationKind {
+        pub fn wire_str(self) -> &'static str;
+        // ...
+    }
+    ```
+
+    | Value           | `wire_str()`     | Meaning                                                                              |
+    | --------------- | ---------------- | ------------------------------------------------------------------------------------ |
+    | `Step`          | `STEP`           | A step operation                                                                     |
+    | `Wait`          | `WAIT`           | A wait operation                                                                     |
+    | `Context`       | `CONTEXT`        | A child context, such as a `map` item, a `parallel` branch, or a `wait_for_callback` |
+    | `Callback`      | `CALLBACK`       | A callback operation                                                                 |
+    | `ChainedInvoke` | `CHAINED_INVOKE` | An invoke operation                                                                  |
+    | `Execution`     | `EXECUTION`      | The root execution operation. `TestResult::operations()` never contains it           |
+
 === "C#"
 
     `OperationKind` from `Amazon.Lambda.DurableExecution.Testing` (read via `TestStep.Kind`):
@@ -1801,6 +2626,28 @@ The status of an individual operation.
 
     The test drives callbacks through the runner by callback ID. Call `OpenCallbacks`
     after `RunUntilComplete` returns `PENDING`.
+
+=== "Rust"
+
+    `durable::test_util::WaitingStatus`, which `OperationHandle::wait_for_data` takes:
+
+    ```rust
+    pub enum WaitingStatus {
+        #[default]
+        Started,
+        Submitted,
+        Completed,
+    }
+    ```
+
+    | Value       | An operation reaches it when | A `wait_for_callback` context reaches it when             |
+    | ----------- | ---------------------------- | --------------------------------------------------------- |
+    | `Started`   | it exists                    | it has a step or callback child                           |
+    | `Submitted` | it has a terminal status     | a step or callback child has a terminal status            |
+    | `Completed` | it has a terminal status     | its callback child and the context have a terminal status |
+
+    The terminal statuses are `Succeeded`, `Failed`, `Cancelled`, `TimedOut`, and
+    `Stopped`. The default is `Started`.
 
 === "C#"
 
@@ -1906,6 +2753,38 @@ types, so tests written against the local runner run unchanged against the cloud
 
     **Returns:** `*CloudRunner`
 
+=== "Rust"
+
+    `durable::test_util::CloudRunner` invokes a deployed durable function. Each setting
+    is a builder method that takes the runner and returns it.
+
+    ```rust
+    impl CloudRunner {
+        // ...
+        pub fn new(function_name: impl Into<String>) -> Self;
+        // ...
+        pub fn region(mut self, region: impl Into<String>) -> Self;
+        // ...
+        pub fn qualifier(mut self, qualifier: impl Into<String>) -> Self;
+        // ...
+        pub fn lambda_client(mut self, client: crate::LambdaClient) -> Self;
+        // ...
+    }
+    ```
+
+    **Parameters:**
+
+    - `function_name` (required) The function name or ARN.
+    - `qualifier` (optional) The version or alias to invoke. Defaults to `$LATEST`.
+    - `region` (optional) The AWS Region of the default Lambda client. Defaults to the
+        Region of the ambient AWS configuration, such as `AWS_REGION`. The runner
+        ignores it when you set `lambda_client`.
+    - `lambda_client` (optional) A configured `durable::LambdaClient`, used for every
+        call. Without it, the runner builds a client from the ambient AWS configuration
+        when the run starts.
+
+    **Returns:** `CloudRunner`
+
 === "C#"
 
     ```csharp
@@ -2001,6 +2880,41 @@ types, so tests written against the local runner run unchanged against the cloud
     `WithTimeout` limit, or `ctx` ends. An execution that fails produces a nil error and
     a result with status `FAILED`.
 
+=== "Rust"
+
+    ```rust
+    pub fn run<O>(&self, event: impl Serialize) -> RunHandle<O>
+    where
+        O: DeserializeOwned + Send + 'static;
+    ```
+
+    `run` returns a `RunHandle<O>` at once. Awaiting it invokes the function, polls
+    `GetDurableExecution` until the execution ends or the configured poll budget is
+    spent, and reads the whole history into the result. A spent budget produces a result
+    with status `ExecutionStatus::Running`. [Configure polling and
+    timeouts](#configure-polling-and-timeouts) gives the budget and the attempts of each
+    Lambda call. The runner ignores the invoke response's payload. No handler gives the
+    output type, so name it at the call, for example `runner.run::<String>(event)`.
+
+    **Parameters:**
+
+    - `event` (required) The handler input. The runner encodes it as JSON and sends it
+        as the invoke payload.
+
+    **Returns:** `RunHandle<O>`. Awaiting it returns
+    `Result<TestResult<O>, TestRunnerError>`.
+
+    **Errors:** Awaiting the handle returns `Err(TestRunnerError)` only when the runner
+    itself fails. That happens when the event does not encode as JSON
+    (`EventSerialization`), or one of the run's own Lambda calls fails (`Aws`). Those
+    calls are `Invoke`, the third attempt of a `GetDurableExecution` poll, and the
+    history read that builds the result. It also happens when the invoke response
+    carries no `DurableExecutionArn` (`NoExecutionArn`), or the output of a succeeded
+    execution does not decode into `O` (`OutputDeserialization`). A failed call of an
+    operation control fails only that control (see [Drive a callback from an
+    operation](#drive-a-callback-from-an-operation)). An execution that fails, times
+    out, or stops produces `Ok` with a result of that status.
+
 === "C#"
 
     ```csharp
@@ -2060,6 +2974,15 @@ types, so tests written against the local runner run unchanged against the cloud
     func (r *CloudRunner) RunWithArn(ctx context.Context, executionArn string) (*TestResult, error)
     ```
 
+=== "Rust"
+
+    `run` returns the `RunHandle` at once. To act on the execution before it ends, set
+    `InvocationType::Event` (see
+    [CloudDurableTestRunnerConfig](#clouddurabletestrunnerconfig)) and use the operation
+    handles, as on `LocalRunner` (see [Drive a callback from an
+    operation](#drive-a-callback-from-an-operation)). Await the operation controls first
+    and the `RunHandle` last.
+
 === "C#"
 
     The .NET SDK does not return a dedicated async-execution handle. Use the same
@@ -2103,6 +3026,14 @@ types, so tests written against the local runner run unchanged against the cloud
     Inspect operations through the result, the same accessors as the local
     runner. See [TestResult](#testresult).
 
+=== "Rust"
+
+    Take operation handles from the `RunHandle` with `operation`, `operation_by_index`,
+    `operation_by_name_and_index`, and `operation_by_id`. See [Inspect
+    operations](#inspect-operations) for their selectors and return type. Under
+    `CloudRunner`, `snapshot()` returns the operation in the last history the runner read.
+    After the run, use the result's lookups. See [Operations](#operations).
+
 === "C#"
 
     Inspect operations through the returned [`TestResult<TOutput>`](#testresult). The cloud
@@ -2142,6 +3073,23 @@ types, so tests written against the local runner run unchanged against the cloud
     func (r *CloudRunner) SendCallbackHeartbeat(callbackID string) error
     ```
 
+=== "Rust"
+
+    Drive callbacks from an operation handle, as on `LocalRunner`. See [Drive a callback
+    from an operation](#drive-a-callback-from-an-operation). The controls need
+    `InvocationType::Event`. Under the default `RequestResponse`, `wait_for_data`,
+    `send_callback`, and `send_callback_heartbeat` return
+    `TestRunnerError::Unsupported`, whose message names the control, and make no Lambda
+    call.
+
+    `send_callback` reads the history again, checks that the callback is still
+    `Started`, and calls `SendDurableExecutionCallbackSuccess` or
+    `SendDurableExecutionCallbackFailure`. `send_callback_heartbeat` reads the history
+    again to find the callback ID and calls `SendDurableExecutionCallbackHeartbeat`.
+    When the poll budget is spent, both controls use the last history the runner read
+    instead. `send_callback` returns `TestRunnerError::Unsupported` when it gets a
+    `CallbackReply::timeout()` or a `CallbackReply::heartbeat_timeout()` reply.
+
 === "C#"
 
     Callbacks are driven from the runner, same as the local runner. After `StartAsync`, call
@@ -2176,6 +3124,39 @@ types, so tests written against the local runner run unchanged against the cloud
     func WithPollInterval(d time.Duration) CloudRunnerOption
     func WithTimeout(d time.Duration) CloudRunnerOption
     ```
+
+=== "Rust"
+
+    ```rust
+    pub fn poll_interval(mut self, interval: std::time::Duration) -> Self;
+    // ...
+    pub fn max_poll_attempts(mut self, max: usize) -> Self;
+    // ...
+    pub fn invocation_type(mut self, invocation_type: InvocationType) -> Self;
+    ```
+
+    - `poll_interval(interval)` The wait before each `GetDurableExecution` poll, before
+        each history read of `wait_for_data`, and before each history page that follows
+        a page with a next marker. Defaults to 1 second.
+    - `max_poll_attempts(max)` The shared poll budget for `GetDurableExecution` polls
+        and operation-control history reads. A poll counts once however many attempts it
+        makes. A control's history read counts once however many pages and attempts it
+        makes. The history read that builds the final result does not count. When the
+        runner spends the budget while the execution still runs, the result has status
+        `ExecutionStatus::Running`. A value of 0 counts as 1. By default the budget is
+        unlimited, so the runner polls until the execution ends or a
+        `GetDurableExecution` poll fails on its third attempt.
+    - `invocation_type(invocation_type)` How the runner invokes the function. Defaults
+        to `InvocationType::RequestResponse`. See
+        [CloudDurableTestRunnerConfig](#clouddurabletestrunnerconfig).
+
+    Each `GetDurableExecution` call and each history page request makes up to three
+    attempts on any error. The second attempt starts 1000 ms after the first fails, and
+    the third starts 1450 ms after the second fails. The error of the third attempt is
+    the error of the call. `Invoke` and the callback calls make one attempt.
+
+    `max_poll_attempts` limits polls by count. To impose a wall-clock deadline, await the
+    `RunHandle` under `tokio::time::timeout`.
 
 === "C#"
 
@@ -2216,6 +3197,11 @@ types, so tests written against the local runner run unchanged against the cloud
 
     Create a new `CloudRunner` per test.
 
+=== "Rust"
+
+    A runner holds only settings, and `run` borrows it. Each run starts a new execution,
+    so one runner serves several cases with no reset.
+
 === "C#"
 
     There is no `reset()`. Create a new `CloudDurableTestRunner<TInput, TOutput>` per test
@@ -2254,6 +3240,26 @@ types, so tests written against the local runner run unchanged against the cloud
     `WithTimeout`, shown under [Configure polling and
     timeouts](#configure-polling-and-timeouts). The cloud runner calls `Invoke` without
     an invocation type, so Lambda uses its default, `RequestResponse`.
+
+=== "Rust"
+
+    Configure the runner with the builder methods under [Create a
+    runner](#cloud-create-a-runner) and [Configure polling and
+    timeouts](#configure-polling-and-timeouts). `invocation_type` takes a
+    `durable::test_util::InvocationType`:
+
+    ```rust
+    pub enum InvocationType {
+        #[default]
+        RequestResponse,
+        Event,
+    }
+    ```
+
+    - `RequestResponse` (default) A synchronous invoke. It returns after the execution
+        ended or the invocation reached its timeout.
+    - `Event` An asynchronous invoke. It returns once the execution started. The
+        operation controls need it.
 
 === "C#"
 

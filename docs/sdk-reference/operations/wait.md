@@ -63,6 +63,12 @@ Here's a simple example of using a wait operation:
     --8<-- "examples/go/core/wait/basic-wait.go"
     ```
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/core/wait/basic-wait.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -106,6 +112,15 @@ When this function runs:
 
     Pass `""` to omit the name.
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/core/wait/wait-signature.rs"
+    ```
+
+    Omit `.name(...)` to leave the wait unnamed. The name is part of replay identity,
+    so it must stay the same each time the handler replays.
+
 === "C#"
 
     ```csharp
@@ -142,6 +157,13 @@ When this function runs:
 
     `*durable.Future[durable.Void]` (async)
 
+=== "Rust"
+
+    `Result<(), durable::OperationError>` from `.await`
+
+    `durable::DurableFuture<()>` from `.spawn()` or `.future()`, which resolves to the
+    same `Result`
+
 === "C#"
 
     `Task`
@@ -167,6 +189,17 @@ When this function runs:
     checkpoint. `WaitAsync` returns a future that fails with the same error.
     The SDK rounds a duration of one second or more up to whole seconds. It does
     not check the one-year maximum.
+
+=== "Rust"
+
+    The SDK accepts any `std::time::Duration`. It rounds the duration up to whole
+    seconds, and a duration under one second, including `Duration::ZERO`, waits one
+    second. The SDK sends that whole-second duration in the checkpoint, and Lambda
+    calculates the scheduled end timestamp. The SDK does not check the one-year
+    maximum. `.await` returns a `durable::OperationError` of kind
+    `OperationErrorKind::Wait` when the wait's record has a status other than `STARTED`
+    or `SUCCEEDED`, such as `CANCELLED` or `STOPPED`. A wait that differs from its
+    record on replay fails with `OperationErrorKind::NonDeterministicExecution`.
 
 === "C#"
 
@@ -202,6 +235,16 @@ When this function runs:
     --8<-- "examples/go/core/wait/duration-signature.go"
     ```
 
+=== "Rust"
+
+    The SDK takes the standard library `std::time::Duration`. Build one with
+    `Duration::from_secs`, `Duration::from_mins`, or `Duration::from_hours`, and add
+    durations with `+`.
+
+    ```rust
+    --8<-- "examples/rust/core/wait/duration-signature.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -232,6 +275,12 @@ When this function runs:
 
     ```go
     --8<-- "examples/go/core/wait/duration-helpers.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/core/wait/duration-helpers.rs"
     ```
 
 === "C#"
@@ -266,6 +315,12 @@ Name wait operations to make them easier to identify in logs and tests.
 
     ```go
     --8<-- "examples/go/core/wait/named-wait.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/core/wait/named-wait.rs"
     ```
 
 === "C#"
@@ -336,6 +391,15 @@ while a step runs in parallel.
     --8<-- "examples/go/core/wait/async-wait.go"
     ```
 
+=== "Rust"
+
+    Start the wait and the step with `.spawn()`, then await both with
+    `tokio::join!`. `.spawn()` starts each operation when you call it.
+
+    ```rust
+    --8<-- "examples/rust/core/wait/async-wait.rs"
+    ```
+
 === "C#"
 
     Don't `await` the wait immediately. Capture the `Task` and use `Task.WhenAll` to run
@@ -373,6 +437,17 @@ You can verify wait operations in your tests by inspecting the operations list:
 
     ```go
     --8<-- "examples/go/core/wait/test-multiple-waits.go"
+    ```
+
+=== "Rust"
+
+    Save this as `tests/multiple_waits.rs`. It uses `durable::test_util::LocalRunner`,
+    the SDK's in-memory test runner, which the SDK's `test-util` feature enables. The
+    runner keeps a virtual clock, so the waits take no real time. See
+    [Testing](../../testing/index.md).
+
+    ```rust
+    --8<-- "examples/rust/core/wait/test-multiple-waits.rs"
     ```
 
 === "C#"
