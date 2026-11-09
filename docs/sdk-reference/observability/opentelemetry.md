@@ -333,9 +333,6 @@ or a registered provider name.
 | Python: package entry-point name     | `otel`                               | `otel-invocation`                                    |
 | Java: `ServiceLoader` provider name  | `otel`                               | `otel-invocation`                                    |
 
-Python and Java also accept the older `otel-execution` name for the execution
-view.
-
 !!! warning "Configure exactly one OTel view"
 
     Registering two distinct OTel factories fails validation because the OTel
@@ -343,16 +340,30 @@ view.
     in `DURABLE_EXECUTION_PLUGINS`, and to naming one there while also registering
     a separate factory in handler code.
 
-    Two names for the *same* view are not portable. Java builds a separate
-    factory per provider, so `DURABLE_EXECUTION_PLUGINS=otel,otel-execution`
-    fails at startup:
+=== "TypeScript"
+
+    `@aws/durable-execution-sdk-js-otel/otel-execution` selects the same execution
+    view as the bare `@aws/durable-execution-sdk-js-otel` package name. Configure
+    only one of these entry points in `DURABLE_EXECUTION_PLUGINS`.
+
+=== "Python"
+
+    `otel-execution` is an alias for the default `otel` execution view. Both names
+    resolve to the same factory object. If both appear in
+    `DURABLE_EXECUTION_PLUGINS`, the SDK loads one factory and logs a warning that
+    it skipped the duplicate. Configure one name.
+
+=== "Java"
+
+    `otel-execution` also selects the execution view. Each provider name creates
+    a separate factory, so `DURABLE_EXECUTION_PLUGINS=otel-execution,otel` fails
+    at startup:
 
     ```text
-    Conflicting plugin factories otel-execution (ExecutionOtelPlugin) and otel (ExecutionOtelPlugin)
+    Conflicting plugin factories otel-execution (ExecutionOtelPlugin) and otel (ExecutionOtelPlugin) in exclusive group 'durable-otel-view'. Configure only one plugin from this group.
     ```
 
-    Python resolves both names to one object, so it loads a single factory and
-    logs that it skipped the duplicate. Set one name in either language.
+    Configure one provider name.
 
 ## Configure an application-owned provider
 
