@@ -557,8 +557,9 @@ instrumentation retains its own policy.
 
 ### Supported sampling modes
 
-These rules apply to TypeScript core 3.0.0 / OTel 2.0.0, Python core 3.0.1 / OTel 2.0.0,
-and Java SDK/plugin 3.0.1, in both views:
+These rules apply to TypeScript core 3.0.0 / OTel 2.1.0, Python core 3.0.2 / OTel 2.1.0,
+and Java SDK/plugin 3.1.0, in both views. These versions include the unified
+factory APIs used by this guide.
 
 - **Explicit upstream decision:** a valid `Sampled=0` or `Sampled=1` overrides the
     local sampler for durable spans. Thus `Sampled=1` still exports durable spans
@@ -580,10 +581,11 @@ and invalid values. They do not override an explicitly configured application
 provider. Keep the plugin's sampler integration installed; other application and
 ADOT spans retain their own policy.
 
+Sampling behavior may change in future SDK/plugin releases.
 [Issue #295](https://github.com/aws/aws-durable-execution-docs/issues/295) proposes
 letting the configured sampler decide whether to inherit upstream sampling, using
-standard direct and `parentbased_*` semantics. That change is not available in the
-versions above; follow the issue for runtime support and migration guidance.
+standard direct and `parentbased_*` semantics. That proposal is not implemented in
+the versions listed above. Check the release notes and this section when upgrading.
 
 Sampling does not guarantee export or a complete parent tree: a durable span may be
 sampled while its application parent is dropped, or its native X-Ray parent may be
