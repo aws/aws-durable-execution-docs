@@ -269,6 +269,10 @@ trace ID, span ID, and sampling decision through `X-Amzn-Trace-Id` when using th
 default plugin extractors. Preserve this propagation across downstream durable
 invokes.
 
+You can optionally export telemetry through a
+[Collector extension](https://github.com/open-telemetry/opentelemetry-lambda/tree/main/collector#configuration),
+which does not initialize the OpenTelemetry provider required by the plugin.
+
 ### Provider initialization
 
 These requirements apply to both layer choices.
