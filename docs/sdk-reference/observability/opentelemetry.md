@@ -89,9 +89,14 @@ Workflow spans can cover long durations, so backend ingestion limits still apply
 to both views. Export and flush are best effort; a timeout, stop, or terminated
 runtime can leave spans missing.
 
+The diagrams below show an execution with a valid remote backend parent and
+ambient Lambda spans in the same trace. See [trace identity and sampling](#trace-identity-and-sampling)
+for other parent contexts. The tree shows parent-child relationships; arrows
+show span links.
+
 ### Execution view
 
-Operation spans are children of `Workflow` and link to the current `Invocation`.
+Top-level operation spans are children of `Workflow` and link to the current `Invocation`.
 The factory selects this view by default. An operation that suspends is exported
 when it completes, using its durable
 start and end times. Its span links to the invocation that exports the completion;
@@ -115,9 +120,28 @@ it does not accumulate links to every earlier invocation.
     --8<-- "examples/java/sdk-reference/observability/opentelemetry/execution-plugin.java"
     ```
 
+For an execution that suspends at `cooldown` and resumes in a second invocation,
+the trace resembles:
+
+```text
+Remote backend server span
+|-- Workflow                              (exported on terminal status)
+|   |-- Operation: fetch-data  (STEP)      -> link to Invocation #1
+|   |   `-- Attempt: fetch-data attempt 1 -> link to Invocation #1
+|   |-- Operation: cooldown    (WAIT)      -> link to Invocation #2
+|   `-- Operation: process     (STEP)      -> link to Invocation #2
+|       `-- Attempt: process attempt 1    -> link to Invocation #2
+|-- Ambient Lambda span #1
+|   `-- Invocation #1
+`-- Ambient Lambda span #2
+    `-- Invocation #2
+```
+
+The links to `Invocation` do not make invocation spans children of `Workflow`.
+
 ### Invocation view
 
-Operation spans are children of the `Invocation` that emitted them and link to
+Top-level operation spans are children of the `Invocation` that emitted them and link to
 `Workflow`, so each invocation's spans export as it ends. Select invocation mode
 explicitly. Completed work uses checkpointed results on replay. A resumed operation or
 replayed context can produce another span segment without rerunning a completed
@@ -140,6 +164,31 @@ step's body.
     ```java
     --8<-- "examples/java/sdk-reference/observability/opentelemetry/invocation-plugin.java"
     ```
+
+The same execution, using invocation view, produces this hierarchy:
+
+```text
+Remote backend server span
+|-- Workflow                               (exported on terminal status)
+|-- Ambient Lambda span #1
+|   `-- Invocation #1
+|       |-- Operation: fetch-data  (STEP)  -> link to Workflow
+|       |   `-- Attempt: fetch-data attempt 1
+|       |       `-> link to Workflow
+|       `-- Operation: cooldown    (WAIT)  -> link to Workflow
+`-- Ambient Lambda span #2
+    `-- Invocation #2
+        |-- Operation: cooldown    (WAIT)  -> links to initial cooldown
+        |                                      span and Workflow
+        `-- Operation: process     (STEP)  -> link to Workflow
+            `-- Attempt: process attempt 1 -> link to Workflow
+```
+
+An operation that crosses an invocation boundary can produce more than one
+span. A continuation segment uses a new span ID and links to the
+initial logical operation span, which uses the deterministic operation span ID.
+It also retains the `Workflow` link. CloudWatch does not yet visualize span
+links.
 
 ## Configure a telemetry layer
 
