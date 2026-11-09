@@ -617,18 +617,15 @@ a backend can report failure without diagnostic details.
 
 === "Python"
 
-    In OTel 2.0.0, a failed operation without an error object can remain `UNSET`.
-    [PR #865](https://github.com/aws/aws-durable-execution-sdk-python/pull/865)
-    fixes that status and aligns terminal exception timestamps with span ends.
-    [PR #901](https://github.com/aws/aws-durable-execution-sdk-python/pull/901)
-    preserves only checkpointed exception fields and omits events lacking both a
-    type and a message. Both fixes are merged on `main` but absent from OTel 2.0.0.
+    `FAILED`, `TIMED_OUT`, and `STOPPED` operations set `ERROR` even without an
+    error object. Exception events preserve the checkpointed type, message, and
+    stack trace; missing fields are omitted. No exception event is emitted when
+    both type and message are absent. Terminal operation and attempt exception
+    events use the span end timestamp.
 
-    [PR #869](https://github.com/aws/aws-durable-execution-sdk-python/pull/869)
-    remains open. It exports visible completion updates when cached-parent replay
-    skips a completed child, with deduplication within an invocation. It does not
-    guarantee exactly-once export. Until these fixes ship, use builds containing
-    the changes. Pruned operation metadata cannot be reconstructed.
+    Completion spans can be missing when replay returns a cached parent result
+    without visiting its children, even if their operation metadata is still
+    visible. Pruned operation metadata cannot be reconstructed.
 
 === "Java"
 
