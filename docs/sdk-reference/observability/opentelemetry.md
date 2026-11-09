@@ -267,25 +267,7 @@ OTLP spans and their X-Ray ancestors.
 hierarchy, export the real caller span to the same backend and propagate its
 trace ID, span ID, and sampling decision through `X-Amzn-Trace-Id` when using the
 default plugin extractors. Preserve this propagation across downstream durable
-invokes. The complete caller-to-OTLP setup remains unvalidated end to end;
-[Issue #297](https://github.com/aws/aws-durable-execution-docs/issues/297) tracks
-its prerequisites, tested-version scope, and remaining validation.
-
-If parents are missing, query all spans for the trace ID. Filtering by
-`durable.execution.arn` can hide caller, vendor, or application ancestors.
-Compare unresolved parent IDs with raw OTLP exports and, when using `Active`,
-native X-Ray segments. A parent found only in X-Ray identifies the export
-boundary. If the parent appears in the OTLP export, check backend ingestion,
-query filters, and UI rendering. For Dash0,
-`DASH0_XRAY_TRACES_ENABLED=true` does not import native X-Ray segments into OTLP.
-
-A collector extension is optional for local processing or additional exporters;
-follow the [collector setup guide](https://github.com/open-telemetry/opentelemetry-lambda/tree/main/collector)
-for its layer, receiver, and `OPENTELEMETRY_COLLECTOR_CONFIG_URI` configuration.
-A collector alone does not initialize a language provider. For that setup, leave
-`AWS_LAMBDA_EXEC_WRAPPER` unset and configure the provider in application code as
-shown below. For collector export to CloudWatch, enable Transaction Search in
-your account.
+invokes.
 
 ### Provider initialization
 
@@ -600,8 +582,8 @@ the versions listed above. Check the release notes and this section when upgradi
 
 Sampling does not guarantee export or a complete parent tree: a durable span may be
 sampled while its application parent is dropped, or its native X-Ray parent may be
-absent from OTLP. See the [community layer setup](#community-language-layer) to
-distinguish sampling, raw export, and backend/UI results.
+absent from OTLP. See the [community layer setup](#community-language-layer) for
+trace propagation and native X-Ray parents.
 
 ## Span attributes and failures
 
