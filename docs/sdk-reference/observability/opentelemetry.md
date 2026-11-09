@@ -201,15 +201,16 @@ and region:
 | AWS Distro for OpenTelemetry (ADOT)    | `/opt/otel-instrument`    | [ADOT Lambda layers](https://aws-otel.github.io/docs/getting-started/lambda)                        |
 | OpenTelemetry community language layer | `/opt/otel-handler`       | [Lambda auto-instrumentation](https://opentelemetry.io/docs/platforms/faas/lambda-auto-instrument/) |
 
-Enable active tracing to receive the durable backend's X-Ray trace context.
-OTLP-only backends may lack the referenced native Lambda spans; see
-[missing parents in an OTLP backend](#missing-parents-in-an-otlp-backend).
-For ADOT, add these properties to your existing SAM function. When SAM creates
-its execution role, merge the shown entries into the function's `Policies` list.
-If the function specifies `Role`, SAM ignores `Policies`; attach
-`AWSXRayDaemonWriteAccess` directly to that execution role and retain its existing
-durable execution permissions. The same rule applies to the community-layer
-example below.
+Add the following entries under `Properties` in your existing
+`AWS::Serverless::Function`. Merge them with the function's existing layers,
+environment variables, and policies. SAM applies `Policies` only when it creates
+the execution role. If you specify `Role`, attach the required permissions
+directly to that role.
+
+### ADOT layer
+
+For ADOT with X-Ray export, enable `Active` tracing and grant
+`AWSXRayDaemonWriteAccess` alongside the durable execution permissions.
 
 ```yaml
 Layers:
@@ -223,7 +224,18 @@ Policies:
   - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
 ```
 
-For a community language layer exporting directly to an OTLP backend, use:
+### Community language layer
+
+For a community language layer exporting directly to an OTLP backend, use
+[`PassThrough` tracing](https://docs.aws.amazon.com/lambda/latest/dg/services-xray.html#services-xray-default).
+Lambda passes the upstream X-Ray trace header to the
+function without emitting native Lambda X-Ray segments. The layer and durable
+plugin still provide application instrumentation.
+
+Propagate the caller's trace context and sampling decision. Without an upstream
+header, Lambda generates a header with `Sampled=0`; the documented plugins honor
+that decision even with a local `always_on` sampler. See
+[supported sampling modes](#supported-sampling-modes).
 
 ```yaml
 Layers:
@@ -236,13 +248,37 @@ Environment:
     OTEL_EXPORTER_OTLP_ENDPOINT: https://<otlp-endpoint>
     OTEL_METRICS_EXPORTER: none
     OTEL_LOGS_EXPORTER: none
-Tracing: Active
+Tracing: PassThrough
 Policies:
   - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
-  - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
 ```
 
 Configure `OTEL_EXPORTER_OTLP_HEADERS` if your backend requires authentication.
+OTLP export does not require X-Ray write permissions. SAM still adds an X-Ray
+policy when it creates a role for `Tracing: PassThrough`.
+
+With `Active` tracing, a durable span can reference a native Lambda parent sent
+only to X-Ray. The plugin preserves that parent without re-exporting it, so a
+shared trace ID does not guarantee a complete parent tree in an OTLP backend.
+If you need native Lambda platform spans, use an integration that receives both
+OTLP spans and their X-Ray ancestors.
+
+`PassThrough` does not supply missing caller spans. For a complete upstream
+hierarchy, export the real caller span to the same backend and propagate its
+trace ID, span ID, and sampling decision through `X-Amzn-Trace-Id` when using the
+default plugin extractors. Preserve this propagation across downstream durable
+invokes. The complete caller-to-OTLP setup remains unvalidated end to end;
+[Issue #297](https://github.com/aws/aws-durable-execution-docs/issues/297) tracks
+its prerequisites, tested-version scope, and remaining validation.
+
+If parents are missing, query all spans for the trace ID. Filtering by
+`durable.execution.arn` can hide caller, vendor, or application ancestors.
+Compare unresolved parent IDs with raw OTLP exports and, when using `Active`,
+native X-Ray segments. A parent found only in X-Ray identifies the export
+boundary. If the parent appears in the OTLP export, check backend ingestion,
+query filters, and UI rendering. For Dash0,
+`DASH0_XRAY_TRACES_ENABLED=true` does not import native X-Ray segments into OTLP.
+
 A collector extension is optional for local processing or additional exporters;
 follow the [collector setup guide](https://github.com/open-telemetry/opentelemetry-lambda/tree/main/collector)
 for its layer, receiver, and `OPENTELEMETRY_COLLECTOR_CONFIG_URI` configuration.
@@ -250,6 +286,10 @@ A collector alone does not initialize a language provider. For that setup, leave
 `AWS_LAMBDA_EXEC_WRAPPER` unset and configure the provider in application code as
 shown below. For collector export to CloudWatch, enable Transaction Search in
 your account.
+
+### Provider initialization
+
+These requirements apply to both layer choices.
 
 === "TypeScript"
 
@@ -547,8 +587,8 @@ versions above; follow the issue for runtime support and migration guidance.
 
 Sampling does not guarantee export or a complete parent tree: a durable span may be
 sampled while its application parent is dropped, or its native X-Ray parent may be
-absent from OTLP. See [missing parents](#missing-parents-in-an-otlp-backend) to distinguish
-sampling, raw export, and backend/UI results.
+absent from OTLP. See the [community layer setup](#community-language-layer) to
+distinguish sampling, raw export, and backend/UI results.
 
 ## Span attributes and failures
 
@@ -638,34 +678,6 @@ execution wrapper, and [sampling](#supported-sampling-modes). For Java agents, a
 `OTEL_JAVAAGENT_EXTENSIONS`.
 `Workflow` requires a terminal invocation to export it. An unresolved parent can
 belong to the remote backend or an undelivered fallback root.
-
-### Missing parents in an OTLP backend
-
-With Lambda active tracing, a remote parent can be a native Lambda segment exported
-only to X-Ray. The durable plugin preserves that external parent without re-exporting
-it, so a shared trace ID does not guarantee a complete parent tree in an OTLP backend.
-
-To locate a missing parent:
-
-1. Query all spans for the trace ID. Filtering by `durable.execution.arn` can hide
-    vendor or application ancestors already stored in the backend.
-1. Compare unresolved parent IDs with raw OTLP exports and native X-Ray segments.
-    A parent found only in X-Ray identifies the export boundary.
-1. If the parent is in the OTLP export, check backend ingestion, query filters,
-    and UI rendering.
-
-`DASH0_XRAY_TRACES_ENABLED=true` does not import native X-Ray segments into OTLP.
-[Issue #297](https://github.com/aws/aws-durable-execution-docs/issues/297) records
-this limitation with JavaScript source `721217ae` and Dash0 Node layer v26 across
-both views and multiple resumes, with X-Ray mode off and on. Those captures do not
-qualify Dash0 backend/UI behavior or Python and Java combinations.
-
-For native Lambda platform spans, use an integration that receives both OTLP spans
-and their X-Ray ancestors. The alternative tracked in #297 uses a real caller span
-exported to the same backend, propagates its context and sampling decision, and
-selects `PassThrough` while retaining application instrumentation. It gives up native
-Lambda X-Ray platform tracing and remains unvalidated end to end. Do not treat it as
-a supported workaround.
 
 ## See also
 
