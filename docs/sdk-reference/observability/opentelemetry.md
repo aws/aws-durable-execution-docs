@@ -451,7 +451,6 @@ listening on loopback port 4318.
     | `enrichLogger`          | `true`                         | Add trace fields to durable logs                                  |
     | `flushTimeoutMillis`    | `1000`                         | Total time budget for awaiting provider flushes at invocation end |
 
-    `w3cClientContextExtractor` reads `traceparent` from Lambda client context.
     The default X-Ray extractor reads invocation-local `xRayTraceId` when
     present, otherwise `_X_AMZN_TRACE_ID`.
     A flush timeout stops waiting; it does not cancel exports or synchronous
@@ -471,7 +470,6 @@ listening on loopback port 4318.
     | `workflow_span_name` | `Workflow`                         | Workflow span name                               |
     | `enrich_logger`      | `True`                             | Add trace fields through root logger handlers    |
 
-    `w3c_client_context_extractor` is a placeholder that returns `None`.
     Use the default X-Ray extractor or implement a custom extractor.
 
 === "Java"
