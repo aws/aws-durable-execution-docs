@@ -594,6 +594,9 @@ distinguish sampling, raw export, and backend/UI results.
 
 ## Span attributes and failures
 
+Optional attributes such as `durable.operation.name` and
+`durable.operation.subtype` are emitted only when supplied.
+
 | Span       | Main attributes                                                                                                                                              |
 | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | Workflow   | `durable.execution.arn`, `durable.execution.status`                                                                                                          |
@@ -611,9 +614,10 @@ a backend can report failure without diagnostic details.
 === "TypeScript"
 
     `FAILED`, `TIMED_OUT`, and `STOPPED` operations set `ERROR` even without
-    diagnostics. The plugins export visible completion updates even when replay skips the
-    operation's body. They need the operation metadata to do so. When completed
-    child contexts would otherwise prune that metadata, configure
+    diagnostics. The plugins export newly observed external completion updates
+    for waits, callbacks, and invokes when their metadata is visible, even if replay
+    skips the operation's body. When completed child contexts would otherwise
+    prune that metadata, configure
     `pluginsConfig.childOperationsDepth` as described in
     [operation detail](telemetry/exporter.md#operation-detail).
 
