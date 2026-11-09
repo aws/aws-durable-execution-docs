@@ -661,6 +661,9 @@ flag. Application-created spans on that trace can become the active context too.
     to inspect the hierarchy; the ungrouped X-Ray Segments Timeline cannot nest
     OTLP spans under the Lambda platform segment.
 
+    If spans are missing when using a Java agent, check
+    `OTEL_JAVAAGENT_EXTENSIONS`.
+
 Test with an execution that waits and resumes. Confirm that its spans share a
 trace ID, invocations appear as they finish, completed steps do not run again,
 and logs identify the active span. `Workflow` appears after terminal completion.
@@ -668,8 +671,7 @@ Span links correlate the two views but do not change parent-child relationships;
 CloudWatch does not currently visualize these links.
 
 If spans are missing, check provider warnings, exporter configuration, the layer's
-execution wrapper, and [sampling](#supported-sampling-modes). For Java agents, also check
-`OTEL_JAVAAGENT_EXTENSIONS`.
+execution wrapper, and [sampling](#supported-sampling-modes).
 `Workflow` requires a terminal invocation to export it. An unresolved parent can
 belong to the remote backend or an undelivered fallback root.
 
