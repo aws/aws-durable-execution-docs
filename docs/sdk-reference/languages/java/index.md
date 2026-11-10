@@ -217,8 +217,12 @@ Java can also load plugin providers from the application class path. Set
 `DURABLE_EXECUTION_PLUGINS` to an ordered, comma-separated list of provider names:
 
 ```text
-DURABLE_EXECUTION_PLUGINS=otel-invocation,com.example.audit
+DURABLE_EXECUTION_PLUGINS=otel,com.example.audit
 ```
+
+The `otel` provider selects the default
+[OpenTelemetry execution view](../../observability/opentelemetry.md#execution-view)
+and requires SDK/plugin 3.1.0 or later.
 
 The SDK discovers `DurableExecutionPluginProvider` implementations with `ServiceLoader`
 and selects the providers named in the environment variable. Each provider implements
