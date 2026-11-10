@@ -11,33 +11,27 @@ provide this integration.
 
 ## Install the plugin
 
-These examples use the unified factory APIs. The version ranges below identify
-compatible SDK families; they do not guarantee that a release contains the new
-entry point. Use a build containing the change linked in your language's tab.
+These examples use the unified factory APIs available in the versions below.
 Upgrade the core and plugin together, including copies supplied by Lambda layers.
 
 === "TypeScript"
 
-    Requires Node.js 22 or later and a plugin build containing
-    [`createOtelPluginFactory`](https://github.com/aws/aws-durable-execution-sdk-js/pull/1171).
-    OTel 2.0.0 does not include this entry point.
+    Requires Node.js 22 or later and OTel plugin 2.1.0 or later.
 
     ```bash
-    npm install @aws/durable-execution-sdk-js@^3 \
-      @aws/durable-execution-sdk-js-otel@^2 \
+    npm install @aws/durable-execution-sdk-js@^3.0.0 \
+      @aws/durable-execution-sdk-js-otel@^2.1.0 \
       @opentelemetry/api @opentelemetry/core @opentelemetry/sdk-trace-node
     ```
 
 === "Python"
 
-    Use a plugin build containing
-    [`create_otel_plugin_factory`](https://github.com/aws/aws-durable-execution-sdk-python/pull/905).
-    OTel 2.0.0 does not include this entry point.
+    Requires OTel plugin 2.1.0 or later.
 
     When a telemetry layer supplies the OpenTelemetry libraries:
 
     ```bash
-    pip install "aws-durable-execution-sdk-python-otel>=2,<3"
+    pip install "aws-durable-execution-sdk-python-otel>=2.1.0,<3"
     ```
 
     The package installs a compatible core SDK but leaves OpenTelemetry libraries
@@ -45,20 +39,18 @@ Upgrade the core and plugin together, including copies supplied by Lambda layers
     `standalone` extra instead:
 
     ```bash
-    pip install "aws-durable-execution-sdk-python-otel[standalone]>=2,<3"
+    pip install "aws-durable-execution-sdk-python-otel[standalone]>=2.1.0,<3"
     ```
 
 === "Java"
 
-    Use the same version as the core SDK, containing
-    [`OtelPlugin.factory`](https://github.com/aws/aws-durable-execution-sdk-java/pull/873).
-    SDK/plugin 3.0.1 does not include this entry point.
+    Use matching core SDK and plugin versions, at least 3.1.0.
 
     ```xml
     <dependency>
         <groupId>software.amazon.lambda.durable</groupId>
         <artifactId>aws-durable-execution-sdk-java-plugin-otel</artifactId>
-        <version>${durable.sdk.version}</version>
+        <version>3.1.0</version>
     </dependency>
     ```
 
@@ -360,8 +352,14 @@ listening on loopback port 4318.
 
 === "TypeScript"
 
-    Install `@opentelemetry/exporter-trace-otlp-http`. The provider factory receives
-    the durable ID-generator factory; pass its result to the provider constructor.
+    Install `@opentelemetry/exporter-trace-otlp-http`:
+
+    ```bash
+    npm install @opentelemetry/exporter-trace-otlp-http
+    ```
+
+    The provider factory receives the durable ID-generator factory; pass its
+    result to the provider constructor.
 
     ```typescript
     import { createOtelPluginFactory } from "@aws/durable-execution-sdk-js-otel";
@@ -408,7 +406,13 @@ listening on loopback port 4318.
     )
     ```
 
-    Pass `mode="invocation"` after the configuration argument to select the invocation view.
+    For invocation view, replace the factory call with:
+
+    ```python
+    plugin_factory = create_otel_plugin_factory(
+        OtelPluginConfig(tracer_provider=provider), mode="invocation"
+    )
+    ```
 
     `tracer_provider` is what the plugin uses, so `set_tracer_provider` is only
     needed to point *other* instrumentation at the same provider. It takes effect
@@ -417,9 +421,19 @@ listening on loopback port 4318.
 
 === "Java"
 
-    Add `io.opentelemetry:opentelemetry-exporter-otlp` to your dependencies. The
-    factory wraps the provider builder's ID generator and sampler, then builds
-    the provider once.
+    Add `io.opentelemetry:opentelemetry-exporter-otlp` to your dependencies,
+    using OpenTelemetry 1.67.0 to match plugin 3.1.0:
+
+    ```xml
+    <dependency>
+        <groupId>io.opentelemetry</groupId>
+        <artifactId>opentelemetry-exporter-otlp</artifactId>
+        <version>1.67.0</version>
+    </dependency>
+    ```
+
+    The factory wraps the provider builder's ID generator and sampler, then
+    builds the provider once.
 
     ```java
     import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
