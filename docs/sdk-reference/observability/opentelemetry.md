@@ -352,6 +352,11 @@ or a registered provider name.
 
 ## Configure an application-owned provider
 
+This setup is for advanced use cases that require direct control over the
+OpenTelemetry provider. You do not need it when using a
+[language auto-instrumentation layer](#configure-a-telemetry-layer): the layer
+initializes the global provider used by the plugin's default factories.
+
 Configure the exporter and processors once, then register the resulting factory
 as in the handler examples above. The plugin flushes at invocation end but does
 not take over provider shutdown. These examples send OTLP HTTP to a collector
