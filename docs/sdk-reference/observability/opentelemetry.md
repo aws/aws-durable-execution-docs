@@ -252,9 +252,16 @@ MyFunction:
       - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
 ```
 
+**Exporting to CloudWatch:**
+[Enable Transaction Search](https://docs.aws.amazon.com/AmazonCloudWatch/latest/monitoring/CloudWatch-Transaction-Search-getting-started.html)
+in the destination account and Region, and confirm that **Ingest OpenTelemetry spans**
+shows **Enabled**. Otherwise, CloudWatch's OTLP endpoint rejects the spans. This setting
+is not required when exporting directly to another observability provider.
+
 Configure `OTEL_EXPORTER_OTLP_HEADERS` if your backend requires authentication.
-OTLP export does not require X-Ray write permissions. SAM still adds an X-Ray
-policy when it creates a role for `Tracing: PassThrough`.
+Direct OTLP export to another observability provider does not require X-Ray
+write permissions. SAM still adds an X-Ray policy when it creates a role for
+`Tracing: PassThrough`.
 
 With `Active` tracing, a durable span can reference a native Lambda parent sent
 only to X-Ray. The plugin preserves that parent without re-exporting it, so a
