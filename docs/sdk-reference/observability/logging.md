@@ -547,7 +547,11 @@ You can change where the SDK's logger sends its entries.
 
 === "TypeScript"
 
-    Any object that implements `DurableLogger` works. Pass it to `configureLogger`.
+    Pass an object that implements `DurableLogger` to `configureLogger`. To
+    include execution metadata and plugin fields, the logger must also implement
+    `configureDurableLoggingContext`. Store the supplied context and read
+    `getDurableLogData()` and `getLogEnrichment?.()` on each log call.
+    `createPowertoolsLogger` handles this for a Powertools logger:
 
     ```typescript
     --8<-- "examples/typescript/sdk-reference/observability/custom-logger.ts"
@@ -811,14 +815,18 @@ You can change where the SDK's logger sends its entries.
 
 ## Powertools for AWS Lambda
 
-[Powertools for AWS Lambda](https://docs.aws.amazon.com/powertools/) provides a
-structured logger that works as a drop-in replacement for the SDK's default logger.
+[Powertools for AWS Lambda](https://docs.aws.amazon.com/powertools/) provides structured
+logging that you can use with the SDK.
 
 === "TypeScript"
 
     The
     [Powertools for AWS Lambda (TypeScript)](https://docs.aws.amazon.com/powertools/typescript/latest/features/logger/)
-    `Logger` satisfies the `DurableLogger` interface. Pass it via `configureLogger`.
+    `Logger` works with `createPowertoolsLogger`. Pass the wrapped logger via
+    `configureLogger` so each entry includes execution metadata and fields added
+    by plugins, such as OpenTelemetry trace IDs. See
+    [log correlation](opentelemetry.md#correlate-logs-and-verify-traces) for an example
+    with the OpenTelemetry plugin.
 
     ```typescript
     --8<-- "examples/typescript/sdk-reference/observability/powertools-logger.ts"

@@ -679,17 +679,62 @@ flag. Application-created spans on that trace can become the active context too.
 
 === "TypeScript"
 
-    `enrichLogger` adds fields through the durable logger's `enrichLogContext`
-    hook. In execution view, handler code between operations uses `Workflow`;
-    invocation view uses `Invocation`. Step bodies use their attempt span.
-    Custom logger adapters must forward the enriched context.
+    `enrichLogger` defaults to `true`. The default logger includes trace fields
+    when you call `context.logger.info()` or another log method.
+
+    For a custom Powertools logger, use `createPowertoolsLogger` to include the
+    same fields. Install Powertools alongside the SDK and plugin:
+
+    ```bash
+    npm install @aws-lambda-powertools/logger
+    ```
+
+    With the OpenTelemetry provider configured as shown above:
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/observability/opentelemetry/log-correlation.ts"
+    ```
+
+    The resulting JSON record includes these fields; trace and span IDs vary:
+
+    ```json
+    {
+      "message": "Processing order",
+      "traceId": "1234567890abcdef1234567890abcdef",
+      "spanId": "1234567890abcdef",
+      "otelTraceSampled": true
+    }
+    ```
+
+    The adapter reads the current trace fields on each log call. In execution
+    view, handler code between operations uses `Workflow`; invocation view uses
+    `Invocation`. Step bodies use their attempt span. If you write your own
+    adapter, call `getLogEnrichment()` from its `DurableLoggingContext` on each
+    log call and include the returned fields in the output. See
+    [custom loggers](logging.md#custom-logger).
 
 === "Python"
 
-    `enrich_logger` installs a filter on root logger handlers. Handler code uses
-    `Invocation`, step bodies use their attempt, and child-context bodies use
-    their context span. Fields are optional: initialization logs and threads
-    without invocation context are left uncorrelated.
+    `enrich_logger` defaults to `True`. Its filter adds trace fields to log
+    records processed by the root logger's handlers. For standard-library text
+    logging, configure the formatter to print those fields:
+
+    ```python
+    --8<-- "examples/python/sdk-reference/observability/opentelemetry/log-correlation.py"
+    ```
+
+    Configure the OpenTelemetry provider as shown above. The example keeps
+    existing handlers and sets their formatter before the first invocation.
+    Initialization logs and threads without invocation context have no trace
+    fields, so the formatter supplies `-` for missing values:
+
+    ```text
+    Function initialized traceId=- spanId=- otelTraceSampled=-
+    Processing request traceId=1234567890abcdef1234567890abcdef spanId=1234567890abcdef otelTraceSampled=True
+    ```
+
+    Trace and span IDs vary. Handler code uses `Invocation`, step bodies use
+    their attempt, and child-context bodies use their context span.
 
 === "Java"
 
