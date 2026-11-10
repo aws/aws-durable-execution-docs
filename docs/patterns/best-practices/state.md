@@ -46,6 +46,15 @@ state once you return it from the step.
     --8<-- "examples/go/patterns/state/durable-vs-local.go"
     ```
 
+=== "Rust"
+
+    Assigning or cloning a local value does not add to execution state. The SDK
+    serializes a value when a durable operation or the handler returns it.
+
+    ```rust
+    --8<-- "examples/rust/patterns/state/durable-vs-local.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -93,6 +102,19 @@ store inside the first step and pass the key or version ID to the next step.
 
     ```go
     --8<-- "examples/go/patterns/state/store-references.go"
+    ```
+
+=== "Rust"
+
+    The first program checkpoints the full document. The second returns a small
+    reference struct from the step, so the checkpoint holds only the struct.
+
+    ```rust
+    --8<-- "examples/rust/patterns/state/store-references-wrong.rs"
+    ```
+
+    ```rust
+    --8<-- "examples/rust/patterns/state/store-references.rs"
     ```
 
 === "C#"
@@ -169,6 +191,19 @@ Keep per-item state small:
 
     ```go
     --8<-- "examples/go/patterns/state/batch-result-pointers.go"
+    ```
+
+=== "Rust"
+
+    Each per-item step returns a key, so the results carry only pointers to the outputs.
+    Awaiting `ctx.map` returns the results of the succeeded items as a `Vec`. Under the
+    default completion config, any failed item makes the await return that item's
+    error. `.await_batch()` returns the whole `BatchResult`. With
+    `.nesting(NestingMode::Flat)`, from `durable::builders::map_parallel`, the items run
+    in a virtual context and the batch records no per-item context events.
+
+    ```rust
+    --8<-- "examples/rust/patterns/state/batch-result-pointers.rs"
     ```
 
 === "C#"

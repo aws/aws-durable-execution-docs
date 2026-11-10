@@ -36,6 +36,12 @@ Use map to apply the same operation to every item in a collection. Use
     --8<-- "examples/go/operations/map/simple-map.go"
     ```
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/map/simple-map.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -138,6 +144,46 @@ Use map to apply the same operation to every item in a collection. Use
     comes with a zero `BatchResult`. Return it unchanged. See
     [Error handling](#error-handling).
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/map/map-signature.rs"
+    ```
+
+    **Parameters:**
+
+    - `items` Any `IntoIterator` of items to process. The SDK collects the items into a
+        `Vec` when `map` is called. Its iteration order must be the same on every
+        invocation so item indexes match their checkpoints. Sort values from a `HashMap`
+        or `HashSet` into a `Vec` before calling `map`.
+    - `f` The item function, called for each item. See
+        [Map Function](#map-function).
+
+    `map` returns a `MapBuilder`. Set the name and the options with its methods, such as
+    `.name("process-items")`, and then await it. Without `.name(...)` the map operation
+    is unnamed. See [MapConfig](#mapconfig).
+
+    **Returns:** `.await` gives `Result<Vec<O>, durable::OperationError>`, the results of
+    the succeeded items in input order. `.await_batch().await` gives the whole
+    `BatchResult<O>`. See [Result types](#result-types). The map starts when the future
+    is first polled. `.future()` returns a lazy `durable::DurableFuture<Vec<O>>` for
+    `ctx.join_all`, `ctx.try_join_all`, `ctx.race`, or `ctx.select_ok`. `.spawn()` and
+    `.spawn_batch()` start the map at once and return a `durable::DurableFuture` to await
+    later.
+
+    **Errors:** `.await` returns an error when the batch completes with
+    `CompletionReason::FailureToleranceExceeded`, which the default fail-fast
+    configuration gives at the first item failure, or with
+    `CompletionReason::CustomCompletionFailed`. When an item failed,
+    `durable::OperationErrorKind::ChildContext` contains a child error whose kind is
+    `durable::ChildContextErrorKind::ChildFailed`, and `wire()` holds the item's recorded
+    failure. A custom failed outcome with no failed item has child kind
+    `BatchCompletionFailed` and recorded type `BatchCompletionError`. Failure tolerance
+    exceeded with no failed item has child kind `Internal`. `.await_batch()` returns
+    these item and completion outcomes in the `BatchResult` instead. Both forms can
+    return an `OperationError` for a task ownership violation. A panic in an item
+    function propagates to the caller. See [Error handling](#error-handling).
+
 === "C#"
 
     ```csharp
@@ -230,6 +276,30 @@ Use map to apply the same operation to every item in a collection. Use
     The function takes no fourth argument for the full collection. The slice is
     in scope at the call site, so close over it when an item depends on the rest
     of the collection.
+
+=== "Rust"
+
+    The item function is the `f` parameter of [`map`](#contextmap), with these bounds:
+
+    ```rust
+    F: Fn(DurableContext, I, usize) -> Fut + Send + Sync + 'static,
+    Fut: Future<Output = Result<O, BoxError>> + Send + 'static,
+    ```
+
+    **Parameters:**
+
+    - `DurableContext` The child context for this item's execution.
+    - `I` The current item, moved into the call.
+    - `usize` The zero-based index of the item.
+
+    **Returns:** a future of `Result<O, durable::BoxError>`. The `?` operator converts
+    the error of a durable operation inside the function into `durable::BoxError`. With
+    the default `durable::JsonSerdes`, `O` must implement `serde::Serialize` and
+    `serde::de::DeserializeOwned`.
+
+    Pass a closure or an `async fn` with this signature. To read other items in the
+    function, clone the collection into an `Arc<[I]>` before the call and capture a
+    clone of it in the closure.
 
 === "C#"
 
@@ -363,6 +433,74 @@ Use map to apply the same operation to every item in a collection. Use
     - `WithBatchSerdes` Serializer for each item result.
     - `WithBatchResultSerdes` Serializer for the whole `BatchResult`.
 
+=== "Rust"
+
+    Configure `map` with methods on the `MapBuilder` it returns. Call them before you
+    await the builder. The same methods, except `item_namer`, configure `parallel`.
+
+    ```rust
+    impl<I, O, F, Fut, IS, RS> MapBuilder<I, O, F, Fut, IS, RS>
+    ...
+        pub fn name(mut self, name: impl Into<String>) -> Self
+        ...
+        pub fn max_concurrency(mut self, max: usize) -> Self
+        ...
+        pub fn completion(mut self, config: CompletionConfig) -> Self
+        ...
+        pub fn serdes<IS2>(self, serdes: IS2) -> MapBuilder<I, O, F, Fut, IS2, RS>
+        where
+            IS2: Serdes<O>,
+        ...
+        pub fn result_serdes<RS2>(self, serdes: RS2) -> MapBuilder<I, O, F, Fut, IS, RS2>
+        where
+            RS2: Serdes<String>,
+        ...
+        pub fn nesting(mut self, mode: NestingMode) -> Self
+        ...
+        pub fn item_namer(
+            mut self,
+            namer: impl Fn(&I, usize) -> String + Send + Sync + 'static,
+        ) -> Self
+        ...
+        pub fn summary(
+            mut self,
+            summary: impl Fn(&BatchResult<O>) -> String + Send + Sync + 'static,
+        ) -> Self
+    ...
+
+    pub enum NestingMode {
+        Normal,
+        Flat,
+    }
+    ```
+
+    `NestingMode` is non-exhaustive, so a `match` needs a `_` arm.
+
+    **Parameters:**
+
+    - `name` A name for the map operation. Default: unnamed.
+    - `max_concurrency` Maximum items running at once. Default: unlimited. `0` fails the
+        execution with an `Invalid max_concurrency: 0` error, which the handler cannot
+        catch.
+    - `completion` When to stop. Default: fail-fast. See
+        [CompletionConfig](#completionconfig).
+    - `serdes` A custom `durable::Serdes<O>` for individual item results. Default:
+        `durable::JsonSerdes`. See [Serialization](../state/serialization.md).
+    - `result_serdes` A custom `durable::Serdes<String>` for the whole batch record,
+        which it receives as JSON text. Its `deserialize` must return the exact text that
+        `serialize` received. Default: `durable::PassthroughSerdes`, which stores the text
+        unchanged.
+    - `nesting` `NestingMode::Normal` (default) or `NestingMode::Flat`. See
+        [Nesting](#nesting).
+    - `item_namer` A function that returns a custom name for each item from a reference
+        to the item and its zero-based index. See
+        [Naming map operations](#naming-map-operations).
+    - `summary` A function invoked when the serialized batch result exceeds 256KB. See
+        [Checkpointing](#checkpointing).
+
+    `CompletionConfig`, `NestingMode`, and the result types are in the
+    `durable::builders::map_parallel` module.
+
 === "C#"
 
     ```csharp
@@ -487,6 +625,82 @@ execution and the completion status of the result.
     `github.com/aws/aws-sdk-go-v2/aws`. The default (no `WithCompletion`) is fail-fast.
     For all-completed, set `ToleratedFailurePercentage: aws.Int(100)`, which is never
     exceeded. For first-successful, set `MinSuccessful: 1`.
+
+=== "Rust"
+
+    Build a `CompletionConfig` with one of its constructors, or with
+    `CompletionConfig::builder()` to set several thresholds. Pass it with
+    `.completion(...)`.
+
+    ```rust
+    impl CompletionConfig {
+        pub fn builder() -> CompletionConfigBuilder
+        ...
+        pub fn with_min_successful(min: usize) -> Self
+        ...
+        pub fn with_tolerated_failure_count(count: usize) -> Self
+        ...
+        pub fn with_tolerated_failure_percentage(
+            pct: f64,
+        ) -> Result<Self, CompletionConfigValidationError>
+        ...
+        pub fn with_completion_predicate<F>(predicate: F) -> Self
+        where
+            F: Fn(&BatchStats<'_>) -> CompletionDecision + Send + Sync + 'static,
+        ...
+    }
+
+    impl CompletionConfigBuilder {
+        ...
+        pub fn min_successful(mut self, min: usize) -> Self
+        ...
+        pub fn tolerated_failure_count(mut self, count: usize) -> Self
+        ...
+        pub fn tolerated_failure_percentage(mut self, pct: f64) -> Self
+        ...
+        pub fn completion_predicate<F>(mut self, predicate: F) -> Self
+        where
+            F: Fn(&BatchStats<'_>) -> CompletionDecision + Send + Sync + 'static,
+        ...
+        pub fn build(self) -> Result<CompletionConfig, CompletionConfigValidationError>
+        ...
+    }
+
+    pub enum CompletionDecision {
+        Continue,
+        Complete(CompletionOutcome),
+    }
+
+    impl CompletionDecision {
+        pub fn complete(outcome: CompletionOutcome) -> Self
+        ...
+    }
+
+    pub enum CompletionOutcome {
+        Succeeded,
+        Failed,
+    }
+    ```
+
+    `CompletionDecision` and `CompletionOutcome` are non-exhaustive, so a `match` needs
+    a `_` arm.
+
+    - `min_successful` Completes the batch once this many items succeed. On its own it
+        tolerates every failure.
+    - `tolerated_failure_count` Fails the batch once more than this many items fail.
+        `0` fails on the first failure.
+    - `tolerated_failure_percentage` Fails the batch once the failure percentage,
+        computed against the total item count, is strictly greater than this value. The
+        value must be finite and from 0.0 to 100.0. For any other value,
+        `with_tolerated_failure_percentage(...)` and `build()` return a
+        `CompletionConfigValidationError`, so an invalid value never reaches the map.
+    - `completion_predicate` A custom predicate. `build()` returns an error when it is
+        combined with a threshold. See [Completion strategies](#completion-strategies).
+
+    When several thresholds are set, the first one reached ends the batch. The default
+    (no `.completion(...)`) is fail-fast. For all-completed, use
+    `CompletionConfig::with_tolerated_failure_percentage(100.0)?`, which is never
+    exceeded. For first-successful, use `CompletionConfig::with_min_successful(1)`.
 
 === "C#"
 
@@ -729,6 +943,116 @@ execution and the completion status of the result.
     `Status` is `BatchItemSucceeded`) and `Err` (set when `Status` is
     `BatchItemFailed`).
 
+=== "Rust"
+
+    `.await_batch()` returns a `BatchResult<O>`, the same type that parallel returns.
+
+    ```rust
+    pub struct BatchResult<O> {
+        pub items: Vec<BatchItem<O>>,
+        pub reason: CompletionReason,
+    }
+
+    impl<O> BatchResult<O> {
+        ...
+        pub fn results(&self) -> impl Iterator<Item = &O> + '_
+        ...
+        pub fn success_count(&self) -> usize
+        ...
+        pub fn failure_count(&self) -> usize
+        ...
+        pub fn has_failure(&self) -> bool
+        ...
+        pub fn status(&self) -> BatchStatus
+        ...
+        pub fn total_count(&self) -> usize
+        ...
+        pub fn errors(&self) -> impl Iterator<Item = BatchError<'_>> + '_
+        ...
+        pub fn succeeded(&self) -> impl Iterator<Item = &BatchItem<O>> + '_
+        ...
+        pub fn failed(&self) -> impl Iterator<Item = &BatchItem<O>> + '_
+        ...
+        pub fn started(&self) -> impl Iterator<Item = &BatchItem<O>> + '_
+        ...
+        pub fn started_count(&self) -> usize
+        ...
+        pub fn into_result(self) -> Result<Self, OperationError>
+        ...
+    }
+    ...
+
+    pub enum BatchItemStatus {
+        Succeeded,
+        Failed,
+        Started,
+    }
+
+    pub struct BatchItem<O> {
+        pub index: usize,
+        pub name: String,
+        pub status: BatchItemStatus,
+        pub result: Option<O>,
+        pub error_message: Option<String>,
+        pub error_type: Option<String>,
+        pub error_data: Option<String>,
+        pub stack_trace: Vec<String>,
+    }
+    ...
+
+    pub enum BatchStatus {
+        Succeeded,
+        Failed,
+    }
+    ...
+
+    pub struct BatchError<'a> {
+        pub index: usize,
+        pub name: &'a str,
+        pub message: &'a str,
+        pub error_type: Option<&'a str>,
+    }
+
+    pub enum CompletionReason {
+        AllCompleted,
+        MinSuccessfulReached,
+        FailureToleranceExceeded,
+        CustomCompletionSucceeded,
+        CustomCompletionFailed,
+    }
+    ```
+
+    The structs and enums in this block are non-exhaustive. Enum matches need a `_` arm,
+    and struct patterns need `..`.
+
+    - **`items`** one `BatchItem` per started item, in input order. Items that never
+        started are omitted.
+    - **`reason`** why the operation completed. See
+        [Completion strategies](#completion-strategies).
+    - **`results()`** an iterator over references to the results of succeeded items, in
+        input order
+    - **`errors()`** an iterator with a `BatchError` for each failed item, with its
+        index, name, message, and error type
+    - **`succeeded()` / `failed()` / `started()`** iterators over the items with that
+        status
+    - **`success_count()` / `failure_count()` / `started_count()` / `total_count()`**
+        item counts. `total_count()` excludes items that never started.
+    - **`status()`** the outcome of a custom predicate when one completed the batch.
+        Otherwise `BatchStatus::Failed` if any item failed, also within the failure
+        tolerance, and `BatchStatus::Succeeded` if none failed.
+    - **`has_failure()`** `true` if any item failed
+    - **`into_result()`** returns the first failed item's `ChildFailed` error, if any.
+        When no item failed and the status is `Failed`, it returns a
+        `BatchCompletionFailed` error. Otherwise it returns the `BatchResult`. See
+        [Errors](#contextmap).
+
+    A `BatchItem` holds `result` when its status is `BatchItemStatus::Succeeded`, and
+    the recorded failure (`error_message`, `error_type`, `error_data`, `stack_trace`)
+    when it is `BatchItemStatus::Failed`. `name` is the item's recorded name.
+    `BatchItemStatus::Started` marks an item that was running when the batch completed.
+    `CompletionReason::as_str()` and `BatchStatus::as_str()` return the wire forms, such
+    as `ALL_COMPLETED` and `SUCCEEDED`.
+
 === "C#"
 
     Map returns the same `IBatchResult<TResult>` type as parallel. It holds per-item
@@ -818,6 +1142,12 @@ state with each other or with the parent context.
     --8<-- "examples/go/operations/map/map-function.go"
     ```
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/map/map-function.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -899,6 +1229,29 @@ Name your map operations to make them easier to identify in logs and tests.
     The namer must be deterministic. An index whose namer returns `""` is named
     `map-item-<index>`.
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/map/named-map.rs"
+    ```
+
+    Set the name with `.name(...)`. Omit the call to leave the map unnamed.
+
+    Use `.item_namer(...)` to give each item a custom name:
+
+    ```rust
+    let receipts = ctx
+        .map(orders, process_order)
+        .name("process-orders")
+        .item_namer(|order, _index| format!("order-{}", order.id))
+        .await?;
+    ```
+
+    The namer receives a reference to the item and its zero-based index. It runs for
+    every item when the map starts, and again on every replay, so it must be
+    deterministic. Without a namer, or when the namer returns `""`, the item is named
+    `map-item-<index>`.
+
 === "C#"
 
     ```csharp
@@ -942,6 +1295,15 @@ Configure map behavior using `MapConfig`:
 
     ```go
     --8<-- "examples/go/operations/map/map-config.go"
+    ```
+
+=== "Rust"
+
+    Set the options with methods on the builder that `ctx.map` returns. See
+    [MapConfig](#mapconfig).
+
+    ```rust
+    --8<-- "examples/rust/operations/map/map-config.rs"
     ```
 
 === "C#"
@@ -1105,6 +1467,48 @@ abandoned items, but cancellation is not guaranteed.
     --8<-- "examples/go/operations/map/custom-completion.go"
     ```
 
+=== "Rust"
+
+    The `BatchResult`'s `reason` field records the stop condition. Items that never
+    started are omitted from `items`. An item that started but did not complete appears
+    with `BatchItemStatus::Started`. The map does not leave abandoned items running. The
+    SDK cancels each one at its next `.await`, and none of its later checkpoints is
+    written.
+
+    | `CompletionConfig`                     | Early exit `reason`                                     | Full completion `reason`                                         |
+    | -------------------------------------- | ------------------------------------------------------- | ---------------------------------------------------------------- |
+    | none (default, fail-fast)              | `FailureToleranceExceeded`                              | `AllCompleted`                                                   |
+    | `with_tolerated_failure_count(n)`      | `FailureToleranceExceeded`                              | `AllCompleted`                                                   |
+    | `with_tolerated_failure_percentage(p)` | `FailureToleranceExceeded`                              | `AllCompleted`                                                   |
+    | `with_min_successful(n)`               | `MinSuccessfulReached`                                  | `AllCompleted`                                                   |
+    | `with_completion_predicate(...)`       | `CustomCompletionSucceeded` or `CustomCompletionFailed` | custom reason if it returns `Complete`; otherwise `AllCompleted` |
+
+    The default is fail-fast. Use
+    `CompletionConfig::with_tolerated_failure_percentage(100.0)?` to run every item
+    regardless of failures.
+
+    Use `with_completion_predicate` when the thresholds cannot express the rule. The
+    predicate receives a `BatchStats` with `succeeded()`, `failed()`, `settled()`,
+    `total_items()`, and `items()`, one `CompletionItem` per input item. Each item carries
+    its zero-based `index`, caller-supplied `name`, and current `status`. The predicate
+    returns a `CompletionDecision`. Return `CompletionDecision::Continue` to keep going,
+    or `CompletionDecision::complete(CompletionOutcome::Succeeded)` or
+    `CompletionDecision::complete(CompletionOutcome::Failed)` to stop and classify the
+    result. With a predicate set, an item failure does not stop the batch by itself. A
+    `Failed` outcome makes `.await` return a `ChildFailed` error for the first failed
+    item, or a `BatchCompletionFailed` error when no item failed.
+
+    ```rust
+    --8<-- "examples/rust/operations/map/custom-completion.rs"
+    ```
+
+    The SDK calls the predicate before each item starts and after each item settles, so
+    it must handle the initial zero-progress snapshot. It must be a pure function of the
+    `BatchStats` it receives, and it must be monotonic. Once it returns `Complete` with
+    an outcome, it must return the same decision for every later snapshot. It cannot be
+    combined with the thresholds. An item that is waiting to start has `None` as its
+    `status` in `items()`.
+
 === "C#"
 
     The `IBatchResult`'s `CompletionReason` indicates the stop condition. Items that were
@@ -1147,6 +1551,12 @@ abandoned items, but cancellation is not guaranteed.
 
     ```go
     --8<-- "examples/go/operations/map/completion-config.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/map/completion-config.rs"
     ```
 
 === "C#"
@@ -1203,6 +1613,20 @@ propagating it immediately. Other items continue running.
 
     ```go
     --8<-- "examples/go/operations/map/error-handling.go"
+    ```
+
+=== "Rust"
+
+    `.await` returns only the results of succeeded items. It returns an error when the
+    failure tolerance is exceeded, which the default fail-fast configuration does at the
+    first item failure. The SDK then cancels the items still running and never starts
+    the items not yet started. To inspect the failures, use `.await_batch()`, which
+    returns the `BatchResult`. `has_failure()` is `true` if any item failed. Call
+    `into_result()` to propagate the first item error, or inspect `errors()` to handle
+    errors individually.
+
+    ```rust
+    --8<-- "examples/rust/operations/map/error-handling.rs"
     ```
 
 === "C#"
@@ -1311,6 +1735,23 @@ details below describe nested mode.
     under the `summary` key. `WithBatchSerdes` sets the per-item serializer and
     `WithBatchResultSerdes` the whole-result serializer.
 
+=== "Rust"
+
+    `.nesting(...)` selects the checkpoint shape. In `NestingMode::Normal` (the default)
+    each item checkpoints its result in its own child context. In `NestingMode::Flat`
+    the SDK omits the per-item context and records the item outcome with the parent
+    map. Durable operations inside an item still checkpoint in both modes.
+
+    The SDK checkpoints the whole batch result when it is at most 256KB serialized. On
+    replay, the SDK reads that result without running the items. A larger result is not
+    stored. The checkpoint then holds a compact record. In `NestingMode::Normal` replay
+    rebuilds each item from that item's own checkpoint. In `NestingMode::Flat` replay
+    runs the items again. The record holds `type` (`MapResult`), `totalCount`,
+    `successCount`, `failureCount`, `completionReason`, `status`, and `itemStatuses`,
+    one character per started item. Pass `.summary(...)` to add your own string under
+    the `summary` key. The record is for observability only. `.serdes(...)` sets the
+    per-item serializer and `.result_serdes(...)` the whole-result serializer.
+
 === "C#"
 
     In nested mode, the SDK reconstructs `IBatchResult` from the per-item child-context
@@ -1347,6 +1788,12 @@ operations. Each nested map creates its own set of child contexts.
 
     ```go
     --8<-- "examples/go/operations/map/nested-map.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/map/nested-map.rs"
     ```
 
 === "C#"

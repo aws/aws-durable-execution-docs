@@ -54,6 +54,22 @@ custom client to control the region, retry settings, credentials, or other optio
     --8<-- "examples/go/configuration/custom-client.go"
     ```
 
+=== "Rust"
+
+    Build a Lambda client with the `aws-config` crate (`cargo add aws-config`) and pass
+    it to `durable::Options::builder().lambda_client(..)`. Start the function with
+    `durable::run_with_options`.
+
+    The SDK's default client sets a 5 second connect timeout, a 50 second read timeout,
+    and a 55 second attempt timeout. A client you pass keeps its own timeouts, and the SDK
+    adds none. To have the SDK build the client from your own configuration instead, pass
+    a `durable::SdkConfig` to `sdk_config(..)`. That client also takes its timeouts only
+    from the configuration. `build()` returns an error when you set both.
+
+    ```rust
+    --8<-- "examples/rust/configuration/custom-client.rs"
+    ```
+
 === "C#"
 
     Build an `AmazonLambdaConfig` (region, retry settings, and so on), construct an

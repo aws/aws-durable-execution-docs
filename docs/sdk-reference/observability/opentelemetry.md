@@ -6,8 +6,8 @@ view explicitly. Configure an OpenTelemetry provider through a telemetry layer
 or application code. The
 provider owns exporters, resources, library instrumentation, and sampling policy.
 
-The plugins are available for TypeScript, Python, and Java. Go and C# do not yet
-provide this integration.
+The plugins are available for TypeScript, Python, and Java. Go, Rust, and C# do
+not yet provide this integration.
 
 ## Install the plugin
 

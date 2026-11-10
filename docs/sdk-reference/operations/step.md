@@ -43,6 +43,12 @@ The step will checkpoint the last error after exhausting all retry attempts.
     --8<-- "examples/go/operations/steps/add-numbers.go"
     ```
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/steps/add-numbers.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -138,6 +144,46 @@ The step will checkpoint the last error after exhausting all retry attempts.
     the serializer cannot convert fails the step at once, without a retry. The
     `*durable.StepError` then has `ErrorType` `"SerdesError"`. An invalid `WithStepSubType` value returns a
     plain `error` before the step runs.
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/steps/step-signature.rs"
+    ```
+
+    **Parameters:**
+
+    - `f` (required) A closure that receives a `durable::StepContext` and returns a
+        future of `Result<O, durable::BoxError>`. The closure must be
+        `Clone + Send + 'static`. Captured local values must be owned. The SDK calls a
+        fresh clone of the closure for each attempt.
+    - `.name(...)` (optional) A name for the step. Omit the call to leave the step
+        unnamed.
+    - The configuration methods in [StepConfig](#stepconfig) (optional).
+
+    **Returns:** a `StepBuilder`. Use `.await` to run the step and get
+    `Result<O, durable::OperationError>`. `.spawn()` starts the step now and returns a
+    `durable::DurableFuture<O>` that resolves to the same `Result`. `.future()`
+    returns a `DurableFuture<O>` without starting the step, as input for
+    `ctx.join_all`, `ctx.try_join_all`, `ctx.race`, and `ctx.select_ok`.
+
+    **Errors:** `durable::OperationError`. Match `err.kind()` against
+    `durable::OperationErrorKind`. A failed step gives `OperationErrorKind::Step`,
+    whose `kind()` is a `durable::StepErrorKind`:
+
+    - `ExecutionFailed` when the body returns `Err` and the retry strategy stops.
+    - `SerializationFailed` when the step's serdes cannot serialize or deserialize the
+        result. The step then fails at once, without a retry.
+    - `Interrupted` when an `AtMostOncePerRetry` attempt was interrupted before the
+        SDK recorded its outcome, and the retry strategy stops. The recorded error
+        type is `"StepInterruptedError"`.
+
+    For a recorded body failure or interrupted attempt, `err.wire()` returns the
+    recorded error type and message on the first run and on replay. Use `err.kind()` to
+    classify every step failure because `wire()` is optional. A live
+    `source()` may contain the body's own error. Replay replaces it with a recorded
+    failure. A step whose name or subtype differs from its record on replay fails with
+    `OperationErrorKind::NonDeterministicExecution`.
 
 === "C#"
 
@@ -256,6 +302,63 @@ The step will checkpoint the last error after exhausting all retry attempts.
         part of the step's replay identity, so a different subtype on replay
         returns a `*durable.NonDeterministicExecutionError`.
 
+=== "Rust"
+
+    Configure a step with methods on its `StepBuilder` before `.await`.
+
+    ```rust
+    impl<O, F, Fut, S> StepBuilder<O, F, Fut, S>
+    where
+        O: Send + 'static,
+        F: FnOnce(StepContext) -> Fut + Clone + Send + 'static,
+        Fut: Future<Output = Result<O, BoxError>> + Send + 'static,
+    {
+        pub fn name(mut self, name: impl Into<String>) -> Self;
+        // ...
+        pub fn retry_strategy<R>(mut self, strategy: R) -> Self
+        where
+            R: Fn(&crate::StepError, u32) -> crate::RetryDecision + Send + Sync + 'static;
+        // ...
+        pub fn retry_strategy_config(mut self, config: crate::builders::RetryStrategyConfig) -> Self;
+        // ...
+        pub fn serdes<S2>(self, serdes: S2) -> StepBuilder<O, F, Fut, S2>
+        where
+            S2: Serdes<O>;
+        // ...
+        pub fn semantics(mut self, semantics: crate::step::StepSemantics) -> Self;
+        // ...
+        pub fn sub_type(mut self, sub_type: OperationSubType) -> Self;
+        // ...
+    }
+    ```
+
+    **Parameters:**
+
+    - `retry_strategy` (optional) A closure that receives the `durable::StepError` and
+        the number of the attempt that just failed, starting at 1, and returns a
+        `durable::RetryDecision`. `RetryDecision::retry(delay)` retries after the
+        delay, rounded up to whole seconds with a minimum of one second.
+        `RetryDecision::Stop` fails the step. See
+        [Retry strategies](../error-handling/retries.md).
+    - `retry_strategy_config` (optional) The same decision from a
+        `durable::builders::RetryStrategyConfig`. When you set neither retry method,
+        the step uses `RetryStrategyConfig::default_preset()`. It makes 6 attempts in
+        total, with a 5-second first delay that doubles on each retry up to 60
+        seconds, and full jitter. So a step retries unless its strategy stops it. A
+        second call of either retry method replaces the first.
+    - `semantics` (optional) `durable::StepSemantics::AtLeastOncePerRetry` (default)
+        or `StepSemantics::AtMostOncePerRetry`.
+    - `serdes` (optional) A custom `durable::Serdes<O>` for the step result. The
+        default is `durable::JsonSerdes`, which needs the result type to implement
+        `Serialize` and `DeserializeOwned`. See
+        [Serialization](../state/serialization.md).
+    - `sub_type` (optional) The operation subtype the step records in the checkpoint.
+        The default is `Step`. `durable::OperationSubType::new` accepts 1 to 32
+        characters from `A-Z`, `a-z`, `0-9`, hyphen, and underscore, and returns an
+        `InvalidOperationSubType` error for any other value. The subtype is part of
+        the step's replay identity, so a different subtype on replay fails with
+        `OperationErrorKind::NonDeterministicExecution`.
+
 === "C#"
 
     ```csharp
@@ -337,6 +440,27 @@ The step will checkpoint the last error after exhausting all retry attempts.
 
     `StepContext` embeds `context.Context`, so you can pass it directly to AWS
     SDK calls. It exposes no durable operations and no operation ID.
+
+=== "Rust"
+
+    ```rust
+    pub struct StepContext {
+        // ...
+    }
+
+    impl StepContext {
+        // ...
+        pub fn attempt(&self) -> u32;
+        // ...
+    }
+    ```
+
+    - `attempt()` The current attempt number, starting at 1 for the first attempt.
+
+    `StepContext` exposes no durable operations. Log with the macros of the
+    [`tracing`](https://crates.io/crates/tracing) crate. A record inside a step body
+    carries the step's `operationId`, `operationName`, and `attempt`. See
+    [Logging](../observability/logging.md).
 
 === "C#"
 
@@ -423,6 +547,27 @@ The step will checkpoint the last error after exhausting all retry attempts.
         whose `ErrorType` is `"StepInterruptedError"`. Use for operations with
         side effects.
 
+=== "Rust"
+
+    ```rust
+    pub enum StepSemantics {
+        AtLeastOncePerRetry,
+        AtMostOncePerRetry,
+    }
+    ```
+
+    - `AtLeastOncePerRetry` (default) Re-executes a step whose previous invocation was
+        interrupted before it recorded an outcome. Safe for idempotent operations.
+    - `AtMostOncePerRetry` Never re-executes an interrupted attempt. The SDK passes a
+        `durable::StepError` of kind `StepErrorKind::Interrupted` to the retry
+        strategy as the failed attempt's error, so the interruption consumes one
+        attempt. If the strategy retries, the next attempt runs the step body after
+        the retry delay. If the strategy stops, the step fails with that error, and
+        the recorded error type is `"StepInterruptedError"`. Use for operations with
+        side effects.
+
+    The enum is `#[non_exhaustive]`, so a `match` on it needs a `_` arm.
+
 === "C#"
 
     ```csharp
@@ -480,6 +625,16 @@ A step function receives a `StepContext` as its first parameter.
     --8<-- "examples/go/operations/steps/validate-order.go"
     ```
 
+=== "Rust"
+
+    A step body is a closure that takes a `durable::StepContext` and returns a
+    future. Call your own function from it, and `.await` the builder for the result.
+    Use `.spawn()` to start the step and get a `durable::DurableFuture<O>`.
+
+    ```rust
+    --8<-- "examples/rust/operations/steps/validate-order.rs"
+    ```
+
 === "C#"
 
     Pass an `async (ctx, ct) => ...` lambda directly. Step bodies are async; `await`
@@ -520,6 +675,14 @@ You can also use inline lambdas.
 
     ```go
     --8<-- "examples/go/operations/steps/lambda-step-no-name.go"
+    ```
+
+=== "Rust"
+
+    Omit `.name(...)` for an unnamed step.
+
+    ```rust
+    --8<-- "examples/rust/operations/steps/lambda-step-no-name.rs"
     ```
 
 === "C#"
@@ -563,6 +726,16 @@ You can also use inline lambdas.
     --8<-- "examples/go/operations/steps/multi-argument-step.go"
     ```
 
+=== "Rust"
+
+    Capture arguments in the closure. The closure must be `Clone + Send + 'static`.
+    Captured local values must be owned, and each attempt calls a fresh clone of the
+    closure.
+
+    ```rust
+    --8<-- "examples/rust/operations/steps/multi-argument-step.rs"
+    ```
+
 === "C#"
 
     Capture arguments in the closure:
@@ -594,6 +767,11 @@ debugging easier.
 
     The name is the second argument, after the context. Pass `""` to omit it.
 
+=== "Rust"
+
+    Set the name with `.name("...")` on the builder. Omit the call to leave the step
+    unnamed.
+
 === "C#"
 
     The name is the optional `name` argument. Omit it to infer one from the call site.
@@ -624,6 +802,12 @@ Configure step behavior using `StepConfig`:
 
     ```go
     --8<-- "examples/go/operations/steps/process-data.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/steps/process-data.rs"
     ```
 
 === "C#"
@@ -664,6 +848,16 @@ lost.
     --8<-- "examples/go/operations/steps/passing-data-wrong.go"
     ```
 
+=== "Rust"
+
+    A step closure is `'static` and cannot borrow a local variable, so this example
+    shares the variable through an `Arc<Mutex<String>>`. The value the step sets is
+    still lost on replay.
+
+    ```rust
+    --8<-- "examples/rust/operations/steps/passing-data-wrong.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -694,6 +888,12 @@ lost.
 
     ```go
     --8<-- "examples/go/operations/steps/passing-data-correct.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/operations/steps/passing-data-correct.rs"
     ```
 
 === "C#"

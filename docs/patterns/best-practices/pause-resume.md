@@ -48,6 +48,16 @@ suspended.
     --8<-- "examples/go/patterns/pause-resume/wait-vs-sleep.go"
     ```
 
+=== "Rust"
+
+    `ctx.wait` takes a `std::time::Duration` and rounds it up to whole seconds, with a
+    minimum of one second. `tokio::time::sleep` and `std::thread::sleep` keep the
+    invocation running.
+
+    ```rust
+    --8<-- "examples/rust/patterns/pause-resume/wait-vs-sleep.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -99,6 +109,19 @@ up to the execution timeout, holding the resource slot until an operator interve
     --8<-- "examples/go/patterns/pause-resume/callback-timeout.go"
     ```
 
+=== "Rust"
+
+    `ctx.wait_for_callback` takes a submitter that receives the `durable::StepContext`
+    and the callback ID. It runs the submitter in a step, then waits until the external
+    system submits a result. The SDK decodes the payload as JSON into the type you name
+    in the call, here `serde_json::Value`. Set the timeout with `.timeout(Duration)`. When
+    the timeout elapses, the operation returns an `OperationError` whose
+    `CallbackErrorKind` is `TimedOut`.
+
+    ```rust
+    --8<-- "examples/rust/patterns/pause-resume/callback-timeout.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -148,6 +171,16 @@ is in progress.
 
     ```go
     --8<-- "examples/go/patterns/pause-resume/heartbeat-timeout.go"
+    ```
+
+=== "Rust"
+
+    Add `.heartbeat_timeout(Duration)` alongside `.timeout(Duration)`. A missed
+    heartbeat fails the callback, and the operation returns an `OperationError` whose
+    `CallbackErrorKind` is `HeartbeatTimedOut`.
+
+    ```rust
+    --8<-- "examples/rust/patterns/pause-resume/heartbeat-timeout.rs"
     ```
 
 === "C#"
@@ -202,6 +235,18 @@ create a retry storm.
 
     ```go
     --8<-- "examples/go/patterns/pause-resume/wait-for-condition.go"
+    ```
+
+=== "Rust"
+
+    The check receives the `durable::StepContext` first and the state second, and
+    returns the new state. `.wait_strategy_fn` takes a closure that receives that state
+    and the attempt number, starting at 1, and returns a `WaitDecision`. The stand-in
+    `job_service_get_status` reads `StepContext::attempt()`, so the job reports
+    `completed` on the third check.
+
+    ```rust
+    --8<-- "examples/rust/patterns/pause-resume/wait-for-condition.rs"
     ```
 
 === "C#"

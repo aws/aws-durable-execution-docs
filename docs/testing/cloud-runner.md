@@ -40,6 +40,23 @@ the execution ARN from the response, and polls until the execution completes.
     --8<-- "examples/go/testing/cloud-runner/cloud-runner.go"
     ```
 
+=== "Rust"
+
+    `durable::test_util::CloudRunner` is behind the SDK's `test-util` feature. Enable it
+    on the dev-dependency as [Install the testing
+    SDK](authoring.md#install-the-testing-sdk) shows. `CloudRunner::new` takes the
+    function name or ARN, and `.qualifier(..)` sets the version, alias, or `$LATEST`,
+    which is the default. `.region(..)` sets the Region of the runner's Lambda client.
+    Without it the Region comes from the default chain, such as `AWS_REGION`. An
+    execution that fails, times out, or stops returns `Ok` with that status. `run`
+    returns `Err` when the runner itself fails, such as when a Lambda call fails on its
+    last attempt (see [Configure polling](#configure-polling)). Save this as
+    `tests/cloud_runner.rs`.
+
+    ```rust
+    --8<-- "examples/rust/testing/cloud-runner/cloud-runner.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -102,6 +119,29 @@ completion.
 
     ```go
     --8<-- "examples/go/testing/cloud-runner/cloud-runner-timeout.go"
+    ```
+
+=== "Rust"
+
+    Pass `.poll_interval(Duration)` to the runner. The default is 1 second. The runner
+    waits one interval before each `GetDurableExecution` status poll, and one interval
+    before each history page that follows a page with a next marker. Each status poll
+    and each history page request makes up to three attempts. The second attempt starts
+    1000 ms after the first fails, and the third starts 1450 ms after the second fails.
+    The error of the third attempt is the error of the call. `Invoke` and the calls that
+    send a callback result or heartbeat make one attempt.
+
+    `.max_poll_attempts(n)` bounds the status polls and the history reads of operation
+    handle controls, such as `wait_for_data`, with one shared count. By default the
+    count is unbounded. A poll counts once however many attempts it makes. A control's
+    history read counts once however many pages and attempts it makes. The history read
+    that builds the final result does not count. When the bound is reached first, `run`
+    returns a result whose status is `ExecutionStatus::Running`. To bound how long the
+    test waits, wrap `run` in `tokio::time::timeout`. Timing out that future does not
+    stop the durable execution.
+
+    ```rust
+    --8<-- "examples/rust/testing/cloud-runner/cloud-runner-timeout.rs"
     ```
 
 === "C#"

@@ -38,6 +38,12 @@ the step result automatically.
     --8<-- "examples/go/sdk-reference/serialization/walkthrough.go"
     ```
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/walkthrough.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -86,6 +92,15 @@ separately.
     `encoding/json`, with HTML escaping disabled. A `Serdes` set with `WithSerdes` or
     `ConfigureSerdes` does not affect them. It applies only to durable operation results.
 
+=== "Rust"
+
+    The SDK decodes the handler's event and encodes its return value with
+    `serde_json`, so the event type implements `Deserialize` and the return type
+    implements `Serialize`. A serdes set with `.serdes(..)` does not affect them. It
+    applies only to durable operation results. If `serde_json` cannot encode the return
+    value, the execution fails with error type `Error` and the `serde_json` error
+    message.
+
 === "C#"
 
     The registered `ILambdaSerializer` serializes everything: durable operation results
@@ -125,6 +140,14 @@ Each SDK uses a default SerDes when you do not provide one.
     disabled, so `<`, `>`, and `&` stay literal in the stored JSON. Map keys are sorted
     and a nil value encodes as null. It handles any value `encoding/json` accepts. A
     type that does not round-trip through `encoding/json` needs a custom `Serdes`.
+
+=== "Rust"
+
+    The default is `durable::JsonSerdes`, which encodes compact JSON with `serde_json`.
+    It handles any type that implements `Serialize` and `DeserializeOwned`, and the
+    compiler rejects an operation whose result type does not. Serde attributes such as
+    `#[serde(rename = "...")]` apply. The batch result of a map or parallel operation
+    defaults to `durable::PassthroughSerdes` instead, as the map section below shows.
 
 === "C#"
 
@@ -213,6 +236,35 @@ Each SDK uses a default SerDes when you do not provide one.
     written for one type, use `SerdesOf`. A serdes failure is permanent by default.
     Return `RetryableSerdesError` to make it transient.
 
+=== "Rust"
+
+    The trait is `durable::Serdes<T>`, where `T` is the operation's result type. Both
+    methods return a future, so an implementation can call external services such as
+    Amazon S3 or AWS KMS. A method that does no async work can return
+    `std::future::ready(..)`. The SDK serializes and deserializes step, child-context,
+    `with_retry`, map item, and parallel branch results and wait-for-condition state. It
+    only deserializes invoke results and callback payloads.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/serdes-interface.rs"
+    ```
+
+    **Methods:**
+
+    - `serialize(&self, value, context)` Converts the value to a string.
+    - `deserialize(&self, wire, context)` Converts the string back to `T`.
+
+    **SerdesContext methods:**
+
+    - `operation_id()` The operation ID for the current step or operation.
+    - `durable_execution_arn()` The ARN of the current durable execution.
+    - `origin()` `PayloadOrigin::SdkRecord` for a value the SDK recorded, or
+        `PayloadOrigin::External` for a callback payload or invoke result.
+
+    A serdes failure is permanent by default. Wrap the error in
+    `durable::serdes::RetryableSerdesError` to make it transient. To share one serdes
+    between operations, wrap it in an `Arc`, which implements `Serdes<T>` as well.
+
 === "C#"
 
     .NET has no per-operation SerDes interface. Serialization is controlled by the single
@@ -264,6 +316,14 @@ need special behavior such as encryption or compression.
     --8<-- "examples/go/sdk-reference/serialization/custom-serdes.go"
     ```
 
+=== "Rust"
+
+    Implement `Serdes<T>` on a type for the result type `T` it handles.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/custom-serdes.rs"
+    ```
+
 === "C#"
 
     Implement `ILambdaSerializer` and register it at the host boundary. The custom
@@ -309,6 +369,19 @@ same handler continue to use the default.
 
     ```go
     --8<-- "examples/go/sdk-reference/serialization/step-config.go"
+    ```
+
+=== "Rust"
+
+    Pass a serdes to the step's `.serdes(..)`. Other operations keep the default. The
+    serdes must implement `Serdes<O>` for the step's result type `O`. The builders of
+    child contexts, `with_retry`, invoke, callbacks, wait for callback, wait for
+    condition, map, and parallel have the same `.serdes(..)` method. An invoke also has
+    `.payload_serdes(..)` for its input, which takes a `durable::PayloadSerializer`.
+    `JsonSerdes` is the default payload serializer.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/step-config.rs"
     ```
 
 === "C#"
@@ -367,6 +440,19 @@ system sends when it completes the callback.
     --8<-- "examples/go/sdk-reference/serialization/callback-config.go"
     ```
 
+=== "Rust"
+
+    Pass the serdes to the callback builder's `.serdes(..)`. The SDK calls only its
+    `deserialize`, which decodes the payload as JSON in this example. The trait
+    requires `serialize` too, but the SDK never calls it for a callback. Without
+    `.serdes(..)`, the default `JsonSerdes` decodes the payload as JSON into the result
+    type. To receive the payload unchanged, use `.serdes(PassthroughSerdes)` with
+    `create_callback::<String>()`.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/callback-config.rs"
+    ```
+
 === "C#"
 
     `CallbackConfig` does not expose a serializer. The payload the external system delivers
@@ -423,6 +509,19 @@ Map and parallel perations support two SerDes fields that apply at different lev
     --8<-- "examples/go/sdk-reference/serialization/map-config.go"
     ```
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/map-config.rs"
+    ```
+
+    - `.serdes(..)` serializes each item result. Default: `JsonSerdes`.
+    - `.result_serdes(..)` serializes the aggregated batch result. It is a
+        `Serdes<String>` over the batch record's JSON text, and its `deserialize` must
+        return the exact text its `serialize` received. Default: `PassthroughSerdes`,
+        which stores the text unchanged.
+    - The parallel builder has the same two methods.
+
 === "C#"
 
     `MapConfig` does not expose a serializer, and there is no separate item-level
@@ -475,6 +574,16 @@ Map and parallel perations support two SerDes fields that apply at different lev
 
     ```go
     --8<-- "examples/go/sdk-reference/serialization/builtin-helpers.go"
+    ```
+
+=== "Rust"
+
+    `JsonSerdes` is the default. `PassthroughSerdes` stores a `String` as is. Pass
+    either by value, as in `.serdes(JsonSerdes)`. A struct's methods come from its
+    type, so a value keeps them after a JSON round trip.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/builtin-helpers.rs"
     ```
 
 === "C#"
@@ -547,6 +656,16 @@ that every Lambda execution environment can read. In AWS Lambda, this means:
     --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-walkthrough.go"
     ```
 
+=== "Rust"
+
+    Create a FileSystem serdes with `durable::serdes::FileSystemSerdes::new` and pass it
+    to one operation's `.serdes(..)`. The file holds the value as JSON. The checkpoint
+    holds an envelope with the file's path relative to the base path.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/filesystem-serdes-walkthrough.rs"
+    ```
+
 === "C#"
 
     Not available. The .NET SDK has no FileSystem serdes. To keep large payloads out of the
@@ -613,6 +732,28 @@ Create a FileSystem serdes and pass it to an operation's config.
 
     **Returns:** A `Serdes` that reads and writes JSON files under `basePath`.
 
+=== "Rust"
+
+    `FileSystemSerdes::new(base_path)` uses the default config.
+    `FileSystemSerdes::with_config(base_path, config)` takes a `FileSystemSerdesConfig`.
+    The serdes implements `Serdes<T>` for every serde type, so one value serves any
+    operation. It runs its file I/O on the Tokio blocking pool, so it needs a Tokio
+    runtime, which `#[tokio::main]` provides.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/filesystem-serdes-signature.rs"
+    ```
+
+    **Parameters:**
+
+    - `base_path` Directory where the SDK writes data files. Set this to your
+        filesystem mount point. The SDK creates it when it is missing.
+    - `config` A `FileSystemSerdesConfig` controlling storage mode, path encoding,
+        the overflow threshold, and preview generation.
+
+    **Returns:** A `FileSystemSerdes` that reads and writes JSON files under
+    `base_path`.
+
 === "C#"
 
     Not available.
@@ -677,6 +818,31 @@ Create a FileSystem serdes and pass it to an operation's config.
     The FileSystem serdes always encodes values with `encoding/json` and HTML escaping
     disabled, as `JSONSerdes` does.
 
+=== "Rust"
+
+    Build the config with `FileSystemSerdesConfig::builder()`, or use
+    `FileSystemSerdesConfig::default()`.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/filesystem-serdes-config.rs"
+    ```
+
+    **Fields:**
+
+    - `storage_mode` A `FileSystemSerdesMode` value. Default:
+        `FileSystemSerdesMode::Always`.
+    - `path_encoding` A `FileSystemPathEncoding` value. Default:
+        `FileSystemPathEncoding::Uri`.
+    - `overflow_threshold_bytes` The envelope size above which overflow mode writes a
+        file. Default: `261120` (255 KiB).
+    - `preview` (builder only) A function that receives the value's JSON text and
+        returns a JSON object as text, or `None`. The SDK stores the preview inline in
+        the checkpoint envelope next to the file pointer. Use the
+        [`build_preview`](#preview-and-pii-masking) helper or write your own. An `Err`
+        fails the serialize. Text other than a JSON object fails it permanently.
+
+    The FileSystem serdes always encodes values with `serde_json`.
+
 === "C#"
 
     Not available.
@@ -717,6 +883,16 @@ execution checkpoint size limit. See
 
     ```go
     --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-overflow.go"
+    ```
+
+=== "Rust"
+
+    In `FileSystemSerdesMode::Overflow`, the FileSystem serdes writes the value to a
+    file when the inline envelope is longer than `overflow_threshold_bytes`. The
+    preview function is not called for a value stored inline.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/filesystem-serdes-overflow.rs"
     ```
 
 === "C#"
@@ -775,6 +951,27 @@ enough to exceed the name-length limit.
 
     ```go
     --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-path-encoding.go"
+    ```
+
+=== "Rust"
+
+    `FileSystemPathEncoding::Uri`, the default, writes
+    `<functionName>/<executionName>/<invocationId>/<file name>` under the base path. It
+    takes the three directory segments from a durable execution ARN and percent-encodes
+    each one, so bytes other than letters, digits, `-`, `_`, `.`, and `~` become `%XX`.
+    It also percent-encodes the operation ID in the file name. If the ARN does not match
+    the durable execution shape, it percent-encodes the whole ARN as one directory.
+
+    `FileSystemPathEncoding::Hash` writes `<arnHash>/<file name>`. `arnHash` is the
+    64-character SHA-256 hex digest of the execution ARN.
+
+    The file name is `<operation ID>-<unique suffix>.json`, so every write creates a
+    new file. `Hash` replaces the operation ID with its SHA-256 hex digest. The
+    checkpoint envelope stores the path relative to the base path, and the SDK reads a
+    file only from under the base path.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/filesystem-serdes-path-encoding.rs"
     ```
 
 === "C#"
@@ -875,6 +1072,35 @@ default.
     dot-path from the root. A field name that contains a dot cannot be selected. The
     preview merges the fields of slice elements under the slice's path.
 
+=== "Rust"
+
+    Pass a function to `FileSystemSerdesConfigBuilder::preview` that calls
+    `durable::serdes::build_preview` with a `PreviewConfig`. `build_preview` returns
+    `Option<String>`, so the function wraps it in `Ok`.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/filesystem-serdes-preview.rs"
+    ```
+
+    **`PreviewConfig` builder methods:**
+
+    - `PreviewConfig::builder(mode)` Takes `PreviewMode::IncludeAll` or
+        `PreviewMode::ExcludeAll`. Sets the starting point before `exclude` and `mask`.
+    - `include` Adds a field to show when starting from `ExcludeAll`.
+    - `exclude` Adds a field to remove. Always wins over `include` and `mask`.
+    - `mask` Adds a field whose value becomes the mask string. A masked field is
+        visible under either mode unless it is also excluded.
+    - `mask_string` Replacement for masked fields. Default: `***`.
+    - `max_preview_bytes` Maximum estimated size in bytes. `build_preview` stops before
+        the first field whose estimated path and compact value would exceed the limit.
+        Default: `4096`.
+
+    `include`, `exclude`, and `mask` take a `PreviewField`. A `&str` becomes
+    `PreviewField::anywhere`, which matches the field name at any depth.
+    `PreviewField::path` matches an exact dot-separated path from the root. A field name
+    that contains a dot cannot be selected. The preview merges the fields of array
+    elements under the array's path.
+
 === "C#"
 
     Not available.
@@ -915,6 +1141,17 @@ once with `configureSerdes`.
 
     ```go
     --8<-- "examples/go/sdk-reference/serialization/filesystem-serdes-default.go"
+    ```
+
+=== "Rust"
+
+    Each operation takes its own serdes. To store step, child-context, `with_retry`, map
+    item, parallel branch, and wait-for-condition results with the FileSystem serdes,
+    create one `Arc<FileSystemSerdes>` and pass a clone to each operation's
+    `.serdes(..)`. `Arc<S>` implements `Serdes<T>` for every `T` that `S` handles.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/serialization/filesystem-serdes-default.rs"
     ```
 
 === "C#"

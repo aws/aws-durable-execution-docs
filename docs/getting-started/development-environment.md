@@ -112,6 +112,15 @@ SDK is being deployed in your function code, rather than relying on which is bei
     go get github.com/aws/aws-durable-execution-sdk-go/durable
     ```
 
+=== "Rust"
+
+    Requires Rust 1.94.1 or later. Inside a crate, add the SDK from its GitHub
+    repository:
+
+    ```console
+    cargo add aws-durable-execution-sdk --git https://github.com/aws/aws-durable-execution-sdk-rust
+    ```
+
 === "C#"
 
     Requires the .NET 10 SDK.
@@ -162,6 +171,15 @@ cloud. Each SDK has a local test runner that you can use. See
     `github.com/aws/aws-durable-execution-sdk-go/durable/durabletest`. Import
     it from your test.
 
+=== "Rust"
+
+    The local runner is in the SDK crate, behind the `test-util` feature. Enable the
+    feature for tests with a dev-dependency on the same source:
+
+    ```console
+    cargo add --dev aws-durable-execution-sdk --git https://github.com/aws/aws-durable-execution-sdk-rust --features test-util
+    ```
+
 === "C#"
 
     ```console
@@ -192,6 +210,12 @@ A minimal test creates a runner with your handler, runs it, and asserts on the r
 
     ```go
     --8<-- "examples/go/testing/authoring/minimal-test.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/testing/authoring/minimal-test.rs"
     ```
 
 === "C#"
@@ -226,6 +250,12 @@ To drive an input-based handler, pass an event to the runner:
     res, err := runner.RunUntilComplete(Order{ID: "A-1"})
     ```
 
+=== "Rust"
+
+    ```rust
+    let result = runner.run(handler, Order { id: "A-1".into() }).await?;
+    ```
+
 === "C#"
 
     ```csharp
@@ -258,6 +288,12 @@ Run the suite with your language's test runner:
 
     ```console
     go test ./...
+    ```
+
+=== "Rust"
+
+    ```console
+    cargo test
     ```
 
 === "C#"
@@ -412,6 +448,20 @@ in production.
 
         ```console
         CGO_ENABLED=0 sam build
+        ```
+
+    === "Rust"
+
+        Add the `rust-cargolambda` build method so `sam build` compiles your crate with
+        [cargo-lambda](https://www.cargo-lambda.info/) into the `bootstrap` binary that
+        the `provided.al2023` runtime runs. Install cargo-lambda first. The build method
+        needs SAM CLI 1.156.0 or later. Earlier versions treat it as a beta feature and
+        ask for confirmation, which `sam build --beta-features` gives. Point `CodeUri` at
+        the crate directory, the one that holds `Cargo.toml`. This template sits in the
+        crate directory:
+
+        ```yaml
+        --8<-- "examples/rust/getting-started/template.yaml"
         ```
 
     === "C#"

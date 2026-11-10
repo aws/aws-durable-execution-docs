@@ -37,6 +37,20 @@
     go get github.com/aws/aws-durable-execution-sdk-go
     ```
 
+=== "Rust"
+
+    The local runner is in the SDK crate, in the `test_util` module behind the
+    `test-util` [feature](https://doc.rust-lang.org/cargo/reference/features.html). Add
+    the SDK as a dev-dependency with that feature, from the same Git source as the
+    runtime dependency, so the feature is on only in tests. Add the
+    [Tokio](https://tokio.rs) features that `#[tokio::test]` needs:
+
+    ```toml
+    [dev-dependencies]
+    aws-durable-execution-sdk = { git = "https://github.com/aws/aws-durable-execution-sdk-rust", features = ["test-util"] }
+    tokio = { version = "1", features = ["macros", "rt"] }
+    ```
+
 === "C#"
 
     Add the testing package to your test project:
@@ -88,6 +102,17 @@ Create a runner with your handler, call `run()`, and assert on the result.
     --8<-- "examples/go/testing/authoring/minimal-test.go"
     ```
 
+=== "Rust"
+
+    Create a runner with `LocalRunner::new()`, pass the handler and the event to `run`,
+    and await the returned handle to get a `TestResult`. Mark each test with
+    `#[tokio::test]`. Each `run` starts a fresh execution, so one runner can drive
+    several runs.
+
+    ```rust
+    --8<-- "examples/rust/testing/authoring/minimal-test.rs"
+    ```
+
 === "C#"
 
     Construct `DurableTestRunner<TIn, TOut>` with your workflow delegate and
@@ -127,6 +152,12 @@ fails. Assert on the status and inspect the error.
     --8<-- "examples/go/testing/authoring/test-failure.go"
     ```
 
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/testing/authoring/test-failure.rs"
+    ```
+
 === "C#"
 
     ```csharp
@@ -160,6 +191,12 @@ step, and the runner re-invokes the handler as many times as needed.
 
     ```go
     --8<-- "examples/go/testing/authoring/test-retries.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/testing/authoring/test-retries.rs"
     ```
 
 === "C#"
@@ -216,6 +253,16 @@ runner collapses these delays so tests finish in milliseconds.
     result, err := runner.RunUntilComplete(input) // fires timers between invocations
     ```
 
+=== "Rust"
+
+    The local runner always uses a virtual clock in whole seconds. Between invocations
+    it moves the clock to the end of the earliest pending wait or retry delay. Both
+    `ctx.wait()` durations and step retry delays complete in zero wall-clock time.
+
+    ```rust
+    let result = runner.run(handler, event).await?; // waits and retries fire on a virtual clock
+    ```
+
 === "C#"
 
     `TestRunnerOptions.SkipTime` defaults to `true`, so `RunAsync()` completes both
@@ -258,6 +305,12 @@ own runner instance.
 
     ```go
     --8<-- "examples/go/testing/authoring/test-branching.go"
+    ```
+
+=== "Rust"
+
+    ```rust
+    --8<-- "examples/rust/testing/authoring/test-branching.rs"
     ```
 
 === "C#"
