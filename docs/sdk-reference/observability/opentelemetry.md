@@ -193,9 +193,10 @@ and region:
 | AWS Distro for OpenTelemetry (ADOT)    | `/opt/otel-instrument`    | [ADOT Lambda layers](https://aws-otel.github.io/docs/getting-started/lambda)                        |
 | OpenTelemetry community language layer | `/opt/otel-handler`       | [Lambda auto-instrumentation](https://opentelemetry.io/docs/platforms/faas/lambda-auto-instrument/) |
 
-Add the following entries under `Properties` in your existing
-`AWS::Serverless::Function`. Merge them with the function's existing layers,
-environment variables, and policies. SAM applies `Policies` only when it creates
+The following SAM snippets show the telemetry settings for an
+`AWS::Serverless::Function` resource. Merge the entries under `Properties` with
+your function's existing layers, environment variables, and policies.
+SAM applies `Policies` only when it creates
 the execution role. If you specify `Role`, attach the required permissions
 directly to that role.
 
@@ -205,15 +206,18 @@ For ADOT with X-Ray export, enable `Active` tracing and grant
 `AWSXRayDaemonWriteAccess` alongside the durable execution permissions.
 
 ```yaml
-Layers:
-  - <adot-language-layer-arn>
-Environment:
-  Variables:
-    AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
-Tracing: Active
-Policies:
-  - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
-  - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
+MyFunction:
+  Type: AWS::Serverless::Function
+  Properties:
+    Layers:
+      - <adot-language-layer-arn>
+    Environment:
+      Variables:
+        AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
+    Tracing: Active
+    Policies:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
+      - arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess
 ```
 
 ### Community language layer
@@ -230,19 +234,22 @@ that decision even with a local `always_on` sampler. See
 [supported sampling modes](#supported-sampling-modes).
 
 ```yaml
-Layers:
-  - <community-language-layer-arn>
-Environment:
-  Variables:
-    AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-handler
-    OTEL_TRACES_EXPORTER: otlp
-    OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
-    OTEL_EXPORTER_OTLP_ENDPOINT: https://<otlp-endpoint>
-    OTEL_METRICS_EXPORTER: none
-    OTEL_LOGS_EXPORTER: none
-Tracing: PassThrough
-Policies:
-  - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
+MyFunction:
+  Type: AWS::Serverless::Function
+  Properties:
+    Layers:
+      - <community-language-layer-arn>
+    Environment:
+      Variables:
+        AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-handler
+        OTEL_TRACES_EXPORTER: otlp
+        OTEL_EXPORTER_OTLP_PROTOCOL: http/protobuf
+        OTEL_EXPORTER_OTLP_ENDPOINT: https://<otlp-endpoint>
+        OTEL_METRICS_EXPORTER: none
+        OTEL_LOGS_EXPORTER: none
+    Tracing: PassThrough
+    Policies:
+      - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicDurableExecutionRolePolicy
 ```
 
 Configure `OTEL_EXPORTER_OTLP_HEADERS` if your backend requires authentication.
