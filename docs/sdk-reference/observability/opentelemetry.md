@@ -738,13 +738,51 @@ flag. Application-created spans on that trace can become the active context too.
 
 === "Java"
 
-    `enableMdc` adds the fields to SLF4J MDC. Configure your logging framework
-    to include MDC fields in its output. In CloudWatch, use **Group by nodes**
-    to inspect the hierarchy; the ungrouped X-Ray Segments Timeline cannot nest
-    OTLP spans under the Lambda platform segment.
+    `enableMdc` defaults to `true`. The plugin puts the trace fields in SLF4J's
+    mapped diagnostic context (MDC). Your logging layout must include those
+    fields to print them.
 
-    If spans are missing when using a Java agent, check
-    `OTEL_JAVAAGENT_EXTENSIONS`.
+    For text logging with Logback, add its SLF4J provider to your `pom.xml`:
+
+    ```xml
+    <dependency>
+        <groupId>ch.qos.logback</groupId>
+        <artifactId>logback-classic</artifactId>
+        <version>1.6.6</version>
+        <scope>runtime</scope>
+    </dependency>
+    ```
+
+    Save this configuration as `src/main/resources/logback.xml`. If you already
+    have a Logback configuration, add the three `%X` fields to its existing
+    encoder pattern:
+
+    ```xml title="src/main/resources/logback.xml"
+    --8<-- "examples/java/sdk-reference/observability/opentelemetry/log-correlation-logback.xml"
+    ```
+
+    With the OpenTelemetry provider configured as shown above, log through
+    the durable context:
+
+    ```java
+    --8<-- "examples/java/sdk-reference/observability/opentelemetry/log-correlation.java"
+    ```
+
+    The `%X` expressions read the current MDC fields. Their defaults print `-`
+    when a field is absent. With the default execution view in SDK/plugin
+    3.1.0, the plugin sets only `traceId` between operations. The step log
+    includes all three fields and identifies its attempt span:
+
+    ```text
+    Function initialized traceId=- spanId=- otelTraceSampled=-
+    Processing request traceId=1234567890abcdef1234567890abcdef spanId=- otelTraceSampled=-
+    Processing step traceId=1234567890abcdef1234567890abcdef spanId=1234567890abcdef otelTraceSampled=true
+    ```
+
+    Trace and span IDs vary. In CloudWatch, use **Group by nodes** to inspect
+    the hierarchy; the ungrouped X-Ray Segments Timeline cannot nest OTLP spans
+    under the Lambda platform segment. If spans are missing when using a Java
+    agent, check `OTEL_JAVAAGENT_EXTENSIONS`.
 
 Test with an execution that waits and resumes. Confirm that its spans share a
 trace ID, invocations appear as they finish, completed steps do not run again,
