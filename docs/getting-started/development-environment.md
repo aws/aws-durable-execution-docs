@@ -100,7 +100,7 @@ SDK is being deployed in your function code, rather than relying on which is bei
     <dependency>
         <groupId>software.amazon.lambda.durable</groupId>
         <artifactId>aws-durable-execution-sdk-java</artifactId>
-        <version>2.2.0</version>
+        <version>3.1.0</version>
     </dependency>
     ```
 
@@ -160,7 +160,7 @@ cloud. Each SDK has a local test runner that you can use. See
     <dependency>
         <groupId>software.amazon.lambda.durable</groupId>
         <artifactId>aws-durable-execution-sdk-java-testing</artifactId>
-        <version>2.2.0</version>
+        <version>3.1.0</version>
         <scope>test</scope>
     </dependency>
     ```
