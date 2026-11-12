@@ -1,6 +1,7 @@
 import java.util.Map;
 import software.amazon.lambda.durable.DurableContext;
 import software.amazon.lambda.durable.DurableHandler;
+import software.amazon.lambda.durable.TypeToken;
 import software.amazon.lambda.durable.config.StepConfig;
 import software.amazon.lambda.durable.config.StepSemantics;
 import software.amazon.lambda.durable.exception.StepInterruptedException;
@@ -10,11 +11,11 @@ public class StepInterrupted extends DurableHandler<Map<String, Object>, Map<Str
     @Override
     public Map<String, Object> handleRequest(Map<String, Object> event, DurableContext context) {
         StepConfig config = StepConfig.builder()
-                .semantics(StepSemantics.AT_MOST_ONCE_PER_RETRY)
+                .semanticsPerRetry(StepSemantics.AT_MOST_ONCE_PER_RETRY)
                 .build();
         try {
             Map<String, Object> result = context.step(
-                    "charge-payment", Map.class,
+                    "charge-payment", new TypeToken<Map<String, Object>>() {},
                     stepCtx -> chargePayment((Double) event.get("amount")),
                     config);
             return Map.of("status", "charged", "result", result);

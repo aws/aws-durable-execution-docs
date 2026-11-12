@@ -1,5 +1,5 @@
 private static final StepConfig PAYMENT_CONFIG = StepConfig.builder()
-    .semantics(StepSemantics.AT_MOST_ONCE_PER_RETRY)
+    .semanticsPerRetry(StepSemantics.AT_MOST_ONCE_PER_RETRY)
     .retryStrategy(RetryStrategies.Presets.NO_RETRY)
     .build();
 
