@@ -6,5 +6,5 @@ public void onUserFunctionStart(UserFunctionStartInfo info) {
 @Override
 public void onUserFunctionEnd(UserFunctionEndInfo info) {
     System.out.println("user function " + info.name() + " end, attempt: " + info.attempt()
-            + ", succeeded: " + info.succeeded());
+            + ", outcome: " + info.outcome());
 }

@@ -242,6 +242,11 @@ plugins that you register the same way.
 
 === "Java"
 
+    `withPlugins` takes `DurableExecutionPluginFactory` values. The SDK calls each
+    factory once per invocation, so each invocation gets a fresh plugin. See
+    [Load plugins dynamically](../languages/java/index.md#load-plugins-dynamically)
+    to load plugins from the class path.
+
     ```java
     --8<-- "examples/java/sdk-reference/plugins/use-plugin.java"
     ```

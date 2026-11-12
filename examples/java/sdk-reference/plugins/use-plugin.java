@@ -6,12 +6,12 @@ public class ExampleHandler extends DurableHandler<Object, String> {
     @Override
     protected DurableConfig createConfiguration() {
         return DurableConfig.builder()
-                .withPlugins(new ExamplePlugin())
+                .withPlugins(info -> new ExamplePlugin())
                 .build();
     }
 
     @Override
-    protected String handleRequest(Object event, DurableContext context) {
+    public String handleRequest(Object event, DurableContext context) {
         return context.step("process", String.class, stepCtx -> "done");
     }
 }
