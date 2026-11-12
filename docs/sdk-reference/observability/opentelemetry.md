@@ -60,7 +60,7 @@ Register one factory using the unified entry point for your language. Omitting
 the mode selects the execution view. The SDK creates a separate plugin instance
 for each invocation, while the provider can be shared across invocations.
 
-### Choosing a plugin
+### Choosing a view
 
 For both views, your observability platform's quotas and limits apply.
 
