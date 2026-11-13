@@ -198,7 +198,7 @@ execution role you just created.
     <dependency>
         <groupId>software.amazon.lambda.durable</groupId>
         <artifactId>aws-durable-execution-sdk-java</artifactId>
-        <version>2.2.0</version>
+        <version>3.1.0</version>
     </dependency>
     <dependency>
         <groupId>com.amazonaws</groupId>
