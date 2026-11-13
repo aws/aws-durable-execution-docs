@@ -7,12 +7,6 @@ changing your handler logic. For example, you can use a plugin to emit a metric
 or trace span each time an operation runs. Errors thrown by a plugin are caught
 and logged, and never affect the execution outcome.
 
-!!! note "Experimental feature"
-
-    The plugin interface is currently experimental and may change in a
-    future release. Feedback is welcome, please share your input through our
-    [GitHub Discussion](https://github.com/aws/aws-durable-execution-docs/discussions/206).
-
 !!! note "Go support"
 
     The Go SDK has a plugin API, and it is experimental. For the reference, see
@@ -247,6 +241,11 @@ plugins that you register the same way.
     ```
 
 === "Java"
+
+    `withPlugins` takes `DurableExecutionPluginFactory` values. The SDK calls each
+    factory once per invocation, so each invocation gets a fresh plugin. See
+    [Load plugins dynamically](../languages/java/index.md#load-plugins-dynamically)
+    to load plugins from the class path.
 
     ```java
     --8<-- "examples/java/sdk-reference/plugins/use-plugin.java"
