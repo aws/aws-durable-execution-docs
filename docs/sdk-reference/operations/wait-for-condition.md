@@ -174,6 +174,9 @@ applied.
     --8<-- "examples/csharp/core/wait/wait-for-condition-signature.cs"
     ```
 
+    `Serializer` optionally overrides state serialization for this polling
+    operation. Null uses the serializer registered at the handler boundary.
+
 **Parameters:**
 
 - `name` (optional) - Only used for display, debugging and testing.
