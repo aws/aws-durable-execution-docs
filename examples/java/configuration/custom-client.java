@@ -3,6 +3,7 @@ import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.retries.AdaptiveRetryStrategy;
 import software.amazon.awssdk.retries.api.RetryStrategy;
 import software.amazon.awssdk.services.lambda.LambdaClient;
+import software.amazon.awssdk.services.lambda.LambdaClientBuilder;
 import software.amazon.lambda.durable.DurableConfig;
 import software.amazon.lambda.durable.DurableContext;
 import software.amazon.lambda.durable.DurableHandler;
@@ -15,7 +16,7 @@ public class CustomLambdaClient extends DurableHandler<Map<String, Object>, Map<
                 .maxAttempts(5)
                 .build();
 
-        LambdaClient.Builder lambdaClientBuilder = LambdaClient.builder()
+        LambdaClientBuilder lambdaClientBuilder = LambdaClient.builder()
                 .region(Region.US_WEST_2)
                 .overrideConfiguration(o -> o.retryStrategy(retryStrategy));
 

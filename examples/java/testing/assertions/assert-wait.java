@@ -15,19 +15,26 @@ class AssertWaitTest {
         var runner = LocalDurableTestRunner.create(
             Void.class,
             (input, context) -> {
-                context.wait(Duration.ofSeconds(30), "my-wait");
+                context.wait("my-wait", Duration.ofSeconds(30));
                 return "done";
             }
         );
 
+        // The first run stops at the wait, so the wait is still pending.
+        var pending = runner.run(null);
+
+        assertEquals(ExecutionStatus.PENDING, pending.getStatus());
+
+        var wait = pending.getOperation("my-wait");
+        assertNotNull(wait);
+        assertEquals(OperationType.WAIT, wait.getType());
+        assertEquals(OperationStatus.STARTED, wait.getStatus());
+        assertNotNull(wait.getWaitDetails().scheduledEndTimestamp());
+
+        // Run to the end, and the wait succeeds.
         var result = runner.runUntilComplete(null);
 
         assertEquals(ExecutionStatus.SUCCEEDED, result.getStatus());
-
-        var wait = result.getOperation("my-wait");
-        assertNotNull(wait);
-        assertEquals(OperationType.WAIT, wait.getType());
-        assertEquals(OperationStatus.SUCCEEDED, wait.getStatus());
-        assertNotNull(wait.getWaitDetails().scheduledEndTimestamp());
+        assertEquals(OperationStatus.SUCCEEDED, result.getOperation("my-wait").getStatus());
     }
 }

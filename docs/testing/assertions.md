@@ -88,7 +88,8 @@ Look up a wait operation and check that it was scheduled with the expected durat
 === "Java"
 
     `getWaitDetails().scheduledEndTimestamp()` returns the scheduled end time as an
-    `Instant`.
+    `Instant`. The local runner sets it while the wait is pending, so assert on it
+    after `run()` stops at the wait.
 
     ```java
     --8<-- "examples/java/testing/assertions/assert-wait.java"
@@ -265,7 +266,7 @@ status to count failures and successes separately.
 === "Java"
 
     `result.getFailedOperations()` and `result.getSucceededOperations()` return pre-filtered
-    lists.
+    lists. A retried step is one operation, and its status is its final outcome.
 
     ```java
     --8<-- "examples/java/testing/assertions/filter-by-status.java"

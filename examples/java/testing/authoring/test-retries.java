@@ -1,5 +1,6 @@
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.lambda.model.OperationStatus;
@@ -16,7 +17,7 @@ class TestRetriesTest {
         var attempts = new AtomicInteger(0);
 
         var config = StepConfig.builder()
-            .retryStrategy(RetryStrategies.exponentialBackoff(3))
+            .retryStrategy(RetryStrategies.fixedDelay(3, Duration.ofSeconds(1)))
             .build();
 
         var runner = LocalDurableTestRunner.create(

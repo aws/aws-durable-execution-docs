@@ -2,6 +2,7 @@ import java.util.Map;
 import software.amazon.lambda.durable.DurableCallbackFuture;
 import software.amazon.lambda.durable.DurableContext;
 import software.amazon.lambda.durable.DurableHandler;
+import software.amazon.lambda.durable.TypeToken;
 import software.amazon.lambda.durable.config.CallbackConfig;
 import software.amazon.lambda.durable.serde.JacksonSerDes;
 
@@ -13,7 +14,7 @@ public class CallbackConfigExample extends DurableHandler<Object, Map<String, Ob
             .build();
 
         DurableCallbackFuture<Map<String, Object>> callback =
-            context.createCallback("await-approval", Map.class, config);
+            context.createCallback("await-approval", new TypeToken<Map<String, Object>>() {}, config);
 
         // Send callback.getCallbackId() to the external system here.
         return callback.get();
