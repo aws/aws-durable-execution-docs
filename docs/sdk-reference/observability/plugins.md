@@ -130,14 +130,17 @@ or reaches a terminal status.
     ```
 
     `info.is_replay()` indicates whether the hook is firing for the first time or
-    during a replay. A step replayed from a finished record fires no operation hook.
-    A finished wait, invoke, or `create_callback` fires `on_operation_end` on every
-    replay. Its `is_replay()` is `true` unless the service changed the operation
-    since the previous invocation. An operation whose `.spawn()` handle was dropped
-    still fires its end hook if it settles before its scope closes or the invocation
-    ends. Returning from the handler ends the invocation. An operation the SDK stops
-    fires no end hook. These hooks run synchronously and must not block. Put async
-    work in the future they return.
+    during a replay. A virtual child context writes no record, so its hooks report
+    what `ctx.is_replaying()` reports when they fire. A step replayed from a finished
+    record fires no operation hook. A finished wait, invoke, or `create_callback`
+    fires `on_operation_end` on every replay. Its `is_replay()` is `true` unless the
+    service changed the operation since the previous invocation. An operation whose
+    `.spawn()` handle was dropped still fires its end hook if it settles before its
+    scope closes or the invocation ends. Returning from the handler ends the
+    invocation. An operation the SDK stops fires no end hook. A task that is in a poll
+    when its scope closes finishes that poll, so the hooks it reaches can run after
+    the end hooks of the operation whose scope closed. These hooks run synchronously
+    and must not block. Put async work in the future they return.
 
 ### User-function hooks
 

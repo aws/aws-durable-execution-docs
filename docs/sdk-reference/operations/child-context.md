@@ -164,7 +164,8 @@ multiple child contexts concurrently.
     `durable::DurableFuture<O>` without starting it, for combinators such as
     `ctx.try_join_all`. The SDK does not store a result whose serialized form exceeds
     256KB. On replay it runs `f` again to rebuild that result, and the operations
-    inside return their checkpointed results.
+    inside return their checkpointed results. An operation inside whose record is not
+    finished does not run again and never resolves.
 
     **Errors:** Match `err.kind()` against
     `durable::OperationErrorKind::ChildContext(child_error)`. When `f` returns an error,

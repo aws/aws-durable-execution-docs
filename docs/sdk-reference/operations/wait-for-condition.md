@@ -153,8 +153,10 @@ applied.
     `DeserializeOwned`.
 
     In a check, `StepContext::attempt()` returns the 1-based poll attempt, the same
-    number the wait strategy receives. A check that returns `Err` fails the operation
-    at once, without a call to the strategy. `.await` returns a
+    number the wait strategy receives. When an invocation ends before the outcome of a
+    check is recorded, the check runs again in the next invocation with
+    `initial_state` and the same attempt number. A check that returns `Err` fails the
+    operation at once, without a call to the strategy. `.await` returns a
     `durable::OperationError` of kind `OperationErrorKind::WaitForCondition`, whose
     `kind()` is a `durable::WaitForConditionErrorKind`:
 

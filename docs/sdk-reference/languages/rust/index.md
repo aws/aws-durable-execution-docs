@@ -244,7 +244,6 @@ invocation.
 
 `ctx.with_retry` retries a block of durable operations as one unit. By default it
 records an outer child context and one child context per attempt.
-`.without_child_context()` records attempts and waits in the caller's context.
 `.virtual_context()` keeps a separate operation namespace without an outer record. See
 [Retries](../../error-handling/retries.md) for retry strategies, delay rounding, and
 submitter retries for `wait_for_callback`.
@@ -279,9 +278,6 @@ never installs a subscriber itself. See [Logging](../../observability/logging.md
     builds it from. See [Custom Lambda client](../../configuration/custom-lambda-client.md).
 - `execution_client` replaces the transport of the two service calls, checkpoint and
     state read, with your own `durable::ExecutionClient`.
-- `checkpoint_batching` sends checkpoints that arrive while a write is in flight
-    together in the next request. It is on by default. `checkpoint_batching(false)`
-    sends each checkpoint in its own request.
 - `checkpoint_delay` holds checkpoint writes for up to the given duration, so that
     checkpoints from concurrent operations share a request.
 - `plugin` registers a plugin, and `plugin_child_operations_depth` keeps the operations
