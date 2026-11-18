@@ -62,7 +62,22 @@ for each invocation, while the provider can be shared across invocations.
 
 ### Choosing a view
 
-For both views, your observability platform's quotas and limits apply.
+Choose **execution view** to see operations grouped under `Workflow` when the
+full execution, including waits and retries, fits within your tracing vendor's
+span ingestion window. For example, if your vendor rejects spans that started
+more than 8 hours ago, use this view for workflows that reliably finish well
+under 8 hours.
+
+Choose **invocation view** if an execution might reach that limit or if you need
+to see operation progress as each Lambda invocation ends. Suppose a workflow
+waits for 10 hours. When the first invocation ends, the SDK exports a short span
+showing that the wait started. When the workflow resumes 10 hours later, the SDK
+exports a second short span showing that the wait completed.
+
+In both views, the SDK exports `Workflow` as a single span when it observes the
+execution succeed or fail. If that span covers all 10 hours, it falls outside
+the vendor's 8-hour window. In invocation view, the vendor can reject `Workflow`
+and still accept both short wait spans from the same trace.
 
 | Consideration              | Execution view                                                   | Invocation view                                                                               |
 | -------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -71,15 +86,13 @@ For both views, your observability platform's quotas and limits apply.
 | Continuation link          | Completed operation links only to the invocation that exports it | Later segment links to the initial logical operation span                                     |
 | Operation visibility       | When the operation completes                                     | At each invocation boundary                                                                   |
 | In-progress visibility     | Limited until operations and the execution complete              | Each invocation appears as it completes                                                       |
-| Better for                 | Shorter executions and a workflow-centered hierarchy             | Long executions and progress through individual invocations                                   |
 | Platform compatibility     | Long-open spans can exceed ingestion time limits                 | Operation segments stay within an invocation; long Workflow spans still face ingestion limits |
 
 Nested operations remain under their child-context operation span; attempts
 remain under their operation. Both views export `Invocation` spans as invocations
-end and `Workflow` only when the SDK observes execution success or failure.
-Workflow spans can cover long durations, so backend ingestion limits still apply
-to both views. Export and flush are best effort; a timeout, stop, or terminated
-runtime can leave spans missing.
+end.
+Export and flush are best effort; a timeout, stop, or terminated runtime can
+leave spans missing.
 
 The diagrams below show an execution with a valid remote backend parent and
 ambient Lambda spans in the same trace. See [trace identity and sampling](#trace-identity-and-sampling)
