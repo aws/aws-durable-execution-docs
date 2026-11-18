@@ -697,7 +697,10 @@ execution and the completion status of the result.
     - `completion_predicate` A custom predicate. `build()` returns an error when it is
         combined with a threshold. See [Completion strategies](#completion-strategies).
 
-    When several thresholds are set, the first one reached ends the batch. The default
+    When several thresholds are set, the first one reached ends the batch. A concurrent
+    batch that resumes with recorded item outcomes applies all of them, then checks
+    the thresholds once, in the order failure tolerance, every item finished, and
+    `min_successful`. The default
     (no `.completion(...)`) is fail-fast. For all-completed, use
     `CompletionConfig::with_tolerated_failure_percentage(100.0)?`, which is never
     exceeded. For first-successful, use `CompletionConfig::with_min_successful(1)`.
@@ -1749,7 +1752,8 @@ details below describe nested mode.
     runs the items again. The record holds `type` (`MapResult`), `totalCount`,
     `successCount`, `failureCount`, `completionReason`, `status`, and `itemStatuses`,
     one character per started item. Pass `.summary(...)` to add your own string under
-    the `summary` key. The record is for observability only. `.serdes(...)` sets the
+    the `summary` key. Replay reads `itemStatuses` and `completionReason`. The other
+    fields and `summary` are for observability only. `.serdes(...)` sets the
     per-item serializer and `.result_serdes(...)` the whole-result serializer.
 
 === "C#"

@@ -681,7 +681,10 @@ execution and the completion status of the result.
     - `completion_predicate` A custom predicate. `build()` returns an error when it is
         combined with a threshold. See [Completion strategies](#completion-strategies).
 
-    When several thresholds are set, the first one reached ends the batch. The default
+    When several thresholds are set, the first one reached ends the batch. A concurrent
+    batch that resumes with recorded branch outcomes applies all of them, then checks
+    the thresholds once, in the order failure tolerance, every branch finished, and
+    `min_successful`. The default
     (no `.completion(...)`) is fail-fast. To run every branch regardless of failures,
     use `CompletionConfig::with_tolerated_failure_percentage(100.0)?`, which is never
     exceeded. For first-successful, use `CompletionConfig::with_min_successful(1)`.
@@ -1765,7 +1768,8 @@ language-specific details below describe nested mode.
     the branches again. The record holds `type` (`ParallelResult`), `totalCount`,
     `successCount`, `failureCount`, `startedCount`, `completionReason`, `status`, and
     `itemStatuses`, one character per started branch. Pass `.summary(...)` to add your
-    own string under the `summary` key. The record is for observability only.
+    own string under the `summary` key. Replay reads `itemStatuses` and
+    `completionReason`. The other fields and `summary` are for observability only.
 
     `parallel_mixed` writes the same record, and its `.summary(...)` adds the same
     `summary` key. Its summary function receives a

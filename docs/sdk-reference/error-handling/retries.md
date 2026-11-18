@@ -765,8 +765,11 @@ available to `step` to other operations, such as `invoke`, `waitForCallback`, an
     Without one, the block uses `RetryStrategyConfig::default_preset()`. A
     `retry_if` predicate in this block receives the attempt's `durable::OperationError`
     as the source of its `StepError`. Downcast to that `OperationError` and match its
-    `wire()` error type or message. Do not downcast the recorded error to the attempt
-    body's live error, which is unavailable on replay.
+    `wire()` error type or message. The SDK rebuilds this error from the attempt's
+    record in every invocation, including the one where the attempt failed, so its
+    source chain never holds the error the body returned. An attempt error without a
+    record, such as a failure to decode a successful attempt's result, reaches the
+    predicate unchanged.
 
     ```rust
     --8<-- "examples/rust/sdk-reference/error-handling/with-retry-helper.rs"
@@ -779,13 +782,11 @@ available to `step` to other operations, such as `invoke`, `waitForCallback`, an
     this wait when all remaining SDK work is blocked.
 
     When the strategy stops, the block fails with a `durable::ChildContextError` whose
-    source is the last attempt's error. `.without_child_context()` records no block.
-    The attempts then run in the caller's context as `<name>-attempt-<n>`, and the
-    block returns the last attempt's error unchanged.
+    source is the last attempt's error.
 
-    `.virtual_context()` also records no block, but keeps the attempts and waits in a
-    separate operation namespace. The last call to `.virtual_context()` or
-    `.without_child_context()` selects the mode.
+    `.virtual_context()` records no block, but keeps the attempts and waits in a
+    separate operation namespace. The attempts of a block named `<name>` are then
+    named `<name>-attempt-<n>`.
 
 === "C#"
 
