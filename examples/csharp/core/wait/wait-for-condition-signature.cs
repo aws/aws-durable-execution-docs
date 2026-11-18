@@ -20,4 +20,5 @@ public sealed class WaitForConditionConfig<TState>
 {
     public required TState InitialState { get; set; }
     public required IWaitStrategy<TState> WaitStrategy { get; set; }
+    public ILambdaSerializer? Serializer { get; set; }
 }
