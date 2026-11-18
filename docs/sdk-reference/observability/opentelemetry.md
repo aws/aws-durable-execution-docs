@@ -69,10 +69,15 @@ more than 8 hours ago, use this view for workflows that reliably finish well
 under 8 hours.
 
 Choose **invocation view** if an execution might reach that limit or if you need
-to see operation progress as each invocation ends. You can see the first segment
-of a wait under the invocation that started it, even while the wait is pending.
-The vendor's window still applies to the `Workflow` span, which can cover the
-full execution in either view.
+to see operation progress as each Lambda invocation ends. Suppose a workflow
+waits for 10 hours. When the first invocation ends, the SDK exports a short span
+showing that the wait started. When the workflow resumes 10 hours later, the SDK
+exports a second short span showing that the wait completed.
+
+In both views, the SDK exports `Workflow` as a single span when it observes the
+execution succeed or fail. If that span covers all 10 hours, it falls outside
+the vendor's 8-hour window. In invocation view, the vendor can reject `Workflow`
+and still accept both short wait spans from the same trace.
 
 | Consideration              | Execution view                                                   | Invocation view                                                                               |
 | -------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------- |
@@ -85,7 +90,7 @@ full execution in either view.
 
 Nested operations remain under their child-context operation span; attempts
 remain under their operation. Both views export `Invocation` spans as invocations
-end and `Workflow` only when the SDK observes execution success or failure.
+end.
 Export and flush are best effort; a timeout, stop, or terminated runtime can
 leave spans missing.
 
