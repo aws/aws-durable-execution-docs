@@ -114,11 +114,10 @@ SDK is being deployed in your function code, rather than relying on which is bei
 
 === "Rust"
 
-    Requires Rust 1.94.1 or later. Inside a crate, add the SDK from its GitHub
-    repository:
+    Requires Rust 1.94.1 or later. Inside a crate, add the SDK from crates.io:
 
     ```console
-    cargo add aws-durable-execution-sdk --git https://github.com/aws/aws-durable-execution-sdk-rust
+    cargo add aws-durable-execution-sdk
     ```
 
 === "C#"
@@ -174,10 +173,10 @@ cloud. Each SDK has a local test runner that you can use. See
 === "Rust"
 
     The local runner is in the SDK crate, behind the `test-util` feature. Enable the
-    feature for tests with a dev-dependency on the same source:
+    feature for tests with a dev-dependency on the same crate:
 
     ```console
-    cargo add --dev aws-durable-execution-sdk --git https://github.com/aws/aws-durable-execution-sdk-rust --features test-util
+    cargo add --dev aws-durable-execution-sdk --features test-util
     ```
 
 === "C#"

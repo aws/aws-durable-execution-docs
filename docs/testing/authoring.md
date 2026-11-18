@@ -41,13 +41,13 @@
 
     The local runner is in the SDK crate, in the `test_util` module behind the
     `test-util` [feature](https://doc.rust-lang.org/cargo/reference/features.html). Add
-    the SDK as a dev-dependency with that feature, from the same Git source as the
-    runtime dependency, so the feature is on only in tests. Add the
+    the SDK as a dev-dependency with that feature, at the same version as the runtime
+    dependency, so the feature is on only in tests. Add the
     [Tokio](https://tokio.rs) features that `#[tokio::test]` needs:
 
     ```toml
     [dev-dependencies]
-    aws-durable-execution-sdk = { git = "https://github.com/aws/aws-durable-execution-sdk-rust", features = ["test-util"] }
+    aws-durable-execution-sdk = { version = "1", features = ["test-util"] }
     tokio = { version = "1", features = ["macros", "rt"] }
     ```
 

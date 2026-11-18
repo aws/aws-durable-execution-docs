@@ -3,7 +3,7 @@
 !!! note
 
     This guide covers the **AWS Durable Execution SDK**, the client library you use to write
-    durable functions in TypeScript, Python, Java, Go, Rust (Preview), and C#. For
+    durable functions in TypeScript, Python, Java, Go, Rust, and C#. For
     service-level topics including IAM permissions, service quotas, infrastructure-as-code
     configuration, and monitoring, see
     [Lambda durable functions](https://docs.aws.amazon.com/lambda/latest/dg/durable-functions.html)
@@ -63,7 +63,7 @@ For detailed programming language reference, see [SDK Reference](sdk-reference/)
     - :simple-github:
         [aws-durable-execution-sdk-go](https://github.com/aws/aws-durable-execution-sdk-go)
     - :simple-github:
-        [aws-durable-execution-sdk-rust (Preview)](https://github.com/aws/aws-durable-execution-sdk-rust)
+        [aws-durable-execution-sdk-rust](https://github.com/aws/aws-durable-execution-sdk-rust)
     - :simple-github:
         [aws-lambda-dotnet (C#)](https://github.com/aws/aws-lambda-dotnet/tree/master/Libraries/src/Amazon.Lambda.DurableExecution)
 

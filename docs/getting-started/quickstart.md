@@ -1,7 +1,7 @@
 # Quickstart
 
 Create and deploy your first durable function using the AWS CLI. This guide covers
-TypeScript, Python, Java, Go, Rust (Preview), and C#.
+TypeScript, Python, Java, Go, Rust, and C#.
 
 !!! note "Adding all your dependencies to the deployment package"
 
@@ -268,12 +268,11 @@ execution role you just created.
 
 === "Rust"
 
-    Create a crate and add the SDK from its GitHub repository, with the crates the
-    function uses:
+    Create a crate and add the SDK from crates.io, with the crates the function uses:
 
     ```console
     cargo new my-function && cd my-function
-    cargo add aws-durable-execution-sdk --git https://github.com/aws/aws-durable-execution-sdk-rust
+    cargo add aws-durable-execution-sdk
     cargo add lambda_runtime serde_json tracing
     cargo add serde --features derive
     cargo add tokio --features macros
