@@ -44,7 +44,7 @@ Language-specific installation and configuration:
 - [Python](languages/python/index.md)
 - [Java](languages/java/index.md)
 - [Go](languages/go/index.md)
-- [Rust (Preview)](languages/rust/index.md)
+- [Rust](languages/rust/index.md)
 - [C#](languages/csharp/index.md)
 
 ## Integrations

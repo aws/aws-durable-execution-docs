@@ -1,10 +1,5 @@
 # Rust SDK
 
-!!! note "Preview"
-
-    This is an experimental preview not intended for production use. The API may change
-    without notice, and the final version may look different from what you see today.
-
 The SDK crate (`aws-durable-execution-sdk`, library `aws_durable_execution_sdk`) runs in
 your Lambda function. It provides `DurableContext`, the durable operations as methods
 that return builders, logging through `tracing` with replayed records suppressed,
@@ -15,20 +10,20 @@ The SDK requires Rust 1.94.1 or later.
 
 ## Installation
 
-Add the SDK from its GitHub repository, with the crates a durable function uses:
+Add the SDK from crates.io, with the crates a durable function uses:
 
 ```console
-cargo add aws-durable-execution-sdk --git https://github.com/aws/aws-durable-execution-sdk-rust
+cargo add aws-durable-execution-sdk
 cargo add lambda_runtime serde_json tracing
 cargo add serde --features derive
 cargo add tokio --features macros
 ```
 
 The test runners are in the `test_util` module, behind the `test-util` feature. Enable
-the feature for tests with a dev-dependency on the same source:
+the feature for tests with a dev-dependency on the same crate:
 
 ```console
-cargo add --dev aws-durable-execution-sdk --git https://github.com/aws/aws-durable-execution-sdk-rust --features test-util
+cargo add --dev aws-durable-execution-sdk --features test-util
 ```
 
 To read the API documentation, run `cargo doc --open` in a crate that depends on the
