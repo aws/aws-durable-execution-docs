@@ -10,6 +10,10 @@ step body.
 
 Retries do not consume Lambda execution time while waiting for the next retry.
 
+A retry decision can also pause the durable execution. Lambda then starts the next
+attempt only after an operator resumes the execution. See
+[Pause after a failed attempt](#pause-after-a-failed-attempt).
+
 When a step exhausts all retry attempts, the SDK checkpoints the final error and throws
 it to your handler. If you configure no retry strategy on a step, the SDK applies a default strategy
 with up to 5 retries (6 total attempts). See [Retry presets](#retry-presets).
@@ -104,6 +108,10 @@ and linear backoff.
     - `retryableErrorTypes` (optional) Array of error classes. The SDK retries only errors
         that are instances of these classes. When you set both filters, the SDK retries an
         error if it matches either (OR logic).
+    - `pauseEvery` (optional) Pauses the durable execution after every
+        `pauseEvery`th failed attempt that the strategy retries. Use a positive integer.
+        Default: never pauses. See
+        [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Python"
 
@@ -125,6 +133,10 @@ and linear backoff.
     - `retryable_error_types` (optional) List of exception classes. The SDK retries only
         exceptions that are instances of these classes. When you set both filters, the SDK
         retries an error if it matches either (OR logic).
+    - `pause_every` (optional, keyword-only) Pauses the durable execution
+        after every `pause_every`th failed attempt that the strategy retries. Use a
+        positive integer. Default: `None`, which never pauses. See
+        [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Java"
 
@@ -168,6 +180,10 @@ and linear backoff.
     - `RetryableErrors` A slice of `ErrorMatcher`. When empty, every error is retryable.
         Entries must not be nil. An error that no matcher accepts fails the step on
         that attempt. See [Retrying specific errors](#retry-only-specific-errors).
+    - `PauseEvery` Pauses the durable execution after every `PauseEvery`th failed
+        attempt that the strategy retries. Default: `0`, which never pauses. The SDK
+        does not validate it. See
+        [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
     `NewRetryStrategy()` returns one joined error that names every invalid field. The
     strategy rounds each delay to the nearest whole second, with a minimum of 1 second.
@@ -198,6 +214,10 @@ and linear backoff.
     - `retry_if` A predicate over the `durable::StepError`. The SDK retries only the
         errors for which it returns `true`. Without it, the SDK retries every error.
         See [Retry only specific errors](#retry-only-specific-errors).
+    - `pause_every` Pauses the durable execution after every `n`th failed attempt
+        that the strategy retries. Pass 1 or more. Default: never pauses.
+        `pause_every(0)` also never pauses. See
+        [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
     `build()` accepts any value. The strategy rounds each delay to the nearest whole
     second, with a minimum of 1 second. `RetryStrategyConfig::default_preset()`
@@ -493,11 +513,17 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/typescript/sdk-reference/error-handling/retry-strategy-signature.ts"
     ```
 
+    `pause` pauses the execution after this attempt. See
+    [Pause after a failed attempt](#pause-after-a-failed-attempt).
+
 === "Python"
 
     ```python
     --8<-- "examples/python/sdk-reference/error-handling/retry-strategy-signature.py"
     ```
+
+    `pause` pauses the execution after this attempt. See
+    [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Java"
 
@@ -515,6 +541,9 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/go/sdk-reference/error-handling/retry-strategy-signature.go"
     ```
 
+    `Pause` pauses the execution after this attempt. See
+    [Pause after a failed attempt](#pause-after-a-failed-attempt).
+
 === "Rust"
 
     A retry strategy is a function or closure that takes the `&durable::StepError` and
@@ -525,6 +554,9 @@ current attempt number after each failure. The attempt number is one-indexed.
     ```rust
     --8<-- "examples/rust/sdk-reference/error-handling/retry-strategy-signature.rs"
     ```
+
+    `pause` pauses the execution after this attempt. Set it with `with_pause`. See
+    [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "C#"
 
@@ -587,6 +619,197 @@ current attempt number after each failure. The attempt number is one-indexed.
     ```csharp
     --8<-- "examples/csharp/sdk-reference/error-handling/custom-retry-strategy.cs"
     ```
+
+## Pause after a failed attempt
+
+!!! note "SDK support"
+
+    The Java and C# SDKs do not have this feature.
+
+A retry decision can pause the whole durable execution after a failed attempt. When a
+step's function fails and the retry strategy returns a retry with `pause` set, the SDK
+saves the retry checkpoint as usual. Then the SDK calls the Lambda
+`PauseDurableExecution` API and ends the invocation. Lambda does not invoke the function
+again until an operator calls `ResumeDurableExecution`. After the resume, the next attempt
+runs as usual.
+
+Use a pause when a failure needs a person to act, for example an outage of a downstream
+service or a wrong configuration value. You fix the cause, and then you resume the
+execution.
+
+The SDK ignores `pause` when the decision does not retry. So `pause` never changes the
+number of attempts. Only an attempt that failed in the current invocation can pause. A
+step that was interrupted in an earlier invocation does not pause. The callback
+submitter runs as a step and honors `pause`. A retry block does not run as a step and
+ignores `pause`.
+
+If the pause call fails, for example because the execution role lacks a permission, the
+SDK logs a warning and the step retries as usual. A client without pause support also
+retries as usual.
+
+### Pause every N attempts
+
+=== "TypeScript"
+
+    Set `pauseEvery` in `createRetryStrategy()`.
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/error-handling/pause-every.ts"
+    ```
+
+=== "Python"
+
+    Set `pause_every` in `RetryStrategyConfig`.
+
+    ```python
+    --8<-- "examples/python/sdk-reference/error-handling/pause-every.py"
+    ```
+
+=== "Go"
+
+    Set `PauseEvery` in `RetryConfig`.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/pause-every.go"
+    ```
+
+=== "Rust"
+
+    Call `pause_every` on `RetryStrategyConfig::builder()`.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/pause-every.rs"
+    ```
+
+This strategy pauses the execution after failed attempts 5 and 10. The strategy does not
+retry attempt 15, so a failure there fails the step and does not pause.
+
+### Pause from a custom strategy
+
+=== "TypeScript"
+
+    Set `pause: true` on a decision that has `shouldRetry: true`.
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/error-handling/pause-custom-retry-strategy.ts"
+    ```
+
+=== "Python"
+
+    Pass `pause=True` to `RetryDecision.retry()`.
+
+    ```python
+    --8<-- "examples/python/sdk-reference/error-handling/pause-custom-retry-strategy.py"
+    ```
+
+=== "Go"
+
+    Set `Pause: true` on a decision that has `Retry: true`.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/pause-custom-retry-strategy.go"
+    ```
+
+=== "Rust"
+
+    Call `with_pause(true)` on `RetryDecision::retry(delay)`. `with_pause` returns
+    `RetryDecision::Stop` unchanged.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/pause-custom-retry-strategy.rs"
+    ```
+
+This strategy pauses the execution after attempt 5 when the error is a
+`DownstreamUnavailableError`. Every other failure retries after 2 seconds, up to 10
+attempts.
+
+### Pause instead of failing
+
+!!! tip "Redrive a failed step"
+
+    A common question is how to redrive a failed execution, so that it starts again from
+    where it failed and not from the beginning. You cannot redrive a failed durable
+    execution. Instead, set `pause` on the retry decision before the step runs out of
+    retries. The execution then pauses instead of failing. Fix the cause, then call
+    `ResumeDurableExecution`. The execution continues from its last checkpoint and runs
+    the failed step again. So the resume works like a redrive from the failure.
+
+    === "TypeScript"
+
+        ```typescript
+        --8<-- "examples/typescript/sdk-reference/error-handling/pause-instead-of-fail.ts"
+        ```
+
+    === "Python"
+
+        ```python
+        --8<-- "examples/python/sdk-reference/error-handling/pause-instead-of-fail.py"
+        ```
+
+    === "Go"
+
+        ```go
+        --8<-- "examples/go/sdk-reference/error-handling/pause-instead-of-fail.go"
+        ```
+
+    === "Rust"
+
+        ```rust
+        --8<-- "examples/rust/sdk-reference/error-handling/pause-instead-of-fail.rs"
+        ```
+
+    This strategy retries attempts 1 and 2 as usual. From attempt 3 on, every decision
+    retries with `pause`, so the next attempt runs only after a resume. The step never
+    fails by itself. To give up, stop the execution.
+
+### Pauses and other branches
+
+=== "TypeScript"
+
+    The pause ends the invocation at once. A step can still run in another `parallel` or
+    `map` branch. For that step, the SDK aborts `StepContext.signal` and stops recording
+    the step. The step's code can keep running until it observes the signal or Lambda
+    freezes the environment. After the resume, an at-least-once step runs again, and an
+    `AtMostOncePerRetry` step records an interrupted attempt.
+
+=== "Python"
+
+    Steps that still run in other `parallel` or `map` branches finish before the
+    invocation ends. A step in a `map` or `parallel` branch can pause the execution after
+    the `map` or `parallel` operation has finished, for example when its completion config
+    needs only some branches.
+
+=== "Go"
+
+    Steps that still run in other `Parallel` or `Map` branches finish their current
+    attempt. The SDK saves no checkpoint after the pause request. So an attempt that
+    finishes after the request saves nothing and runs again after the resume. A step in a
+    branch that its `Map` or `Parallel` no longer waits for does not pause the execution.
+
+=== "Rust"
+
+    Steps in other `map` or `parallel` branches keep running until the invocation saves
+    its next checkpoint. Lambda saves that checkpoint and answers it without a checkpoint
+    token. The SDK then saves no further checkpoint, and the invocation ends. Work whose
+    result was not saved runs again after the resume. A step in a branch that a finished
+    `map` or `parallel` no longer waits for does not pause the execution.
+
+### Resume a paused execution
+
+An operator resumes the execution with the AWS CLI:
+
+```console
+aws lambda resume-durable-execution \
+  --durable-execution-arn <execution-arn> \
+  --reason "Downstream service recovered"
+```
+
+The function's execution role needs `lambda:PauseDurableExecution` on its own durable
+execution ARNs. If the function uses a customer managed AWS KMS key, the role also needs
+`kms:Decrypt` on that key. The operator needs `lambda:ResumeDurableExecution` on the
+execution. If a customer managed AWS KMS key protects the execution, the operator also
+needs `kms:Decrypt` on that key. See [Pause and resume an execution](../../getting-started/manage-executions.md#pause-and-resume-an-execution)
+for the execution statuses and the operator commands.
 
 ## Retry presets
 

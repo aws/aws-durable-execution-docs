@@ -13,4 +13,6 @@ export interface RetryStrategyConfig {
   jitter?: JitterStrategy;
   retryableErrors?: (string | RegExp)[];
   retryableErrorTypes?: (new () => Error)[];
+  /** Default: undefined (never pauses) */
+  pauseEvery?: number;
 }

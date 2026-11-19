@@ -1,7 +1,7 @@
 # Manage Executions
 
-Use the AWS CLI to inspect, stop, update, and clean up durable functions and their
-executions.
+Use the AWS CLI to inspect, stop, pause, resume, update, and clean up durable functions
+and their executions.
 
 ## List executions
 
@@ -63,6 +63,41 @@ block's result.
     is not rolled back or cancelled. Side effects performed before the next checkpoint (for
     example, an external API call inside a step) still take effect. Design long-running or
     side-effecting steps with this in mind if you expect executions to be stopped.
+
+## Pause and resume an execution
+
+Pause an execution to keep Lambda from invoking the function, for example while a
+downstream service is down. The execution keeps its progress. Resume it to continue from
+its last checkpoint.
+
+```console
+aws lambda pause-durable-execution \
+  --durable-execution-arn <execution-arn> \
+  --reason "Downstream service outage"
+
+aws lambda resume-durable-execution \
+  --durable-execution-arn <execution-arn> \
+  --reason "Downstream service recovered"
+```
+
+If the function is not running, the status changes from `RUNNING` to `PAUSED`. If the
+function is running, the status changes to `PAUSING`. The code keeps running until it
+saves its next checkpoint. Then Lambda ends the invocation and the status changes to
+`PAUSED`. The status does not change during the `PauseDurableExecution` call, so call
+`get-durable-execution` to see the new status. To end a paused execution without
+resuming it, stop it.
+
+Pausing and resuming need the `lambda:PauseDurableExecution` and
+`lambda:ResumeDurableExecution` actions on the durable execution ARN. If the function
+uses a customer managed AWS KMS key, these calls also need `kms:Decrypt` on that key. For
+the execution timeout while paused, and for what keeps running during a pause, see
+[Pausing and resuming durable executions](https://docs.aws.amazon.com/lambda/latest/dg/durable-pause-resume.html)
+in the Lambda Developer Guide.
+
+A step's retry strategy can also pause the execution from code after a failed attempt.
+See [Pause after a failed attempt](../sdk-reference/error-handling/retries.md#pause-after-a-failed-attempt).
+To run a failed step again after you fix its cause, pause instead of failing. See the
+[redrive tip](../sdk-reference/error-handling/retries.md#pause-instead-of-failing).
 
 ## Update function code
 
