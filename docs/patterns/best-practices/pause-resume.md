@@ -1,5 +1,13 @@
 # Pause and resume
 
+!!! note
+
+    This page covers waits inside a durable function. Pausing the whole execution until
+    an operator resumes it is a different feature. See
+    [Pause and resume an execution](../../getting-started/manage-executions.md#pause-and-resume-an-execution)
+    and
+    [Pause after a failed attempt](../../sdk-reference/error-handling/retries.md#pause-after-a-failed-attempt).
+
 Durable functions can pause for seconds, hours, or days without keeping a Lambda
 invocation running. The SDK suspends execution, checkpoints the wait, and resumes the
 handler when the wait condition is met. This turns traditional polling loops and

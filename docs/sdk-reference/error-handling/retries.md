@@ -10,6 +10,10 @@ step body.
 
 Retries do not consume Lambda execution time while waiting for the next retry.
 
+A retry decision can also pause the durable execution. Lambda then starts the next
+attempt only after an operator resumes the execution. See
+[Pause after a failed attempt](#pause-after-a-failed-attempt).
+
 When a step exhausts all retry attempts, the SDK checkpoints the final error and throws
 it to your handler. If you configure no retry strategy on a step, the SDK applies a default strategy
 with up to 5 retries (6 total attempts). See [Retry presets](#retry-presets).
@@ -104,6 +108,10 @@ and linear backoff.
     - `retryableErrorTypes` (optional) Array of error classes. The SDK retries only errors
         that are instances of these classes. When you set both filters, the SDK retries an
         error if it matches either (OR logic).
+    - `pauseEvery` (optional, experimental) Pauses the durable execution after every
+        `pauseEvery`th failed attempt that the strategy retries. Use a positive integer.
+        Default: never pauses. See
+        [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Python"
 
@@ -125,6 +133,10 @@ and linear backoff.
     - `retryable_error_types` (optional) List of exception classes. The SDK retries only
         exceptions that are instances of these classes. When you set both filters, the SDK
         retries an error if it matches either (OR logic).
+    - `pause_every` (optional, keyword-only, experimental) Pauses the durable execution
+        after every `pause_every`th failed attempt that the strategy retries. Use a
+        positive integer. Default: `None`, which never pauses. See
+        [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Java"
 
@@ -493,11 +505,17 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/typescript/sdk-reference/error-handling/retry-strategy-signature.ts"
     ```
 
+    `pause` is experimental. See
+    [Pause after a failed attempt](#pause-after-a-failed-attempt).
+
 === "Python"
 
     ```python
     --8<-- "examples/python/sdk-reference/error-handling/retry-strategy-signature.py"
     ```
+
+    `pause` is experimental. See
+    [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Java"
 
@@ -587,6 +605,135 @@ current attempt number after each failure. The attempt number is one-indexed.
     ```csharp
     --8<-- "examples/csharp/sdk-reference/error-handling/custom-retry-strategy.cs"
     ```
+
+## Pause after a failed attempt
+
+!!! note "SDK support"
+
+    Pausing from a retry decision is experimental. It may change in a future release.
+    The TypeScript SDK 3.1.0 and the Python SDK 3.1.0 support it. The Java, Go, Rust, and
+    C# SDKs do not support it.
+
+A retry decision can pause the whole durable execution after a failed attempt. When a
+step's function fails and the retry strategy returns a retry with `pause` set, the SDK
+saves the retry checkpoint as usual. Then the SDK calls the Lambda
+`PauseDurableExecution` API and ends the invocation. Lambda does not invoke the function
+again until an operator calls `ResumeDurableExecution`. After the resume, the next attempt
+runs as usual.
+
+Use a pause when a failure needs a person to act, for example an outage of a downstream
+service or a wrong configuration value. You fix the cause, and then you resume the
+execution.
+
+The SDK ignores `pause` when the decision does not retry. So `pause` never changes the
+number of attempts. Only an attempt that failed in the current invocation can pause. A
+step that was interrupted in an earlier invocation does not pause. Steps and the
+submitter step of `waitForCallback` use `pause`. The `withRetry` helper ignores it.
+
+If the pause call fails, for example because the execution role lacks a permission, the
+SDK logs a warning and the step retries as usual. A client without pause support also
+retries as usual.
+
+### Pause every N attempts
+
+=== "TypeScript"
+
+    Set `pauseEvery` in `createRetryStrategy()`.
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/error-handling/pause-every.ts"
+    ```
+
+=== "Python"
+
+    Set `pause_every` in `RetryStrategyConfig`.
+
+    ```python
+    --8<-- "examples/python/sdk-reference/error-handling/pause-every.py"
+    ```
+
+This strategy pauses the execution after failed attempts 5 and 10. The strategy does not
+retry attempt 15, so a failure there fails the step and does not pause.
+
+### Pause from a custom strategy
+
+=== "TypeScript"
+
+    Set `pause: true` on a decision that has `shouldRetry: true`.
+
+    ```typescript
+    --8<-- "examples/typescript/sdk-reference/error-handling/pause-custom-retry-strategy.ts"
+    ```
+
+=== "Python"
+
+    Pass `pause=True` to `RetryDecision.retry()`.
+
+    ```python
+    --8<-- "examples/python/sdk-reference/error-handling/pause-custom-retry-strategy.py"
+    ```
+
+This strategy pauses the execution after attempt 5 when the error is a
+`DownstreamUnavailableError`. Every other failure retries after 2 seconds, up to 10
+attempts.
+
+### Pause instead of failing
+
+!!! tip "Redrive a failed step"
+
+    A common question is how to redrive a failed execution, so that it starts again from
+    where it failed and not from the beginning. You cannot redrive a failed durable
+    execution. Instead, set `pause` on the retry decision before the step runs out of
+    retries. The execution then pauses instead of failing. Fix the cause, then call
+    `ResumeDurableExecution`. The execution continues from its last checkpoint and runs
+    the failed step again. So the resume works like a redrive from the failure.
+
+    === "TypeScript"
+
+        ```typescript
+        --8<-- "examples/typescript/sdk-reference/error-handling/pause-instead-of-fail.ts"
+        ```
+
+    === "Python"
+
+        ```python
+        --8<-- "examples/python/sdk-reference/error-handling/pause-instead-of-fail.py"
+        ```
+
+    This strategy retries attempts 1 and 2 as usual. From attempt 3 on, every decision
+    retries with `pause`, so the next attempt runs only after a resume. The step never
+    fails by itself. To give up, stop the execution.
+
+### Pauses and other branches
+
+=== "TypeScript"
+
+    The pause ends the invocation at once. A step that still runs in another `parallel`
+    or `map` branch stops. After the resume, an at-least-once step runs again, and an
+    `AtMostOncePerRetry` step records an interrupted attempt.
+
+=== "Python"
+
+    Steps that still run in other `parallel` or `map` branches finish before the
+    invocation ends. A step in a `map` or `parallel` branch can pause the execution after
+    the `map` or `parallel` operation has finished, for example when its completion config
+    needs only some branches.
+
+### Resume a paused execution
+
+An operator resumes the execution with the AWS CLI:
+
+```console
+aws lambda resume-durable-execution \
+  --durable-execution-arn <execution-arn> \
+  --reason "Downstream service recovered"
+```
+
+The function's execution role needs `lambda:PauseDurableExecution` on its own durable
+execution ARNs. If the function uses a customer managed AWS KMS key, the role also needs
+`kms:Decrypt` on that key. The operator needs `lambda:ResumeDurableExecution` on the
+execution. See [Pause and resume an execution](../../getting-started/manage-executions.md#pause-and-resume-an-execution)
+for the execution statuses and the operator commands.
 
 ## Retry presets
 
