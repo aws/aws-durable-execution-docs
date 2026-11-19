@@ -10,7 +10,7 @@ from aws_durable_execution_sdk_python.config import Duration
 class RetryDecision:
     should_retry: bool
     delay: Duration
-    pause: bool = False  # Experimental
+    pause: bool = False
 
     @classmethod
     def retry(cls, delay: Duration, *, pause: bool = False) -> "RetryDecision": ...

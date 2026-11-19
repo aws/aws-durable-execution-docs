@@ -108,7 +108,7 @@ and linear backoff.
     - `retryableErrorTypes` (optional) Array of error classes. The SDK retries only errors
         that are instances of these classes. When you set both filters, the SDK retries an
         error if it matches either (OR logic).
-    - `pauseEvery` (optional, experimental) Pauses the durable execution after every
+    - `pauseEvery` (optional) Pauses the durable execution after every
         `pauseEvery`th failed attempt that the strategy retries. Use a positive integer.
         Default: never pauses. See
         [Pause after a failed attempt](#pause-after-a-failed-attempt).
@@ -133,7 +133,7 @@ and linear backoff.
     - `retryable_error_types` (optional) List of exception classes. The SDK retries only
         exceptions that are instances of these classes. When you set both filters, the SDK
         retries an error if it matches either (OR logic).
-    - `pause_every` (optional, keyword-only, experimental) Pauses the durable execution
+    - `pause_every` (optional, keyword-only) Pauses the durable execution
         after every `pause_every`th failed attempt that the strategy retries. Use a
         positive integer. Default: `None`, which never pauses. See
         [Pause after a failed attempt](#pause-after-a-failed-attempt).
@@ -505,7 +505,7 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/typescript/sdk-reference/error-handling/retry-strategy-signature.ts"
     ```
 
-    `pause` is experimental. See
+    `pause` pauses the execution after this attempt. See
     [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Python"
@@ -514,7 +514,7 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/python/sdk-reference/error-handling/retry-strategy-signature.py"
     ```
 
-    `pause` is experimental. See
+    `pause` pauses the execution after this attempt. See
     [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Java"
@@ -610,9 +610,8 @@ current attempt number after each failure. The attempt number is one-indexed.
 
 !!! note "SDK support"
 
-    Pausing from a retry decision is experimental. It may change in a future release.
-    The TypeScript SDK 3.1.0 and the Python SDK 3.1.0 support it. The Java, Go, Rust, and
-    C# SDKs do not support it.
+    The TypeScript, Python, Go, and Rust SDKs support pausing from a retry decision. The
+    Java and C# SDKs do not support it yet.
 
 A retry decision can pause the whole durable execution after a failed attempt. When a
 step's function fails and the retry strategy returns a retry with `pause` set, the SDK

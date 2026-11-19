@@ -13,4 +13,4 @@ class RetryStrategyConfig:
     jitter_strategy: JitterStrategy = JitterStrategy.FULL
     retryable_errors: list[str | re.Pattern] | None = None
     retryable_error_types: list[type[Exception]] | None = None
-    pause_every: int | None = field(default=None, kw_only=True)  # Experimental
+    pause_every: int | None = field(default=None, kw_only=True)

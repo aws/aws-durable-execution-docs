@@ -9,6 +9,6 @@ interface RetryDecision {
   shouldRetry: boolean;
   /** Default: { seconds: 1 } */
   delay?: Duration;
-  /** Experimental. Default: false */
+  /** Default: false */
   pause?: boolean;
 }
