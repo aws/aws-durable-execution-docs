@@ -624,8 +624,7 @@ current attempt number after each failure. The attempt number is one-indexed.
 
 !!! note "SDK support"
 
-    The TypeScript, Python, Go, and Rust SDKs support pausing from a retry decision. The
-    Java and C# SDKs do not support it yet.
+    The Java and C# SDKs do not have this feature.
 
 A retry decision can pause the whole durable execution after a failed attempt. When a
 step's function fails and the retry strategy returns a retry with `pause` set, the SDK
