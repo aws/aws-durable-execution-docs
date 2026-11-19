@@ -639,8 +639,9 @@ execution.
 
 The SDK ignores `pause` when the decision does not retry. So `pause` never changes the
 number of attempts. Only an attempt that failed in the current invocation can pause. A
-step that was interrupted in an earlier invocation does not pause. Steps and the
-submitter step of `waitForCallback` use `pause`. The `withRetry` helper ignores it.
+step that was interrupted in an earlier invocation does not pause. The callback
+submitter runs as a step and honors `pause`. A retry block does not run as a step and
+ignores `pause`.
 
 If the pause call fails, for example because the execution role lacks a permission, the
 SDK logs a warning and the step retries as usual. A client without pause support also
@@ -765,8 +766,10 @@ attempts.
 
 === "TypeScript"
 
-    The pause ends the invocation at once. A step that still runs in another `parallel`
-    or `map` branch stops. After the resume, an at-least-once step runs again, and an
+    The pause ends the invocation at once. A step can still run in another `parallel` or
+    `map` branch. For that step, the SDK aborts `StepContext.signal` and stops recording
+    the step. The step's code can keep running until it observes the signal or Lambda
+    freezes the environment. After the resume, an at-least-once step runs again, and an
     `AtMostOncePerRetry` step records an interrupted attempt.
 
 === "Python"
@@ -804,7 +807,8 @@ aws lambda resume-durable-execution \
 The function's execution role needs `lambda:PauseDurableExecution` on its own durable
 execution ARNs. If the function uses a customer managed AWS KMS key, the role also needs
 `kms:Decrypt` on that key. The operator needs `lambda:ResumeDurableExecution` on the
-execution. See [Pause and resume an execution](../../getting-started/manage-executions.md#pause-and-resume-an-execution)
+execution. If a customer managed AWS KMS key protects the execution, the operator also
+needs `kms:Decrypt` on that key. See [Pause and resume an execution](../../getting-started/manage-executions.md#pause-and-resume-an-execution)
 for the execution statuses and the operator commands.
 
 ## Retry presets
