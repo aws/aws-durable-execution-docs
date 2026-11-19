@@ -24,5 +24,9 @@ type RetryConfig struct {
 	// matcher reports as retryable. When empty, every error is retryable.
 	// Entries must not be nil.
 	RetryableErrors []ErrorMatcher
+
+	// PauseEvery makes the strategy pause the durable execution on every
+	// PauseEvery-th attempt. The zero value never pauses.
+	PauseEvery int
 	// Has unexported fields.
 }

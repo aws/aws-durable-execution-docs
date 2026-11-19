@@ -19,6 +19,7 @@ pub enum RetryDecision {
     #[non_exhaustive]
     Retry {
         delay: Duration,
+        pause: bool,
     },
     Stop,
 }
@@ -26,5 +27,8 @@ pub enum RetryDecision {
 impl RetryDecision {
     #[must_use]
     pub fn retry(delay: Duration) -> Self;
+    // ...
+    #[must_use]
+    pub fn with_pause(self, pause: bool) -> Self;
     // ...
 }

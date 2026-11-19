@@ -180,6 +180,10 @@ and linear backoff.
     - `RetryableErrors` A slice of `ErrorMatcher`. When empty, every error is retryable.
         Entries must not be nil. An error that no matcher accepts fails the step on
         that attempt. See [Retrying specific errors](#retry-only-specific-errors).
+    - `PauseEvery` Pauses the durable execution after every `PauseEvery`th failed
+        attempt that the strategy retries. Default: `0`, which never pauses. The SDK
+        does not validate it. See
+        [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
     `NewRetryStrategy()` returns one joined error that names every invalid field. The
     strategy rounds each delay to the nearest whole second, with a minimum of 1 second.
@@ -210,6 +214,10 @@ and linear backoff.
     - `retry_if` A predicate over the `durable::StepError`. The SDK retries only the
         errors for which it returns `true`. Without it, the SDK retries every error.
         See [Retry only specific errors](#retry-only-specific-errors).
+    - `pause_every` Pauses the durable execution after every `n`th failed attempt
+        that the strategy retries. Pass 1 or more. Default: never pauses.
+        `pause_every(0)` also never pauses. See
+        [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
     `build()` accepts any value. The strategy rounds each delay to the nearest whole
     second, with a minimum of 1 second. `RetryStrategyConfig::default_preset()`
@@ -533,6 +541,9 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/go/sdk-reference/error-handling/retry-strategy-signature.go"
     ```
 
+    `Pause` pauses the execution after this attempt. See
+    [Pause after a failed attempt](#pause-after-a-failed-attempt).
+
 === "Rust"
 
     A retry strategy is a function or closure that takes the `&durable::StepError` and
@@ -543,6 +554,9 @@ current attempt number after each failure. The attempt number is one-indexed.
     ```rust
     --8<-- "examples/rust/sdk-reference/error-handling/retry-strategy-signature.rs"
     ```
+
+    `pause` pauses the execution after this attempt. Set it with `with_pause`. See
+    [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "C#"
 
@@ -651,6 +665,22 @@ retries as usual.
     --8<-- "examples/python/sdk-reference/error-handling/pause-every.py"
     ```
 
+=== "Go"
+
+    Set `PauseEvery` in `RetryConfig`.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/pause-every.go"
+    ```
+
+=== "Rust"
+
+    Call `pause_every` on `RetryStrategyConfig::builder()`.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/pause-every.rs"
+    ```
+
 This strategy pauses the execution after failed attempts 5 and 10. The strategy does not
 retry attempt 15, so a failure there fails the step and does not pause.
 
@@ -670,6 +700,23 @@ retry attempt 15, so a failure there fails the step and does not pause.
 
     ```python
     --8<-- "examples/python/sdk-reference/error-handling/pause-custom-retry-strategy.py"
+    ```
+
+=== "Go"
+
+    Set `Pause: true` on a decision that has `Retry: true`.
+
+    ```go
+    --8<-- "examples/go/sdk-reference/error-handling/pause-custom-retry-strategy.go"
+    ```
+
+=== "Rust"
+
+    Call `with_pause(true)` on `RetryDecision::retry(delay)`. `with_pause` returns
+    `RetryDecision::Stop` unchanged.
+
+    ```rust
+    --8<-- "examples/rust/sdk-reference/error-handling/pause-custom-retry-strategy.rs"
     ```
 
 This strategy pauses the execution after attempt 5 when the error is a
@@ -699,6 +746,18 @@ attempts.
         --8<-- "examples/python/sdk-reference/error-handling/pause-instead-of-fail.py"
         ```
 
+    === "Go"
+
+        ```go
+        --8<-- "examples/go/sdk-reference/error-handling/pause-instead-of-fail.go"
+        ```
+
+    === "Rust"
+
+        ```rust
+        --8<-- "examples/rust/sdk-reference/error-handling/pause-instead-of-fail.rs"
+        ```
+
     This strategy retries attempts 1 and 2 as usual. From attempt 3 on, every decision
     retries with `pause`, so the next attempt runs only after a resume. The step never
     fails by itself. To give up, stop the execution.
@@ -717,6 +776,21 @@ attempts.
     invocation ends. A step in a `map` or `parallel` branch can pause the execution after
     the `map` or `parallel` operation has finished, for example when its completion config
     needs only some branches.
+
+=== "Go"
+
+    Steps that still run in other `Parallel` or `Map` branches finish their current
+    attempt. The SDK saves no checkpoint after the pause request. So an attempt that
+    finishes after the request saves nothing and runs again after the resume. A step in a
+    branch that its `Map` or `Parallel` no longer waits for does not pause the execution.
+
+=== "Rust"
+
+    Steps in other `map` or `parallel` branches keep running until the invocation saves
+    its next checkpoint. Lambda saves that checkpoint and answers it without a checkpoint
+    token. The SDK then saves no further checkpoint, and the invocation ends. Work whose
+    result was not saved runs again after the resume. A step in a branch that a finished
+    `map` or `parallel` no longer waits for does not pause the execution.
 
 ### Resume a paused execution
 

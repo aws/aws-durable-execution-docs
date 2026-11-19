@@ -21,5 +21,9 @@ type RetryDecision struct {
 	// Delay is how long to wait before the next attempt. It is ignored
 	// when Retry is false.
 	Delay time.Duration
+
+	// Pause asks the SDK to pause the durable execution after it records
+	// this retry. It is ignored when Retry is false.
+	Pause bool
 	// Has unexported fields.
 }
