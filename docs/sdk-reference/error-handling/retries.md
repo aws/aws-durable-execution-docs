@@ -108,7 +108,7 @@ and linear backoff.
     - `retryableErrorTypes` (optional) Array of error classes. The SDK retries only errors
         that are instances of these classes. When you set both filters, the SDK retries an
         error if it matches either (OR logic).
-    - `pauseEvery` (optional) Pauses the durable execution after every
+    - `pauseEvery` (optional, experimental) Pauses the durable execution after every
         `pauseEvery`th failed attempt that the strategy retries. Use a positive integer.
         Default: never pauses. See
         [Pause after a failed attempt](#pause-after-a-failed-attempt).
@@ -133,7 +133,7 @@ and linear backoff.
     - `retryable_error_types` (optional) List of exception classes. The SDK retries only
         exceptions that are instances of these classes. When you set both filters, the SDK
         retries an error if it matches either (OR logic).
-    - `pause_every` (optional, keyword-only) Pauses the durable execution
+    - `pause_every` (optional, keyword-only, experimental) Pauses the durable execution
         after every `pause_every`th failed attempt that the strategy retries. Use a
         positive integer. Default: `None`, which never pauses. See
         [Pause after a failed attempt](#pause-after-a-failed-attempt).
@@ -180,9 +180,9 @@ and linear backoff.
     - `RetryableErrors` A slice of `ErrorMatcher`. When empty, every error is retryable.
         Entries must not be nil. An error that no matcher accepts fails the step on
         that attempt. See [Retrying specific errors](#retry-only-specific-errors).
-    - `PauseEvery` Pauses the durable execution after every `PauseEvery`th failed
-        attempt that the strategy retries. Default: `0`, which never pauses. The SDK
-        does not validate it. See
+    - `PauseEvery` (experimental) Pauses the durable execution after every
+        `PauseEvery`th failed attempt that the strategy retries. Default: `0`, which
+        never pauses. The SDK does not validate it. See
         [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
     `NewRetryStrategy()` returns one joined error that names every invalid field. The
@@ -214,9 +214,9 @@ and linear backoff.
     - `retry_if` A predicate over the `durable::StepError`. The SDK retries only the
         errors for which it returns `true`. Without it, the SDK retries every error.
         See [Retry only specific errors](#retry-only-specific-errors).
-    - `pause_every` Pauses the durable execution after every `n`th failed attempt
-        that the strategy retries. Pass 1 or more. Default: never pauses.
-        `pause_every(0)` also never pauses. See
+    - `pause_every` (experimental) Pauses the durable execution after every `n`th
+        failed attempt that the strategy retries. Pass 1 or more. Default: never
+        pauses. `pause_every(0)` also never pauses. See
         [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
     `build()` accepts any value. The strategy rounds each delay to the nearest whole
@@ -513,7 +513,7 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/typescript/sdk-reference/error-handling/retry-strategy-signature.ts"
     ```
 
-    `pause` pauses the execution after this attempt. See
+    `pause` (experimental) pauses the execution after this attempt. See
     [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Python"
@@ -522,7 +522,7 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/python/sdk-reference/error-handling/retry-strategy-signature.py"
     ```
 
-    `pause` pauses the execution after this attempt. See
+    `pause` (experimental) pauses the execution after this attempt. See
     [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Java"
@@ -541,7 +541,7 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/go/sdk-reference/error-handling/retry-strategy-signature.go"
     ```
 
-    `Pause` pauses the execution after this attempt. See
+    `Pause` (experimental) pauses the execution after this attempt. See
     [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "Rust"
@@ -555,8 +555,8 @@ current attempt number after each failure. The attempt number is one-indexed.
     --8<-- "examples/rust/sdk-reference/error-handling/retry-strategy-signature.rs"
     ```
 
-    `pause` pauses the execution after this attempt. Set it with `with_pause`. See
-    [Pause after a failed attempt](#pause-after-a-failed-attempt).
+    `pause` (experimental) pauses the execution after this attempt. Set it with
+    `with_pause`. See [Pause after a failed attempt](#pause-after-a-failed-attempt).
 
 === "C#"
 
@@ -621,6 +621,10 @@ current attempt number after each failure. The attempt number is one-indexed.
     ```
 
 ## Pause after a failed attempt
+
+!!! note "Experimental"
+
+    Pausing from a retry decision is experimental. It may change in a future release.
 
 !!! note "SDK support"
 
