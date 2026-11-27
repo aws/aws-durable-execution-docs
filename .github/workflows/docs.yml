@@ -7,14 +7,14 @@ on:
 env:
   AWS_REGION: "us-west-2"
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
+permissions: {}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       
